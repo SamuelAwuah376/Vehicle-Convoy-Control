@@ -1,0 +1,41 @@
+{
+  "scenario": "nominal",
+  "controller": "mpc",
+  "max_abs_cross_track_m": 0.03190216771868967,
+  "rms_cross_track_m": 0.013033710327445977,
+  "min_bumper_gap_m": 5.000000798089957,
+  "gap_error_rms_after_10s_m": 0.25124778637718426,
+  "final_speed_mps": [
+    2.5579540177418963e-13,
+    3.0486066837798324e-07,
+    2.0779070668740974e-06
+  ],
+  "final_progress_m": [
+    426.23587786726137,
+    416.7358770691714,
+    407.23587218596026
+  ],
+  "leader_distance_to_goal_m": 5.115907697472721e-13,
+  "max_acceleration_mps2": 0.0009194095869619722,
+  "min_acceleration_mps2": -2.993608053302962,
+  "max_steering_rad": 0.034895591702191496,
+  "mpc_failures": 0,
+  "config": {
+    "dt": 0.05,
+    "duration": 90,
+    "wheelbase": 2.7,
+    "length": 4.5,
+    "width": 1.8,
+    "lane_width": 3.6,
+    "cruise": 8.0,
+    "standstill_gap": 5.0,
+    "headway": 1.2,
+    "accel_max": 2.0,
+    "brake_max": 4.0,
+    "steer_max": 0.5,
+    "steer_rate": 0.6
+  },
+  "max_footprint_lateral_m": 0.9881067938638807,
+  "lane_boundary_violation_m": 0.0,
+  "collision_pair_samples": 0
+}
