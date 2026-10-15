@@ -32,6 +32,18 @@ Without CasADi, the MPC test is explicitly skipped and the baseline has no CasAD
 
 Every run saves `metrics.json`, `trajectory.csv`, `trajectory.npz`, and `summary.png`; `--animate` adds `convoy.gif`. NPZ state shape is `(samples, 3, 4)` with state order `[x, y, yaw, speed]`; controls are `(samples-1, 3, 2)` in `[acceleration, steering]` order, applied during the interval beginning at the corresponding state sample. CSV vehicle IDs 0, 1, 2 identify the leader and followers. Angles are radians; SI units are used throughout. The GIF runs about six times faster than simulation time and shows the timestamp.
 
+## No Hesi team simulation (`nohesi/`, milestone 1)
+
+A separate package for the No Hesi-style team game; `convoy/` is unchanged. Milestone 1 adds a straight 3-lane road, seeded IDM traffic (8 cars, 18–25 m/s, recycled ahead of the team), collision and road-edge detection, versioned scoring, and a scripted lane-keeping policy. There is no MPC or RL yet.
+
+```powershell
+.venv\Scripts\python -m nohesi --scenario v0 --seed 0 --out results/nohesi_v0 --animate
+```
+
+Outputs: `metrics.json` (seed, scenario and score versions, full scenario config, team/individual scores by term, collisions, overtakes, proximity time, minimum clearances, policy compute time), `events.json` (every overtake with its minimum clearance, scored close passes, collisions), `trajectory.npz`, `team.csv`, `summary.png` and optionally `team.gif`.
+
+Scoring v0 (`nohesi/config.py: Score`): close pass `100·(1+(1.5−c)/1.5)·(v/28)` when footprint clearance `c < 1.5 m` while overtaking from behind; teammate proximity 10 pts/s per pair within 12 m (both above 20 m/s), split between the pair; 1 pt/s per m/s above 20 m/s; collision (traffic, teammate or road edge) −500 to each car involved and the episode ends. Team score is the sum. Detection (`scoring/events.py`) reports raw measurements; only `scoring/score.py` applies the formula. Clearances are sampled at simulation steps, not continuous.
+
 ## Architecture and parameters
 
 | Module | Responsibility |
