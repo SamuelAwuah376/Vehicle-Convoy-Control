@@ -1,10 +1,11 @@
 """Centralized team policy with one MPC per vehicle, solved sequentially in priority order."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import numpy as np
 from ..intentions import IntentionManager
 from ..planning.base import Obstacles, constant_speed_plan
 from ..planning.fallback import first_conflict, lane_keep_plan, shifted_fallback
 from ..planning.single import LaneChangeMPC
+from ..prediction import traffic_prediction
 from ..rl.scripted import lane_keep_control
 from ..world import TEAM
 
@@ -83,11 +84,8 @@ class CentralizedTeam:
 
     def _obstacles(self, snap, i, fresh):
         cfg, N = self.cfg, self.cfg.horizon
-        t = np.arange(N+1)[:, None]*cfg.step
-        traffic = Obstacles(tuple(('traffic', int(k)) for k in snap.traffic_id),
-                            snap.traffic_s[None, :]+snap.traffic_v[None, :]*t,
-                            np.repeat(snap.traffic_d[None, :], N+1, axis=0),
-                            np.repeat(snap.traffic_v[None, :], N+1, axis=0))
+        s, d, v, _ = traffic_prediction(snap, self.road, np.arange(N+1)*cfg.step)
+        traffic = Obstacles(tuple(('traffic', int(k)) for k in snap.traffic_id), s, d, v)
         mates = []
         for j in range(TEAM):
             if j == i:
@@ -101,10 +99,26 @@ class CentralizedTeam:
 
     def _solve(self, snap, i, obstacles, reference, attempt):
         z0 = np.array([snap.team_s[i], snap.team_d[i], snap.team[i, 2]-self.road.heading(snap.team_s[i]), snap.team[i, 3]])
-        plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], self.held[i, 0],
-                              self.intentions.target(i), obstacles, reference)
+        target = replace(self.intentions.target(i), yield_to=self._yield_to(snap, i))
+        plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], self.held[i, 0], target, obstacles, reference)
         self.log.solves.append((snap.time, i, plan.status, plan.iterations, plan.solve_time, attempt))
         return plan
+
+    def _yield_to(self, snap, j):
+        """Teammates changing into car j's lane (middle or destination) within yield_window beyond bumper overlap.
+        Skipped when getting clear the way j already is would contradict the changer's locked gap (j is its front
+        car yet level/behind, or its rear car yet ahead): the changer then sorts it out itself."""
+        lane, near, me = self.road.lane_of(snap.team_d[j]), self.params.length+self.cfg.yield_window, ('team', j)
+        out = []
+        for i, it in enumerate(self.intentions.intentions):
+            ds = snap.team_s[j]-snap.team_s[i]
+            if i == j or it.phase == 'keep' or lane not in self.intentions.entered(it.origin, it.lane) or abs(ds) >= near \
+                    or abs(self.road.lane_of(snap.team_d[i])-lane) > 1:   # changer next to (or in) the lane
+                continue
+            if (it.front == me and ds <= 0) or (it.rear == me and ds > 0):
+                continue
+            out.append(('team', i))
+        return tuple(out)
 
     def _lane_keep(self, snap, i, mode):
         it = self.intentions.intentions[i]
@@ -141,9 +155,8 @@ class CentralizedTeam:
     def _conflict(self, snap, i, plans, higher):
         """First conflict of vehicle i's plan with predicted traffic or higher-priority teammates."""
         cfg, N = self.cfg, self.cfg.horizon
-        t = np.arange(N+1)*cfg.step
-        others = [(('traffic', int(snap.traffic_id[j])), snap.traffic_s[j]+snap.traffic_v[j]*t,
-                   np.full(N+1, snap.traffic_d[j]), np.zeros(N+1)) for j in range(len(snap.traffic_s))]
+        s, d, _, psi = traffic_prediction(snap, self.road, np.arange(N+1)*cfg.step)
+        others = [(('traffic', int(k)), s[:, j], d[:, j], psi[:, j]) for j, k in enumerate(snap.traffic_id)]
         others += [(('team', j), plans[j].z[:, 0], plans[j].z[:, 1], plans[j].z[:, 2]) for j in higher]
         return first_conflict(plans[i].z, others, self.params, cfg.check_margin)
 

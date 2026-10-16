@@ -60,8 +60,10 @@ class Obstacles:
 
 @dataclass
 class Target:
-    """What the MPC is asked to do: lane-centre offset, speed, and the locked gap's bounding cars."""
+    """What the MPC is asked to do: lane-centre offset, speed, the locked gap's bounding cars, and the
+    teammates changing into the vehicle's lane that it should get clear of (soft)."""
     d: float
     speed: float
     front: tuple = None
     rear: tuple = None
+    yield_to: tuple = ()

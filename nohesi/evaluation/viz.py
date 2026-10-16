@@ -54,8 +54,12 @@ def animate(ep, path, behind=60, ahead=140):
         ax.set_xlim(centre-behind, centre+ahead)
         for i, poly in enumerate(team):
             poly.set_xy(footprint(ep.team[k, i], cfg))
+        # Traffic heading from consecutive frames (nonzero while changing lanes; 0 across a respawn).
+        n = min(k+1, len(ep.time)-1); p = n-1 if n > 0 else 0
+        same = ep.traffic_id[n] == ep.traffic_id[p]
+        yaw = np.where(same, np.arctan2(ep.traffic_d[n]-ep.traffic_d[p], np.maximum(ep.traffic_s[n]-ep.traffic_s[p], 1e-6)), 0)
         for j, poly in enumerate(traffic):
-            poly.set_xy(footprint(np.array([ep.traffic_s[k, j], ep.traffic_d[k, j], 0, 0]), cfg))
+            poly.set_xy(footprint(np.array([ep.traffic_s[k, j], ep.traffic_d[k, j], yaw[j], 0]), cfg))
         for i in range(3):
             n = np.searchsorted(plan_times[i], ep.time[k]+1e-9)-1 if plans else -1
             if n < 0:

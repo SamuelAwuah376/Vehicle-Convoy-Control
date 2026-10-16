@@ -9,7 +9,7 @@ from nohesi.evaluation.io import save
 from nohesi.evaluation.runner import run
 from nohesi.evaluation.viz import animate, plot
 
-SCENARIO = 'v2'          # 'v0' (60 s, 8 cars), 'v1' (120 s, 10 cars) or 'v2' (120 s, 20 cars)
+SCENARIO = 'v2'          # 'v0' 60 s 8 cars, 'v1' 120 s 10 cars, 'v2' 20 cars; 'v3'/'v4' = v1/v2 with lane-changing traffic
 POLICY = 'overtaker'     # 'overtaker' (lane changes + MPC) or 'lane_keeping'
 SEED = 2                 # different traffic layout per seed
 SCORE = 'v3'             # 'v0' original; 'v1' team combo, 20 m proximity, low speed points; 'v2' graded proximity; 'v3' = v2 + lane-change maneuvers

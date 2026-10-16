@@ -8,6 +8,7 @@ A two-lane change locks a destination-lane gap at double_gap_lookahead and needs
 from dataclasses import dataclass
 import numpy as np
 from .planning.base import Target
+from .prediction import traffic_lanes
 from .world import TEAM
 
 ACTIONS = tuple((lane, speed, lean) for lane in (-2, -1, 0, 1, 2) for speed in (-1, 0, 1) for lean in (-1, 0, 1))
@@ -28,6 +29,9 @@ class Intention:
     fresh: bool = False        # accepted at this decision, not yet solved
     rejected: bool = False     # last lane request was rejected (observation flag)
     lean: int = 0              # -1/0/+1: target offset right/none/left of the lane centre; never masked
+    since: float = None        # time the current phase ('pending' or 'committed') began
+    best: float = np.inf       # committed: smallest |d - target lane centre| so far, updated by > commit_progress_eps
+    best_time: float = None    # when `best` last improved
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,7 @@ class IntentionManager:
         self.cfg, self.road, self.params = cfg, road, params
         self.intentions = [Intention(lane, float(np.clip(speed, cfg.speed_min, cfg.speed_max))) for _ in range(TEAM)]
         self.records = []
+        self.cooldown = {}   # vehicle -> (lane, until): blocked re-requests after a forced cancel
 
     def target(self, i):
         it = self.intentions[i]
@@ -62,10 +67,11 @@ class IntentionManager:
 
     def _lane_vehicles(self, snap, plans, i, lane, horizon):
         """(key, s at `horizon`, s now, v now, v at `horizon`) of vehicles in, entering or crossing `lane`, excluding
-        teammate i."""
+        teammate i. Traffic changing lanes counts in its current and its target lane."""
+        current, target = traffic_lanes(snap, self.road)
         out = [(('traffic', int(snap.traffic_id[j])), snap.traffic_s[j]+snap.traffic_v[j]*horizon,
                 snap.traffic_s[j], snap.traffic_v[j], snap.traffic_v[j])
-               for j in np.flatnonzero(self.road.lane_of(snap.traffic_d) == lane)]
+               for j in np.flatnonzero((current == lane) | (target == lane))]
         for j in range(TEAM):
             if j == i:
                 continue
@@ -97,6 +103,9 @@ class IntentionManager:
         """
         if not 0 <= lane < self.road.cfg.lanes:
             return None, 'no_lane'
+        blocked = self.cooldown.get(i)
+        if blocked and blocked[0] == lane and snap.time < blocked[1]:
+            return None, 'cooldown'
         me = self.intentions[i]
         origin = me.origin if me.phase != 'keep' else me.lane
         double, side = abs(lane-origin) == 2, int(np.sign(lane-origin))
@@ -164,7 +173,7 @@ class IntentionManager:
             if gap is None:
                 self.records.append(Record(snap.time, i, 'rejected', reason, lane))
                 continue
-            it.origin, it.lane, it.phase, it.fresh = it.lane, lane, 'pending', True
+            it.origin, it.lane, it.phase, it.fresh, it.since = it.lane, lane, 'pending', True, snap.time
             it.front, it.rear = gap
             self.records.append(Record(snap.time, i, 'accepted', '', lane, self.last_gap_margin))
 
@@ -172,34 +181,71 @@ class IntentionManager:
         half = self.params.width/2
         for i, it in enumerate(self.intentions):
             d = snap.team_d[i]
+            if it.phase != 'keep' and it.since is None:
+                it.since = snap.time
             if it.phase == 'pending':
                 side = int(np.sign(it.lane-it.origin))
                 line = 0.5*(self.road.lane_center(it.origin)+self.road.lane_center(it.origin+side))   # first line crossed
                 if (d-line)*side > -half:   # a footprint edge reached the lane line
-                    it.phase = 'committed'
+                    it.phase, it.since, it.best, it.best_time = 'committed', snap.time, np.inf, snap.time
                     self.records.append(Record(snap.time, i, 'committed', '', it.lane))
             if it.phase == 'committed' and abs(d-self.target_d(i)) < self.cfg.done_tolerance:
                 self.records.append(Record(snap.time, i, 'completed', '', it.lane))
                 self._keep(i, it.lane)
-            if it.phase != 'keep':
+            if it.phase != 'keep' and not self._timed_out(snap, i):
                 self._check_lock(snap, plans, i)
 
+    def _timed_out(self, snap, i):
+        """Cancel a pending change not committed within pending_max_time (back to the origin lane), or a committed one
+        older than commit_max_time or without commit_progress_eps of lateral progress toward the target lane centre
+        for commit_stall_time (into the lane the car's centre is in)."""
+        it, c, t = self.intentions[i], self.cfg, snap.time
+        if it.phase == 'pending':
+            if t-it.since > c.pending_max_time:
+                self.cancel(i, t, 'timeout')
+                return True
+            return False
+        e = abs(snap.team_d[i]-self.road.lane_center(it.lane))
+        if e < it.best-c.commit_progress_eps:
+            it.best, it.best_time = e, t
+        reason = 'timeout' if t-it.since > c.commit_max_time else 'stalled' if t-it.best_time >= c.commit_stall_time else ''
+        if reason:
+            self.cancel(i, t, reason, int(self.road.lane_of(snap.team_d[i])))
+        return bool(reason)
+
+    def _predicted_s(self, snap, plans, key, T):
+        kind, j = key
+        if kind == 'traffic':
+            k = int(np.flatnonzero(snap.traffic_id == j)[0])
+            return snap.traffic_s[k]+snap.traffic_v[k]*T
+        plan = plans[j] if plans is not None else None
+        return plan.at(int(round(T/plan.step)))[0] if plan is not None else snap.team_s[j]+snap.team[j, 3]*T
+
     def _check_lock(self, snap, plans, i):
-        """Re-lock, cancel (pending) or drop a stale gap car (committed) once a locked car passed the ego the wrong way."""
+        """Re-lock, cancel (pending) or drop a stale gap car (committed).
+
+        A locked car is stale once it passed the ego the wrong way by length + margin_long now AND is on the wrong
+        side of the ego's predicted end position at the gap rule's lookahead (the same prediction gap_rule uses).
+        A rear car that is ahead now but that the ego is predicted to overtake by the lookahead is consistent: gap_rule
+        would lock it again, so re-checking it every step only churns. Re-locking onto the same gap records nothing.
+        """
         it = self.intentions[i]
         pos = {('team', j): snap.team_s[j] for j in range(TEAM)}
         pos.update((('traffic', int(k)), s) for k, s in zip(snap.traffic_id, snap.traffic_s))
         it.front, it.rear = (k if k in pos else None for k in (it.front, it.rear))   # recycled traffic: unlocked
         far, s = self.params.length+self.cfg.margin_long, snap.team_s[i]
-        stale_rear = it.rear is not None and pos[it.rear]-s > far
-        stale_front = it.front is not None and s-pos[it.front] > far
+        T = self.cfg.double_gap_lookahead if abs(it.lane-it.origin) == 2 else self.cfg.gap_lookahead
+        end = s+self.reach(snap.team[i, 3], it.speed, T)[0]
+        stale_rear = it.rear is not None and pos[it.rear]-s > far and self._predicted_s(snap, plans, it.rear, T) > end
+        stale_front = it.front is not None and s-pos[it.front] > far and self._predicted_s(snap, plans, it.front, T) <= end
         if not (stale_rear or stale_front):
             return
         gap, reason = self.gap_rule(snap, plans if plans is not None else [None]*TEAM, i, it.lane, it.speed,
                                     middle=it.phase == 'pending')
         if gap is not None:
-            it.front, it.rear = gap
-            self.records.append(Record(snap.time, i, 'relocked', '', it.lane, self.last_gap_margin))
+            if gap != (it.front, it.rear):
+                it.front, it.rear = gap
+                self.records.append(Record(snap.time, i, 'relocked', '', it.lane, self.last_gap_margin))
         elif it.phase == 'pending':
             self.cancel(i, snap.time, 'stale_gap')
         else:
@@ -212,12 +258,18 @@ class IntentionManager:
         self._keep(i, it.origin)
         it.rejected = True
 
-    def cancel(self, i, time, reason):
-        """Abandon a lane change: the vehicle returns to its origin lane."""
+    def cancel(self, i, time, reason, lane=None):
+        """Abandon a lane change: the vehicle keeps `lane` (default: returns to its origin lane). The record's
+        `lane` is the lane the vehicle keeps. A cancel the policy didn't ask for blocks re-requesting the abandoned
+        target lane for retry_cooldown s."""
         it = self.intentions[i]
-        self.records.append(Record(time, i, 'cancelled', reason, it.lane))
-        self._keep(i, it.origin if it.phase != 'keep' else it.lane)
+        keep = lane if lane is not None else it.origin if it.phase != 'keep' else it.lane
+        if it.phase != 'keep':
+            self.cooldown[i] = (it.lane, time+self.cfg.retry_cooldown)
+        self.records.append(Record(time, i, 'cancelled', reason, keep))
+        self._keep(i, keep)
 
     def _keep(self, i, lane):
         it = self.intentions[i]
         it.lane, it.phase, it.origin, it.front, it.rear, it.fresh = lane, 'keep', None, None, None, False
+        it.since, it.best, it.best_time = None, np.inf, None

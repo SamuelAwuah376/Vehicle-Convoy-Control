@@ -26,7 +26,7 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 
 | Setting | Options |
 |---|---|
-| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars |
+| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic |
 | `POLICY` | `'overtaker'` (lane changes + MPC) · `'lane_keeping'` (stays in its lane, no MPC) |
 | `SCORE` | `'v0'` … `'v3'` (see [Scoring](#scoring)); `'v3'` is the latest |
 | `SEED` | any integer: a different traffic layout |
@@ -41,7 +41,15 @@ Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The
 |---|---|
 | Convoy baseline | Curved single-lane convoy, pure pursuit steering, gap control, optional leader steering MPC. |
 | No Hesi M1 | Straight 3-lane road, seeded traffic, collision detection, versioned scoring, lane-keeping policy. |
-| **No Hesi M2, part 1** | Lane changes executed by a per-car MPC, as described below. |
+| No Hesi M2, part 1 | Lane changes executed by a per-car MPC. |
+| **No Hesi M2, part 2** | Lane-changing traffic, plus robustness fixes for crowded situations. |
+
+**Milestone 1** builds the game world:
+- **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
+- **Collisions:** detected with footprints; touching traffic, a teammate or the road edge ends the episode.
+- **Scoring:** versioned, and measured only from what actually happened.
+- **Outputs:** an episode runner that saves metrics, histories, plots and GIFs.
+- **Lane-keeping policy:** stays in lane, as the first baseline.
 
 **Milestone 2, part 1** gives every car a planner that executes high-level choices safely:
 - **Actions:** 45 choices per car: lane (two right, one right, keep, one left, two left) × speed (slower, hold, faster) × lean in the lane (right, centre, left).
@@ -54,7 +62,16 @@ Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The
 
 **Results:** across seeds 0–4 on scenarios v1 and v2 there are 0 collisions. Under score v3 the overtaker averages about 17,000 points on v1 and 14,000 on v2, while the lane-keeping baseline scores almost nothing (it never passes closely). Reference runs: `results/nohesi_v1_overtaker_scorev3/` and `results/nohesi_v1_lane_keeping_scorev3/`.
 
-**Next:** milestone 2, part 2, then milestone 3: replace the scripted overtaker with a reinforcement-learning (RL) policy.
+**Milestone 2, part 2** makes traffic more realistic and fixes cases where cars got stuck:
+- **Lane-changing traffic** (scenarios v3, v4): traffic changes lanes with the MOBIL model, moving over smoothly in 3 s, with an 8 s cooldown between a car's changes.
+- **Predicting it:** the team predicts lane-changing traffic (`prediction.py`). A car that is moving over is expected to reach its target lane, and counts as a gap boundary there.
+- **No more stuck lane changes:** a committed change that makes no sideways progress for 2 s, or takes longer than 6 s, is cancelled. A car can't re-request the same lane for 3 s afterwards.
+- **Teammates make room:** a teammate beside a car changing into its lane drops back or pulls ahead, so the slot opens.
+- **Fewer repeated re-locks:** a locked gap is only re-checked when it would actually be wrong at the end of the move.
+
+**Results (milestone 2, part 2):** seeds 0–4 have 0 collisions on v1 and on v4 (20 cars, lane-changing traffic). The overtaker averages about 16,800 points on v1 and 21,200 on v4.
+
+**Next:** milestone 3, replacing the scripted overtaker with a reinforcement-learning (RL) policy. CARLA (Town04 highway) is planned later for visualisation and evaluation only.
 
 ## How the No Hesi simulation works
 
@@ -68,9 +85,10 @@ traffic + team state ──► policy (every 0.5 s) ──► intention layer �
 
 Key ideas, in the order things happen:
 
-1. **Road and traffic** (`road.py`, `traffic.py`, `world.py`): a straight 3-lane road. Traffic cars stay in their lanes at 18–25 m/s and slow down for cars ahead using the Intelligent Driver Model. Cars that fall far behind the team respawn ahead. Positions are in road coordinates: `s` along the road and `d` across it (positive = left, lane 0 = rightmost).
+1. **Road and traffic** (`road.py`, `traffic.py`, `world.py`): a straight 3-lane road. Traffic cars drive at 18–25 m/s and slow down for cars ahead using the Intelligent Driver Model. In scenarios v3/v4 they also change lanes (MOBIL: when it gains them speed without making the new follower brake hard), moving over smoothly in 3 s. Cars that fall far behind the team respawn ahead. Positions are in road coordinates: `s` along the road and `d` across it (positive = left, lane 0 = rightmost).
 2. **Policy** (`rl/scripted.py`): picks one of the 45 actions per car. The scripted *overtaker* changes lanes when stuck behind slower traffic and leans toward cars it passes. Later, RL will replace it.
 3. **Intention layer** (`intentions.py`): a lane request locks the **gap** (the space between two cars) in the target lane where the car will be 3 s later (4 s for a two-lane move). A lane change is *pending* until the car touches the lane line, then *committed* (it can no longer be cancelled by the policy), then *done*.
+   The team predicts traffic (`prediction.py`) at constant speed, and a car that is moving over is predicted to keep moving to its target lane.
 4. **MPC** (`planning/single.py`): model predictive control. Every 0.1 s it solves a small optimisation: "which steering and throttle over the next 3 s best reach the target lane and speed, without breaking the vehicle's limits or getting within 0.25 m of anyone?" Only the first command is applied, and then it re-plans. The three cars plan one after another, each avoiding the plans already made.
 5. **Safety net** (`planning/fallback.py`, `coordination/centralized.py`): if a solve fails, the car follows its previous plan for up to 0.5 s, and otherwise returns to its original lane and follows the car ahead. After each planning cycle, every plan is checked against traffic and teammates. If two plans conflict, the lower-priority car aborts its lane change or brakes. These checks use *predicted* traffic, so they reduce risk but are not a guarantee.
 6. **Scoring** (`scoring/`): measured only from the motion that actually happened, kept separate from the planner so the rules can change freely.
@@ -113,7 +131,7 @@ Each run folder contains:
 | `scoring/events.py`, `scoring/score.py` | Measure what happened, then turn it into points |
 | `evaluation/` | Episode runner, metrics, file output and plots/GIFs |
 
-**Limitations:** the road is straight and the vehicle model is kinematic, which is fine up to about 35 m/s. Traffic never changes lanes, and safety checks are sampled every 0.05 s rather than continuous. Planned next steps include a dynamic vehicle model for higher speeds, curved roads, and Assetto Corsa integration.
+**Limitations:** the road is straight and the vehicle model is kinematic, which is fine up to about 35 m/s. Traffic lane changes are only on in v3/v4, and safety checks are sampled every 0.05 s rather than continuous. Planned next steps include a dynamic vehicle model for higher speeds, curved roads, and Assetto Corsa integration.
 
 ## Convoy baseline (`convoy/`)
 

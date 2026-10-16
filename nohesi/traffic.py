@@ -1,16 +1,27 @@
 import numpy as np
 
 
-class Traffic:
-    """Lane-keeping background cars with IDM car following, seeded spawning and recycling.
+def _profile(tau):
+    """Quintic smoothstep from 0 to 1 with zero slope and curvature at both ends, and its derivative."""
+    tau = np.clip(tau, 0, 1)
+    return tau**3*(10-15*tau+6*tau**2), 30*tau**2*(1-tau)**2
 
-    Positions are rear-axle Frenet coordinates at lane centres. Each spawn gets a new id,
-    so scoring can tell a recycled car from the one it replaced.
+
+class Traffic:
+    """Background cars with IDM car following, optional MOBIL lane changes, seeded spawning and recycling.
+
+    Positions are rear-axle Frenet coordinates. `lane` is the lane a car is in (its origin lane while
+    changing); a change moves d from lane centre to lane centre over cfg.lane_change_time, during which
+    the car occupies both lanes. Each spawn gets a new id, so scoring can tell a recycled car from the
+    one it replaced.
     """
     def __init__(self, cfg, road, rng, team_s, team_lane):
         self.cfg, self.road, self.rng = cfg, road, rng
         self.s = np.empty(0); self.lane = np.empty(0, int)
         self.v = np.empty(0); self.v0 = np.empty(0); self.id = np.empty(0, int)
+        self.target = np.empty(0, int)      # lane being changed to (only meaningful while changing)
+        self.lc_t = np.empty(0)             # time into the current change; nan when not changing
+        self.lc_end = np.empty(0)           # time the last change finished (-inf: none yet)
         self.next_id = 0
         rear, front = np.min(team_s), np.max(team_s)
         for _ in range(cfg.count):
@@ -24,13 +35,46 @@ class Traffic:
                     break
             else:
                 raise ValueError('could not place traffic; reduce count or widen spawn window')
+        n = len(self.s)
+        self.time = 0.0
+        # MOBIL evaluation schedule per slot (kept across recycling); no rng use unless enabled.
+        self.next_eval = rng.uniform(0, cfg.lane_change_interval, n) if cfg.lane_changes else np.full(n, np.inf)
+
+    @property
+    def changing(self):
+        return ~np.isnan(self.lc_t)
+
+    @property
+    def target_lane(self):
+        return np.where(self.changing, self.target, self.lane)
+
+    def _progress(self):
+        return _profile(np.nan_to_num(self.lc_t)/self.cfg.lane_change_time)
 
     @property
     def d(self):
-        return np.array([self.road.lane_center(l) for l in self.lane])
+        centre = np.array([self.road.lane_center(l) for l in self.lane], float)
+        if not np.any(self.changing):
+            return centre
+        p, _ = self._progress()
+        return centre+np.where(self.changing, (self.target-self.lane)*self.road.cfg.lane_width*p, 0)
+
+    @property
+    def vd(self):
+        _, dp = self._progress()
+        return np.where(self.changing, (self.target-self.lane)*self.road.cfg.lane_width*dp/self.cfg.lane_change_time, 0.)
+
+    @property
+    def heading(self):
+        """Heading relative to the road while changing lanes (0 otherwise)."""
+        return np.arctan2(self.vd, np.maximum(self.v, 1e-3))
+
+    def _occupies(self, lane):
+        """Traffic cars occupying a lane (in it, or changing into or out of it)."""
+        return (self.lane == lane) | (self.changing & (self.target == lane))
 
     def _free(self, s, lane, skip=None):
-        same = (self.lane == lane)
+        same = self._occupies(lane)
         if skip is not None:
             same[skip] = False
         return not np.any(np.abs(self.s[same]-s) < self.cfg.min_gap)
@@ -39,15 +83,30 @@ class Traffic:
         v0 = self.rng.uniform(self.cfg.speed_min, self.cfg.speed_max)
         self.s = np.r_[self.s, s]; self.lane = np.r_[self.lane, lane]
         self.v = np.r_[self.v, v0]; self.v0 = np.r_[self.v0, v0]
+        self.target = np.r_[self.target, lane]; self.lc_t = np.r_[self.lc_t, np.nan]
+        self.lc_end = np.r_[self.lc_end, -np.inf]
         self.id = np.r_[self.id, self.next_id]; self.next_id += 1
 
-    def idm(self, others_s, others_lane, others_v, length):
-        """IDM acceleration; leaders include other traffic and the given (team) vehicles."""
+    def _acc(self, v, v0, lead_gap=None, lead_v=None):
+        """IDM acceleration for speed v toward v0 behind a leader at bumper gap lead_gap (None: free road)."""
         c = self.cfg
+        free = 1-(v/v0)**4
+        if lead_gap is not None:
+            desired = c.idm_gap+v*c.idm_headway+v*(v-lead_v)/(2*np.sqrt(c.idm_accel*c.idm_brake))
+            free -= (max(desired, 0)/max(lead_gap, 0.1))**2
+        return float(np.clip(c.idm_accel*free, -c.idm_brake_max, c.idm_accel))
+
+    def idm(self, others_s, others_lane, others_v, length):
+        """IDM acceleration; leaders include other traffic and the given (team) vehicles. A changing
+        car leads in both lanes and follows the nearer leader of its two lanes."""
+        c = self.cfg
+        tgt = self.target_lane
         all_s = np.r_[self.s, others_s]; all_lane = np.r_[self.lane, others_lane]; all_v = np.r_[self.v, others_v]
+        all_lane2 = np.r_[tgt, others_lane]
         accel = np.empty(len(self.s))
         for i in range(len(self.s)):
-            ahead = (all_lane == self.lane[i]) & (all_s > self.s[i])
+            ahead = ((all_lane == self.lane[i]) | (all_lane2 == self.lane[i]) | (all_lane == tgt[i]) |
+                     (all_lane2 == tgt[i])) & (all_s > self.s[i])
             free = 1-(self.v[i]/self.v0[i])**4
             if np.any(ahead):
                 j = np.flatnonzero(ahead)[np.argmin(all_s[ahead])]
@@ -57,11 +116,96 @@ class Traffic:
             accel[i] = np.clip(c.idm_accel*free, -c.idm_brake_max, c.idm_accel)
         return accel
 
-    def step(self, dt, others_s, others_lane, others_v, length):
+    def _mobil(self, others_s, others_lane, others_v, length, others_lane2):
+        """Start lane changes for cars due an evaluation (in index order, so earlier starts are seen)."""
+        c, lanes = self.cfg, self.road.cfg.lanes
+        n, m = len(self.s), len(others_s)
+        all_s = np.r_[self.s, others_s]; all_v = np.r_[self.v, others_v]
+        # Team cars use their own speed as desired speed (assumed to hold it).
+        all_v0 = np.r_[self.v0, np.maximum(others_v, 0.1)]
+        idx = np.arange(n+m)
+
+        def occupants(lane):
+            tgt = self.target_lane
+            return np.r_[(self.lane == lane) | (tgt == lane), (others_lane == lane) | (others_lane2 == lane)]
+
+        def leader(k, lane, skip):
+            mask = occupants(lane) & (all_s > all_s[k]) & (idx != skip) & (idx != k)
+            if not np.any(mask):
+                return None
+            return np.flatnonzero(mask)[np.argmin(all_s[mask])]
+
+        def follower(s, lane, skip):
+            mask = occupants(lane) & (all_s < s) & (idx != skip)
+            if not np.any(mask):
+                return None
+            return np.flatnonzero(mask)[np.argmax(all_s[mask])]
+
+        def acc(k, lead):
+            if lead is None:
+                return self._acc(all_v[k], all_v0[k])
+            return self._acc(all_v[k], all_v0[k], all_s[lead]-all_s[k]-length, all_v[lead])
+
+        for i in range(n):
+            if self.time+1e-9 < self.next_eval[i]:
+                continue
+            while self.next_eval[i] <= self.time+1e-9:
+                self.next_eval[i] += c.lane_change_interval
+            if self.changing[i] or self.time-self.lc_end[i] < c.lane_change_cooldown:   # no back-to-back changes
+                continue
+            lane, s = self.lane[i], self.s[i]
+            a_c = acc(i, leader(i, lane, i))
+            fo = follower(s, lane, i)
+            best, best_gain = None, c.mobil_threshold
+            for new in (lane-1, lane+1):
+                if not 0 <= new < lanes:
+                    continue
+                ln, fn = leader(i, new, i), follower(s, new, i)
+                # Room: bumper gaps to both new neighbours (and nobody alongside).
+                beside = occupants(new) & (np.abs(all_s-s) < length+c.lane_change_gap) & (idx != i)
+                if np.any(beside):
+                    continue
+                at_c = acc(i, ln)
+                gain = at_c-a_c
+                if fn is not None:
+                    lead_n = leader(fn, new, -1)            # currently ahead of the new follower
+                    a_n = acc(fn, lead_n)
+                    at_n = self._acc(all_v[fn], all_v0[fn], s-all_s[fn]-length, self.v[i])
+                    if at_n < -c.mobil_safe_brake:
+                        continue
+                    gain += c.mobil_politeness*(at_n-a_n)
+                if fo is not None:
+                    a_o = acc(fo, i)
+                    at_o = acc(fo, leader(fo, lane, i))
+                    gain += c.mobil_politeness*(at_o-a_o)
+                gain += c.keep_right_bias*(1 if new < lane else -1)
+                if gain > best_gain:
+                    best, best_gain = new, gain
+            if best is not None:
+                self.target[i], self.lc_t[i] = best, 0.0
+
+    def step(self, dt, others_s, others_lane, others_v, length, others_d=None, width=0.0):
+        """Advance one step. With others_d, a team car whose footprint (width) crosses a lane line also
+        occupies the neighbouring lane for MOBIL gap and safety checks (IDM still uses others_lane)."""
+        others_s, others_lane, others_v = np.asarray(others_s, float), np.asarray(others_lane, int), np.asarray(others_v, float)
+        if self.cfg.lane_changes:
+            lane2 = others_lane
+            if others_d is not None:
+                off = np.asarray(others_d, float)-np.array([self.road.lane_center(l) for l in others_lane], float)
+                cross = np.abs(off)+width/2 > self.road.cfg.lane_width/2
+                lane2 = np.where(cross, np.clip(others_lane+np.sign(off).astype(int), 0, self.road.cfg.lanes-1), others_lane)
+            self._mobil(others_s, others_lane, others_v, length, lane2)
         a = self.idm(others_s, others_lane, others_v, length)
         stop = np.where(a < 0, np.minimum(dt, self.v/np.maximum(-a, 1e-9)), dt)
         self.s = self.s+np.maximum(self.v+0.5*a*stop, 0)*stop
         self.v = np.maximum(self.v+a*dt, 0)
+        self.time += dt
+        if np.any(self.changing):
+            self.lc_t = self.lc_t+dt
+            done = self.changing & (self.lc_t >= self.cfg.lane_change_time-1e-9)
+            self.lane = np.where(done, self.target, self.lane)
+            self.lc_t[done] = np.nan
+            self.lc_end[done] = self.time
 
     def recycle(self, team_s):
         """Respawn cars that fell behind the team at a free spot ahead (skipped if none is free)."""
@@ -72,6 +216,7 @@ class Traffic:
             if lanes:
                 v0 = self.rng.uniform(self.cfg.speed_min, self.cfg.speed_max)
                 self.s[i], self.lane[i], self.v[i], self.v0[i] = s, lanes[0], v0, v0
+                self.target[i], self.lc_t[i], self.lc_end[i] = lanes[0], np.nan, -np.inf
                 self.id[i] = self.next_id; self.next_id += 1
 
     def predict(self, horizon):

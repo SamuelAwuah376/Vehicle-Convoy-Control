@@ -29,11 +29,16 @@ class Snapshot:
     traffic_id: np.ndarray
     collisions: tuple
     done: bool
+    traffic_vd: np.ndarray = None           # lateral speed (m/s); None means zeros
+    traffic_target_lane: np.ndarray = None  # lane each car is heading to (its lane when not changing); None means lane_of(traffic_d)
 
 
 def traffic_states(snapshot, road):
     xy = road.to_xy(snapshot.traffic_s, snapshot.traffic_d)
-    return np.column_stack((xy, road.heading(snapshot.traffic_s), snapshot.traffic_v))
+    heading = road.heading(snapshot.traffic_s)
+    if snapshot.traffic_vd is not None:
+        heading = heading+np.arctan2(snapshot.traffic_vd, np.maximum(snapshot.traffic_v, 1e-3))
+    return np.column_stack((xy, heading, snapshot.traffic_v))
 
 
 def _nearest(snapshot, road, s, lane, skip, direction, include_team=True):
@@ -91,7 +96,8 @@ class World:
             self.team[i], a, self.steer[i] = self.plant.step(self.team[i], controls[i][0], controls[i][1], self.steer[i])
             applied[i] = a, self.steer[i]
         # Traffic reacts to the team positions from the same pre-step snapshot.
-        self.traffic.step(dt, prev.team_s, self.road.lane_of(prev.team_d), prev.team[:, 3], self.scenario.vehicle.length)
+        self.traffic.step(dt, prev.team_s, self.road.lane_of(prev.team_d), prev.team[:, 3], self.scenario.vehicle.length,
+                          prev.team_d, self.scenario.vehicle.width)
         self.traffic.recycle(prev.team_s)
         self.steps += 1
         self.time = self.steps*dt
@@ -102,7 +108,7 @@ class World:
         team_s, team_d = self.road.to_frenet(self.team[:, :2])
         snap = Snapshot(self.time, self.team.copy(), self.steer.copy(), team_s, team_d,
                         self.traffic.s.copy(), self.traffic.d, self.traffic.v.copy(),
-                        self.traffic.id.copy(), (), False)
+                        self.traffic.id.copy(), (), False, self.traffic.vd, self.traffic.target_lane.copy())
         collisions = self.collisions(snap)
         return replace(snap, collisions=collisions, done=bool(collisions))
 

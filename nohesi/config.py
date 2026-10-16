@@ -56,9 +56,24 @@ class Traffic:
     idm_brake_max: float = 8.0
     idm_gap: float = 2.0
     idm_headway: float = 1.5
+    # MOBIL lane changes (off by default; when off, no extra rng draws, so v0-v2 traffic is unchanged).
+    lane_changes: bool = False
+    mobil_politeness: float = 0.3
+    mobil_threshold: float = 0.2      # m/s^2 incentive needed to change
+    mobil_safe_brake: float = 3.0     # m/s^2 most braking imposed on the new follower
+    lane_change_time: float = 3.0     # s, lane centre to lane centre (quintic profile)
+    lane_change_interval: float = 1.0 # s between MOBIL evaluations per car (seeded phase)
+    lane_change_gap: float = 2.0      # m, minimum bumper gap to both target-lane neighbours at the start
+    lane_change_cooldown: float = 8.0 # s after finishing a lane change before the same car may start another
+    keep_right_bias: float = 0.0      # m/s^2 added to the incentive for moving right, subtracted for left
 
     def __post_init__(self):
-        _positive(self, *vars(self))
+        _positive(self, *(k for k in vars(self) if k not in ('lane_changes', 'mobil_politeness', 'mobil_threshold',
+                                                             'keep_right_bias')))
+        if any(not isfinite(getattr(self, k)) or getattr(self, k) < 0 for k in ('mobil_politeness', 'mobil_threshold')):
+            raise ValueError('mobil_politeness and mobil_threshold must be non-negative')
+        if not isfinite(self.keep_right_bias):
+            raise ValueError('keep_right_bias must be finite')
         if self.speed_min > self.speed_max:
             raise ValueError('speed_min must not exceed speed_max')
 
@@ -115,7 +130,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm2.7'
+    version: str = 'm2.9'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -139,6 +154,11 @@ class Planner:
     double_gap_lookahead: float = 4.0   # two-lane change: destination gap prediction time (s)
     middle_window_start: float = 0.8    # two-lane change: middle lane must be clear over this crossing window (s)
     middle_window_end: float = 2.5
+    commit_progress_eps: float = 0.1    # committed change: lateral progress below this (m) does not count
+    commit_stall_time: float = 2.0      # cancel a committed change without progress for this long (s)
+    commit_max_time: float = 6.0        # cancel a committed change older than this (s)
+    pending_max_time: float = 4.0       # cancel a pending change not committed within this (s)
+    retry_cooldown: float = 3.0         # after a stalled/timed-out/forced cancel, the same car can't re-request that lane (s)
     check_margin: float = 0.1       # post-cycle footprint check clearance (QP margins are 0.25 m per axis)
     emergency_decel: float = 2.0    # minimum braking when yielding after an unresolved conflict
     w_lateral: float = 1.0
@@ -150,6 +170,9 @@ class Planner:
     w_steer_rate: float = 2000.0
     w_slack: float = 100.0
     lateral_tolerance: float = 0.05  # |dd| this close below the side gap still counts as laterally clear (side bound unchanged)
+    yield_window: float = 10.0      # yield to a teammate changing into the lane this close beyond bumper overlap (m)
+    yield_margin: float = 1.0       # yielding car aims this far past the changer's side zone (m)
+    w_yield: float = 100.0          # slack weight of the soft get-clear constraint toward that teammate
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time')))
@@ -192,7 +215,19 @@ def scenario_v2():
     return replace(scenario_v1(), version='v2', traffic=Traffic(count=20))
 
 
-SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2}
+def scenario_v3():
+    """v1 with MOBIL lane-changing traffic."""
+    s = scenario_v1()
+    return replace(s, version='v3', traffic=replace(s.traffic, lane_changes=True))
+
+
+def scenario_v4():
+    """v2 with MOBIL lane-changing traffic."""
+    s = scenario_v2()
+    return replace(s, version='v4', traffic=replace(s.traffic, lane_changes=True))
+
+
+SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4}
 
 
 def score_v1():

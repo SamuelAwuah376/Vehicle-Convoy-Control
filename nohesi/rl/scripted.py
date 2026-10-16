@@ -15,7 +15,9 @@ def lane_keep_law(state, s, route, params, target_speed, lead=None, max_accel=np
 
 
 def lane_keep_control(snap, road, params, i, lane, target_speed, max_accel=np.inf):
-    lead = vehicle_ahead(snap, road, snap.team_s[i], lane, skip=i)
+    """Lane keeping for teammate i; the lead includes traffic merging into `lane`."""
+    from ..prediction import vehicle_ahead_incl_merging
+    lead = vehicle_ahead_incl_merging(snap, road, snap.team_s[i], lane, skip=i)
     return lane_keep_law(snap.team[i], snap.team_s[i], road.lane_route(lane), params, target_speed, lead, max_accel)
 
 

@@ -60,8 +60,8 @@ def _gap_margins(records):
 
 def double_lane_changes(records, lane):
     """Accepted/completed lane changes spanning two lanes. Records carry only the destination lane, so
-    each vehicle's lane is tracked from `lane` (the scenario team lane), updated only on 'completed';
-    assumes cancelled/aborted/rejected changes leave the car in its last completed lane."""
+    each vehicle's lane is tracked from `lane` (the scenario team lane), updated on 'completed' and on 'cancelled'
+    (whose record lane is the lane the car keeps, e.g. the middle lane after a stalled two-lane move)."""
     last, out = {}, Counter()
     for r in records:
         if r.kind in ('accepted', 'completed'):
@@ -69,6 +69,8 @@ def double_lane_changes(records, lane):
                 out[r.kind] += 1
             if r.kind == 'completed':
                 last[r.vehicle] = r.lane
+        elif r.kind == 'cancelled':
+            last[r.vehicle] = r.lane
     return {'accepted': out['accepted'], 'completed': out['completed']}
 
 

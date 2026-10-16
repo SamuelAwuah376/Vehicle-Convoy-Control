@@ -29,6 +29,11 @@ def test_no_double_change_with_middle_occupied_alongside():
 
 def test_double_lane_change_metrics():
     r = [Record(0, 0, 'accepted', lane=2), Record(1, 0, 'completed', lane=2), Record(2, 1, 'accepted', lane=1),
-         Record(3, 0, 'accepted', lane=1), Record(4, 0, 'cancelled', lane=1), Record(5, 1, 'completed', lane=1),
+         Record(3, 0, 'accepted', lane=1), Record(4, 0, 'cancelled', lane=2), Record(5, 1, 'completed', lane=1),
          Record(6, 0, 'accepted', lane=0), Record(7, 0, 'rejected', 'gap', 1), Record(8, 0, 'completed', lane=0)]
+    # A cancelled record's lane is the lane the car keeps (here back in lane 2).
     assert double_lane_changes(r, 0) == {'accepted': 2, 'completed': 2}
+    # A stalled two-lane move that leaves the car in the middle lane: the next change from there is single.
+    stall = [Record(0, 0, 'accepted', lane=2), Record(3, 0, 'cancelled', 'stalled', lane=1),
+             Record(5, 0, 'accepted', lane=2), Record(6, 0, 'completed', lane=2)]
+    assert double_lane_changes(stall, 0) == {'accepted': 1, 'completed': 0}

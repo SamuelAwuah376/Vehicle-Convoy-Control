@@ -12,8 +12,9 @@ ordinary obstacle. "Beside" is picked when the reference is laterally clear to w
 kept consistent along the horizon: no side flip and no behind/ahead jump between adjacent
 steps (the earlier step's choice is kept). A soft time headway (slack-penalised) is added for cars the reference
 shares a lane with: `headway` to traffic and the shorter `teammate_headway` to teammates
-(drafting). These are constraints on predicted traffic and an approximate model:
-they do not guarantee safety.
+(drafting). For teammates in `target.yield_to` (changing into the vehicle's lane) a soft longitudinal
+get-clear row per step (weight `w_yield`) opens a slot regardless of lateral offset. These are
+constraints on predicted traffic and an approximate model: they do not guarantee safety.
 
 Variables x = [z_0..z_N (4 each: s, d, heading error, v), u_0..u_{N-1} (a, steer), slacks].
 Matrices are assembled with vectorised NumPy; the cost Hessian is fixed apart from slacks.
@@ -100,10 +101,11 @@ class LaneChangeMPC:
         rows.block(N, [(ks-1, zi(ks, 1), 1.0)], -edge, edge)
         rows.block(N, [(ks-1, zi(ks, 3), 1.0)], 0.0, np.inf)
 
-        n_slack = self._obstacle_rows(rows, zr, obstacles.s-s0, obstacles.d, obstacles.v, obstacles.keys, target)
+        w_slack = self._obstacle_rows(rows, zr, obstacles.s-s0, obstacles.d, obstacles.v, obstacles.keys, target)
+        n_slack = len(w_slack)
         n = nz+nu+n_slack
         A, lo, hi = rows.matrix(n)
-        P, q = self._cost(n, n_slack, target, steer_prev, accel_prev)
+        P, q = self._cost(n, w_slack, target, steer_prev, accel_prev)
         solver = osqp.OSQP(algebra='builtin')   # skips per-call probing for optional CUDA/MKL backends
         solver.setup(P, q, A, lo, hi, verbose=False, max_iter=c.max_iter, eps_abs=1e-4, eps_rel=1e-4,
                      polishing=False, warm_starting=True)
@@ -118,10 +120,10 @@ class LaneChangeMPC:
                     int(result.info.iter), elapsed)
 
     def _obstacle_rows(self, rows, zr, obs_s, obs_d, obs_v, keys, target):
-        """Add one separating constraint per relevant (step, obstacle); return the number of slacks."""
+        """Add one separating constraint per relevant (step, obstacle) and the soft rows; return the slack weights."""
         c, p, N = self.cfg, self.plant.params, self.cfg.horizon
         if not keys:
-            return 0
+            return np.zeros(0)
         long_gap, lat_gap = p.length+c.margin_long, p.width+c.margin_lat
         os_, od, ov = obs_s[1:], obs_d[1:], obs_v[1:]
         ds, dd = zr[1:, :1]-os_, zr[1:, 1:2]-od
@@ -166,7 +168,20 @@ class LaneChangeMPC:
                 rows.block(m, entries, (os_+long_gap+tau*ov)[mask], np.inf)
             rows.block(m, [(local, cols, 1.0)], 0.0, np.inf)
             slack += m
-        return slack
+        weights = [np.full(slack, c.w_slack)]
+        # Soft yield to teammates changing into the ego's lane, any lateral offset: get clear along the road the way
+        # the ego already is (behind or level: drop back; ahead: pull ahead), past the changer's stay-beside zone
+        # (side_zone) so its MPC may enter. One slack per step.
+        ks, local = np.arange(1, N+1), np.arange(N)
+        clear = long_gap+c.side_zone+c.yield_margin
+        for o in [keys.index(key) for key in target.yield_to if key in keys]:
+            cols, sign = self.nz+self.nu+slack+local, 1.0 if obs_s[0, o] < 0 else -1.0
+            bound = os_[:, o]+sign*clear
+            rows.block(N, [(local, self.zi(ks, 0), 1.0), (local, cols, sign)],
+                       *((bound, np.inf) if sign > 0 else (-np.inf, bound)))
+            rows.block(N, [(local, cols, 1.0)], 0.0, np.inf)
+            slack += N; weights.append(np.full(N, c.w_yield))
+        return np.concatenate(weights)
 
     def _hessian(self):
         """Upper-triangular cost Hessian over states and inputs as COO (rows, cols, values)."""
@@ -183,11 +198,12 @@ class LaneChangeMPC:
         diag, off = np.concatenate(diag_idx), np.concatenate(off_idx)
         return np.r_[diag, off], np.r_[diag, off+2], np.concatenate(diag_val+off_val)
 
-    def _cost(self, n, n_slack, target, steer_prev, accel_prev):
+    def _cost(self, n, w_slack, target, steer_prev, accel_prev):
+        """w_slack: per-slack weight w, costing w*(slack^2 + slack)."""
         c, N, nz = self.cfg, self.cfg.horizon, self.nz
         rows, cols, vals = self.base_hessian
-        slack = nz+self.nu+np.arange(n_slack)
-        P = sp.csc_matrix((np.r_[vals, np.full(n_slack, 2*c.w_slack)], (np.r_[rows, slack], np.r_[cols, slack])),
+        slack = nz+self.nu+np.arange(len(w_slack))
+        P = sp.csc_matrix((np.r_[vals, 2*w_slack], (np.r_[rows, slack], np.r_[cols, slack])),
                           shape=(n, n))
         q = np.zeros(n)
         ks = np.arange(1, N+1)
@@ -195,5 +211,5 @@ class LaneChangeMPC:
         q[4*ks+3] = -2*c.w_speed*target.speed
         q[nz] = -2*c.w_accel_rate*accel_prev
         q[nz+1] = -2*c.w_steer_rate*steer_prev
-        q[slack] = c.w_slack
+        q[slack] = w_slack
         return P, q

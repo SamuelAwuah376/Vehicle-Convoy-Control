@@ -3,7 +3,7 @@ from dataclasses import replace
 import numpy as np
 from ..geometry import clearance, footprint, overlap
 from ..rl.scripted import lane_keep_law
-from ..world import vehicle_ahead
+from ..prediction import vehicle_ahead_incl_merging
 from .base import Plan
 
 
@@ -32,13 +32,13 @@ def shifted_fallback(previous, obstacles, cfg, params):
 
 
 def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, source='lane_keep'):
-    """Roll the lane-keeping law forward on the plant (lead car at constant speed) so teammates
-    see where a fallback vehicle will actually go."""
+    """Roll the lane-keeping law forward on the plant (lead car, including traffic merging into the lane, at
+    constant speed) so teammates see where a fallback vehicle will actually go."""
     p, dt = plant.params, plant.params.dt
     sub = int(round(cfg.step/dt))
     route = road.lane_route(lane)
     state, steer = snap.team[i].copy(), snap.team_steer[i]
-    lead = vehicle_ahead(snap, road, snap.team_s[i], lane, skip=i)
+    lead = vehicle_ahead_incl_merging(snap, road, snap.team_s[i], lane, skip=i)
     s0 = snap.team_s[i]
     z, u = [], []
     for k in range(cfg.horizon+1):
