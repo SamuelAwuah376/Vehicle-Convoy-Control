@@ -1,6 +1,6 @@
 from dataclasses import dataclass, replace
 import numpy as np
-from .dynamics import KinematicPlant
+from .dynamics import DynamicPlant, kinematic_body, make_plant
 from .geometry import footprint, overlap
 from .road import Road
 from .traffic import Traffic
@@ -19,7 +19,7 @@ class Collision:
 class Snapshot:
     """Executed world state at one time. Arrays are copies; treat them as read-only."""
     time: float
-    team: np.ndarray          # (3, 4) rear-axle [x, y, yaw, v]
+    team: np.ndarray          # (3, 4) CG [x, y, yaw, v]
     team_steer: np.ndarray    # (3,)
     team_s: np.ndarray
     team_d: np.ndarray
@@ -31,6 +31,8 @@ class Snapshot:
     done: bool
     traffic_vd: np.ndarray = None           # lateral speed (m/s); None means zeros
     traffic_target_lane: np.ndarray = None  # lane each car is heading to (its lane when not changing); None means lane_of(traffic_d)
+    team_vy: np.ndarray = None    # (3,) body lateral CG speed; kinematic plant: v sin(beta). None means zeros
+    team_r: np.ndarray = None     # (3,) yaw rate; kinematic plant: v cos(beta) tan(steer)/L
 
 
 def traffic_states(snapshot, road):
@@ -57,12 +59,12 @@ def _nearest(snapshot, road, s, lane, skip, direction, include_team=True):
 
 
 def vehicle_ahead(snapshot, road, s, lane, skip, include_team=True):
-    """Nearest vehicle ahead of s in a lane, excluding teammate `skip`: (rear-axle gap, speed) or None."""
+    """Nearest vehicle ahead of s in a lane, excluding teammate `skip`: (CG gap, speed) or None."""
     return _nearest(snapshot, road, s, lane, skip, 1, include_team)
 
 
 def vehicle_behind(snapshot, road, s, lane, skip):
-    """Nearest vehicle behind s in a lane, excluding teammate `skip`: (rear-axle gap, speed) or None."""
+    """Nearest vehicle behind s in a lane, excluding teammate `skip`: (CG gap, speed) or None."""
     return _nearest(snapshot, road, s, lane, skip, -1)
 
 
@@ -71,7 +73,7 @@ class World:
     def __init__(self, scenario, seed):
         self.scenario, self.seed = scenario, seed
         self.road = Road(scenario.road)
-        self.plant = KinematicPlant(scenario.vehicle, scenario.timing.dt)
+        self.plant = make_plant(scenario.vehicle, scenario.timing.dt)
         v = scenario.vehicle
         spacing = v.length+v.standstill_gap+v.headway*scenario.team_speed
         s = scenario.team_start_s+spacing*np.arange(TEAM)[::-1]
@@ -79,6 +81,7 @@ class World:
         self.team = np.column_stack((self.road.to_xy(s, np.full(TEAM, d)), self.road.heading(s),
                                      np.full(TEAM, scenario.team_speed)))
         self.steer = np.zeros(TEAM)
+        self.team_lat = np.zeros((TEAM, 2))   # body [vy, r]; DynamicPlant state, kinematic relations otherwise
         self.traffic = Traffic(scenario.traffic, self.road, np.random.default_rng(seed), s, scenario.team_lane)
         self.steps = 0
         self.time = 0.0
@@ -93,7 +96,14 @@ class World:
         prev, dt = self.snapshot, self.scenario.timing.dt
         applied = np.empty((TEAM, 2))
         for i in range(TEAM):
-            self.team[i], a, self.steer[i] = self.plant.step(self.team[i], controls[i][0], controls[i][1], self.steer[i])
+            if isinstance(self.plant, DynamicPlant):
+                out, a, self.steer[i] = self.plant.step(np.r_[self.team[i], self.team_lat[i]], controls[i][0],
+                                                        controls[i][1], self.steer[i])
+                self.team[i], self.team_lat[i] = out[:4], out[4:]
+            else:
+                self.team[i], a, self.steer[i] = self.plant.step(self.team[i], controls[i][0], controls[i][1],
+                                                                 self.steer[i])
+                self.team_lat[i] = kinematic_body(self.team[i][3], self.steer[i], self.plant.params)[1:]
             applied[i] = a, self.steer[i]
         # Traffic reacts to the team positions from the same pre-step snapshot.
         self.traffic.step(dt, prev.team_s, self.road.lane_of(prev.team_d), prev.team[:, 3], self.scenario.vehicle.length,
@@ -108,7 +118,8 @@ class World:
         team_s, team_d = self.road.to_frenet(self.team[:, :2])
         snap = Snapshot(self.time, self.team.copy(), self.steer.copy(), team_s, team_d,
                         self.traffic.s.copy(), self.traffic.d, self.traffic.v.copy(),
-                        self.traffic.id.copy(), (), False, self.traffic.vd, self.traffic.target_lane.copy())
+                        self.traffic.id.copy(), (), False, self.traffic.vd, self.traffic.target_lane.copy(),
+                        self.team_lat[:, 0].copy(), self.team_lat[:, 1].copy())
         collisions = self.collisions(snap)
         return replace(snap, collisions=collisions, done=bool(collisions))
 

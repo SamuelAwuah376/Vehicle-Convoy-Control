@@ -41,7 +41,7 @@ def constant_speed_plan(time, step, horizon, s, d, v, source='lane_keep'):
 
 @dataclass(frozen=True)
 class Obstacles:
-    """Predicted rear-axle positions of other vehicles at the plan times, shape (N+1, K)."""
+    """Predicted CG positions of other vehicles at the plan times, shape (N+1, K)."""
     keys: tuple         # ('traffic', id) or ('team', index)
     s: np.ndarray
     d: np.ndarray

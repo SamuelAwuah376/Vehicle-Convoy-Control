@@ -37,6 +37,7 @@ class Episode:
     combo_multiplier: np.ndarray = None   # (T-1,) team multiplier after each step
     max_combo: int = 0
     maneuvers: list = field(default_factory=list)   # Scorer.maneuvers award dicts
+    team_lat: np.ndarray = None   # (T, 3, 2) body [vy, yaw rate] (kinematic relations for the kinematic plant)
 
 
 POLICIES = ('lane_keeping', 'overtaker')
@@ -85,4 +86,5 @@ def run(scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):
                    overtakes, scorer.awarded, list(snap.collisions), 'collision' if snap.done else 'time',
                    planner if hasattr(policy, 'log') else None, getattr(policy, 'log', None),
                    list(policy.intentions.records) if hasattr(policy, 'intentions') else [],
-                   np.array(combo), scorer.max_combo, scorer.maneuvers)
+                   np.array(combo), scorer.max_combo, scorer.maneuvers,
+                   np.stack((stack('team_vy'), stack('team_r')), -1))

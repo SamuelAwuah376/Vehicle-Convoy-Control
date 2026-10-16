@@ -6,12 +6,16 @@ from ..world import TEAM, vehicle_ahead, vehicle_behind
 
 
 def lane_keep_law(state, s, route, params, target_speed, lead=None, max_accel=np.inf):
-    """Pure pursuit on a lane centre with convoy gap control; lead is (rear-axle gap, speed) or None."""
+    """Pure pursuit on a lane centre with convoy gap control; state and s at the CG, lead is (CG gap, speed) or None.
+
+    convoy's pursuit is rear-axle pure pursuit, so it gets the rear-axle pose and progress derived from the CG."""
     a = 1.2*(target_speed-state[3])
     if lead is not None:
         gap, speed = lead
         a = min(a, follower_acceleration(state, [0, 0, 0, speed], gap-params.length, params))
-    return np.array([min(a, max_accel), pursuit(state, s, route, params)])
+    l_r = getattr(params, 'cg_to_rear_axle', params.wheelbase/2)
+    rear = np.array([state[0]-l_r*np.cos(state[2]), state[1]-l_r*np.sin(state[2]), state[2], state[3]])
+    return np.array([min(a, max_accel), pursuit(rear, s-l_r, route, params)])
 
 
 def lane_keep_control(snap, road, params, i, lane, target_speed, max_accel=np.inf):
@@ -61,7 +65,7 @@ class Overtaker:
         return actions
 
     def choose_lean(self, snap, i, it):
-        """Lean toward the nearest slower traffic car in an adjacent lane within the window (rear-axle
+        """Lean toward the nearest slower traffic car in an adjacent lane within the window (CG
         offset), unless any vehicle is in that window on the opposite side."""
         lo, hi = self.lean_window
         s, v = snap.team_s[i], snap.team[i, 3]
@@ -92,7 +96,7 @@ class Overtaker:
         return middle is None or self.lane_clear(snap, i, middle)
 
     def lane_clear(self, snap, i, lane):
-        """No other vehicle in `lane` within cross_window (rear-axle offset) of teammate i."""
+        """No other vehicle in `lane` within cross_window (CG offset) of teammate i."""
         lo, hi = self.cross_window
         ds = np.r_[np.delete(snap.team_s, i), snap.traffic_s]-snap.team_s[i]
         lanes = self.road.lane_of(np.r_[np.delete(snap.team_d, i), snap.traffic_d])

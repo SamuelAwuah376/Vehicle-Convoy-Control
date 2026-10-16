@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from nohesi.config import Planner, Scenario
 from nohesi.dynamics import KinematicPlant
 from nohesi.planning.base import Obstacles, Target, constant_speed_plan
@@ -48,3 +49,25 @@ def test_axis_choice_consistent_along_horizon():
     lo, hi = rows.lo[0], rows.hi[0]
     assert len(rows.lo) == 3 and len(lo) == N        # one hard block, one headway block plus its slack bounds
     assert np.all(np.isfinite(lo)) and np.all(np.isinf(hi))   # all "ahead", the first step's choice (ds > 0)
+
+
+def euler_cg(z, u, h, p):
+    """Exact road-frame CG bicycle (s' = v), one Euler step per row."""
+    beta = np.arctan(p.cg_to_rear_axle/p.wheelbase*np.tan(u[:, 1]))
+    dz = np.c_[z[:, 3], z[:, 3]*np.sin(z[:, 2]+beta), z[:, 3]*np.cos(beta)*np.tan(u[:, 1])/p.wheelbase, u[:, 0]]
+    return z+h*dz
+
+
+def test_dynamics_rows_match_cg_model_to_second_order():
+    rng, mpc, h = np.random.default_rng(0), LaneChangeMPC(CFG, PLANT, ROAD), CFG.step
+    zr = np.c_[np.zeros(N+1), rng.uniform(-2, 2, N+1), rng.uniform(-0.1, 0.1, N+1), rng.uniform(15, 35, N+1)]
+    ur = np.c_[rng.uniform(-3, 3, N), rng.uniform(-0.05, 0.05, N)]
+    dz0, du0 = rng.normal(size=(N+1, 4)), rng.normal(size=(N, 2))
+    errors = []
+    for eps in (1e-2, 5e-3):
+        z, u = zr+eps*dz0, ur+eps*du0
+        rows = _Rows(); mpc._dynamics_rows(rows, zr, ur)
+        A, lo, _ = rows.matrix(mpc.nz+mpc.nu)
+        linear = z[1:]-(A@np.r_[z.ravel(), u.ravel()]-lo).reshape(N, 4)   # rows: z_{k+1} - step(z_k, u_k) = 0
+        errors.append(np.abs(linear-euler_cg(z[:-1], u, h, P)).max())
+    assert errors[0] < 1e-3 and errors[0]/errors[1] == pytest.approx(4, rel=0.1)

@@ -21,3 +21,5 @@ The MPC run uses leader steering MPC and baseline followers. Its lower leader tr
 During development, the original stopping law crossed its intended goal and the truncated MPC endpoint reference produced excessive steering. The final position feedback stops the leader with a 4 m route-end buffer, and the final full-route runs shown here have no sampled lane violations. An initial Windows native-solver/pytest capture issue was resolved by isolating the MPC test in a subprocess; the final complete suite passes.
 
 Collision checks use oriented rectangles at sampled times. Lane checks project all four rectangle corners onto the gently curved route. These are regression measurements, not continuous-time or formal safety certificates. No uncertainty-aware or RL capabilities are implemented.
+
+Re-verified on 2026-10-16 with CasADi 3.8.1, now pinned for both the `mpc` and `nmpc` extras: all 12 convoy tests pass, including the CasADi MPC closed-loop test.

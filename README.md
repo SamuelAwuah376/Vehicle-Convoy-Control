@@ -33,7 +33,7 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 | `TRAFFIC` | override the number of traffic cars (`None` keeps the scenario's) |
 | `ANIMATE` | `True` writes a GIF (takes a few extra seconds) |
 
-Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The same runs are available from the command line, e.g. `.venv\Scripts\python -m nohesi --scenario v1 --policy overtaker --seed 0 --animate`.
+Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>/`, so runs never overwrite each other. `results/runs.csv` lists every run with its settings, versions, team score and collisions. The same runs are available from the command line, e.g. `.venv\Scripts\python -m nohesi --scenario v1 --policy overtaker --seed 0 --animate`.
 
 ## Milestones
 
@@ -42,7 +42,8 @@ Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The
 | Convoy baseline | Curved single-lane convoy, pure pursuit steering, gap control, optional leader steering MPC. |
 | No Hesi M1 | Straight 3-lane road, seeded traffic, collision detection, versioned scoring, lane-keeping policy. |
 | No Hesi M2, part 1 | Lane changes executed by a per-car MPC. |
-| **No Hesi M2, part 2** | Lane-changing traffic, plus robustness fixes for crowded situations. |
+| No Hesi M2, part 2 | Lane-changing traffic, plus robustness fixes for crowded situations. |
+| **No Hesi M2, part 3** | CG reference, dynamic bicycle simulator and a nonlinear MPC (acados). |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -60,7 +61,7 @@ Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The
 - **Scripted overtaker:** a hand-written policy that exercises all of the above.
 - **Debug outputs:** GIFs that draw each car's current plan.
 
-**Results:** across seeds 0–4 on scenarios v1 and v2 there are 0 collisions. Under score v3 the overtaker averages about 17,000 points on v1 and 14,000 on v2, while the lane-keeping baseline scores almost nothing (it never passes closely). Reference runs: `results/nohesi_v1_overtaker_scorev3/` and `results/nohesi_v1_lane_keeping_scorev3/`.
+**Results:** across seeds 0–4 on scenarios v1 and v2 there are 0 collisions. Under score v3 the overtaker averages about 17,000 points on v1 and 14,000 on v2, while the lane-keeping baseline scores almost nothing (it never passes closely). Reference run for the baseline: `results/run_006_v1_lane_keeping_scorev3_seed0/`.
 
 **Milestone 2, part 2** makes traffic more realistic and fixes cases where cars got stuck:
 - **Lane-changing traffic** (scenarios v3, v4): traffic changes lanes with the MOBIL model, moving over smoothly in 3 s, with an 8 s cooldown between a car's changes.
@@ -70,6 +71,17 @@ Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The
 - **Fewer repeated re-locks:** a locked gap is only re-checked when it would actually be wrong at the end of the move.
 
 **Results (milestone 2, part 2):** seeds 0–4 have 0 collisions on v1 and on v4 (20 cars, lane-changing traffic). The overtaker averages about 16,800 points on v1 and 21,200 on v4.
+
+**Milestone 2, part 3** adds realistic vehicle physics and a controller that can handle it:
+- **CG reference:** every vehicle is now tracked at its centre of gravity. The car is 60/40 front-biased by default (`Vehicle.cg_to_rear_axle = 1.62 m`).
+- **Dynamic bicycle simulator** (`Vehicle.model = 'dynamic'`, `PLANT` in `run_sim.py`): the cars now slide sideways and lag in turning, driven by Fiala tyres with a friction ellipse that shares grip between braking and cornering. Below 3–6 m/s it blends into the kinematic model. The linear MPC can't drive it: it overshoots and crashes within seconds.
+- **Nonlinear MPC** (`planning/nonlinear.py`, `Planner.mpc = 'nonlinear'`, `MPC` in `run_sim.py`): uses the same dynamic bicycle and tyres, solved with acados (one real-time SQP iteration per 0.1 s replan, Gauss-Newton Hessian). It reuses the linear MPC's collision constraints. A **soft lateral grip limit** keeps each axle's slip below 80 % of the saturation slip of its remaining grip; in force terms that is about 99 % of the available lateral grip. acados setup: see `pyproject.toml` (`nmpc` extra); generated code goes to `C:/dev/acados_build`.
+- **Comparisons:** `run_sim.py` covers all three cases. `viz.animate_compare` and `viz.plot_compare` show episodes side by side, and results folders are numbered (`run_NNN_...`, indexed in `results/runs.csv`).
+
+**Results (milestone 2, part 3):** over seeds 0–4 on v1 and v4:
+- **Linear MPC + kinematic sim:** 0 collisions, about 16,600–16,900 points.
+- **Linear MPC + dynamic sim:** crashes in all 10 runs.
+- **Nonlinear MPC + dynamic sim:** 0 collisions, about 13,000–13,500 points. Lane changes are slower because of solver-stabilising penalties. Planned motion matches the car to about 0.3 mm per 0.1 s, against 5 mm for the linear MPC on its own kinematic sim. Solves take about 3–6 ms.
 
 **Next:** milestone 3, replacing the scripted overtaker with a reinforcement-learning (RL) policy. CARLA (Town04 highway) is planned later for visualisation and evaluation only.
 
@@ -93,6 +105,13 @@ Key ideas, in the order things happen:
 5. **Safety net** (`planning/fallback.py`, `coordination/centralized.py`): if a solve fails, the car follows its previous plan for up to 0.5 s, and otherwise returns to its original lane and follows the car ahead. After each planning cycle, every plan is checked against traffic and teammates. If two plans conflict, the lower-priority car aborts its lane change or brakes. These checks use *predicted* traffic, so they reduce risk but are not a guarantee.
 6. **Scoring** (`scoring/`): measured only from the motion that actually happened, kept separate from the planner so the rules can change freely.
 
+### Nonlinear MPC (optional, `Planner(mpc='nonlinear')`)
+
+`planning/nonlinear.py` plans with the same dynamic bicycle as the `dynamic` plant (Fiala tyres, friction ellipse), solved by acados (SQP-RTI, HPIPM) in about 3–6 ms. It uses the same targets, costs and collision constraints as the linear MPC, so everything around it is unchanged. Set `MPC = 'nonlinear'` with `PLANT = 'dynamic'` in `run_sim.py`.
+- **Setup (Windows):** acados built in `C:/acados`, `pip install -e C:/acados/interfaces/acados_template`, MSYS2 UCRT64 gcc in `C:/msys64/ucrt64/bin` (see the `nmpc` extra in `pyproject.toml`). Generated C code goes to `C:/dev/acados_build/<config hash>` (it must be a path without spaces; override with `NOHESI_ACADOS_BUILD`). It compiles once (about 10–30 s), then every process just loads it. Parallel sweeps are safe because a file lock lets only one process compile.
+- **Differences from the linear MPC:** steering and throttle are states and their rates are the inputs. The speed cost is on progress along the road. Small costs on sideslip and yaw rate are needed for the solver to converge. A soft slip-angle limit keeps plans off the tyres' grip limit. There is no grip-proxy steering cap (`nmpc_steer_cap` turns it back on).
+- **Results** (seeds 0–4, overtaker, score v3, dynamic plant): 0 collisions on v1 and v4, where the linear MPC on the same dynamic plant crashes in all 10 episodes (9 off the road edge, 1 into traffic). Mean scores are 13,500 (v1) and 13,000 (v4), against 16,600 and 16,900 for the linear MPC on the kinematic plant. The next-step plan error is under 0.03 m.
+
 ## Scoring
 
 Scores are versioned, and each result records which version it used.
@@ -115,7 +134,7 @@ Each run folder contains:
 - `events.json`: every pass, maneuver, lane-change decision and fallback, with times.
 - `trajectory.npz` and `team.csv`: raw histories, including every MPC plan.
 
-`results/failed_v1_overtaker_scorev2_seed0_m2.4/` keeps a run that exposed planner bugs, which are now fixed, with an explanation in its `NOTE.md`.
+`results/run_001_v1_overtaker_scorev2_seed0_failed_m2.4/` keeps a run that exposed planner bugs, which are now fixed, with an explanation in its `NOTE.md`.
 
 ## Code map (`nohesi/`)
 
@@ -125,11 +144,14 @@ Each run folder contains:
 | `road.py`, `traffic.py`, `world.py`, `dynamics.py`, `geometry.py` | Road, traffic, simulation step, vehicle model, footprints and clearances |
 | `intentions.py` | Action space, gap rule, lane-change phases |
 | `planning/single.py` | Per-car MPC |
+| `planning/nonlinear.py` | Optional per-car nonlinear MPC (acados, dynamic bicycle) |
 | `planning/fallback.py` | Fallback plans and plan conflict checks |
 | `coordination/centralized.py` | Runs the policy, intentions and the three MPCs together |
 | `rl/scripted.py` | Lane-keeping and overtaker policies |
 | `scoring/events.py`, `scoring/score.py` | Measure what happened, then turn it into points |
 | `evaluation/` | Episode runner, metrics, file output and plots/GIFs |
+
+**Vehicle model:** a kinematic bicycle referenced at the centre of gravity (CG), used by both the simulator and the MPC. Positions (`s`, `d`) of every car are CG positions. The CG location is `Vehicle.cg_to_rear_axle` (default 1.35 m, the wheelbase midpoint), and the slip angle is β = atan((l_r/L)·tan δ).
 
 **Limitations:** the road is straight and the vehicle model is kinematic, which is fine up to about 35 m/s. Traffic lane changes are only on in v3/v4, and safety checks are sampled every 0.05 s rather than continuous. Planned next steps include a dynamic vehicle model for higher speeds, curved roads, and Assetto Corsa integration.
 

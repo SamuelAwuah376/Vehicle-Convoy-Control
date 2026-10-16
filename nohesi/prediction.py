@@ -32,7 +32,7 @@ def traffic_prediction(snap, road, times):
 
 
 def vehicle_ahead_incl_merging(snap, road, s, lane, skip, include_team=True):
-    """world.vehicle_ahead, also counting traffic changing into `lane`: (rear-axle gap, speed) or None."""
+    """world.vehicle_ahead, also counting traffic changing into `lane`: (CG gap, speed) or None."""
     current, target = traffic_lanes(snap, road)
     s_all = np.r_[snap.team_s, snap.traffic_s]
     in_lane = np.r_[road.lane_of(snap.team_d) == lane, (current == lane) | (target == lane)]

@@ -51,7 +51,7 @@ def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, sou
             ahead = None if lead is None else (lead[0]+lead[1]*t-(s-s0), lead[1])
             s = road.to_frenet(state[:2])[0]
             a, delta = lane_keep_law(state, s, route, p, speed, ahead, max_accel)
-            state, a, steer = plant.step(state, a, delta, steer)
+            state, a, steer = plant.predict_step(state, a, delta, steer)   # kinematic, whatever the plant
             if n == 0:
                 u.append([a, steer])
     return Plan(snap.time, cfg.step, np.array(z, float), np.array(u, float), source)
@@ -64,7 +64,7 @@ def first_conflict(z, others, params, margin, start=1):
     if not others:
         return None
     S, D, PSI = (np.array([o[n] for o in others]) for n in (1, 2, 3))
-    # Conservative broad phase: a footprint's lateral half-extent about its rear axle is at most
+    # Conservative broad phase: a footprint's lateral half-extent about its CG is at most
     # width/2 + length*|sin(psi)|, so cars beyond this lateral distance cannot be within `margin`.
     lateral = params.width+margin+params.length*(np.abs(np.sin(PSI))+np.abs(np.sin(z[:, 2])))
     near = (np.abs(S-z[:, 0]) < params.length+params.width+margin) & (np.abs(D-z[:, 1]) < lateral)

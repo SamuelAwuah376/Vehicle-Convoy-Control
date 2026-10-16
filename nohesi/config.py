@@ -22,8 +22,10 @@ class Road:
 
 @dataclass(frozen=True)
 class Vehicle:
-    # Attribute names match convoy.config.Config so convoy dynamics/geometry/controllers reuse them.
+    # Attribute names match convoy.config.Config so convoy controllers (pursuit, gap control) reuse them.
+    # Vehicle states are referenced at the centre of gravity (CG); the body overhangs both axles equally.
     wheelbase: float = 2.7
+    cg_to_rear_axle: float = 1.62   # l_r (m); l_f = wheelbase - l_r. 1.62 = 60/40 front-biased weight (l_f = 1.08)
     length: float = 4.5
     width: float = 1.8
     accel_max: float = 3.0
@@ -34,9 +36,25 @@ class Vehicle:
     lateral_accel_max: float = 4.0  # ~0.4 g grip proxy, applied as a steering cap
     standstill_gap: float = 5.0
     headway: float = 1.2
+    # Simulator plant: 'kinematic' (KinematicPlant) or 'dynamic' (DynamicPlant; the MPC stays kinematic).
+    model: str = 'kinematic'
+    mass: float = 1500.0                          # kg
+    yaw_inertia: float = 2250.0                   # kg m^2
+    cornering_stiffness_front: float = 80000.0    # N/rad per axle
+    cornering_stiffness_rear: float = 80000.0
+    friction: float = 1.0                         # tyre-road mu
+    dynamic_blend_low: float = 3.0                # m/s: pure kinematic below, pure dynamic above high
+    dynamic_blend_high: float = 6.0
+    dynamic_substep: float = 0.01                 # s, integration step inside each sim step
 
     def __post_init__(self):
-        _positive(self, *vars(self))
+        _positive(self, *(k for k in vars(self) if k != 'model'))
+        if self.cg_to_rear_axle >= self.wheelbase:
+            raise ValueError('cg_to_rear_axle must lie within the wheelbase')
+        if self.model not in ('kinematic', 'dynamic'):
+            raise ValueError(f'unknown vehicle model {self.model!r}')
+        if self.dynamic_blend_high <= self.dynamic_blend_low:
+            raise ValueError('dynamic_blend_high must exceed dynamic_blend_low')
 
 
 @dataclass(frozen=True)
@@ -48,7 +66,7 @@ class Traffic:
     spawn_ahead: float = 250.0
     recycle_behind: float = 150.0   # cars this far behind the rearmost teammate respawn ahead
     respawn_ahead: float = 250.0
-    min_gap: float = 25.0           # rear-axle spacing between spawned cars in a lane
+    min_gap: float = 25.0           # CG spacing between spawned cars in a lane
     team_lane_clear_ahead: float = 100.0
     team_lane_clear_behind: float = 40.0
     idm_accel: float = 1.5
@@ -130,7 +148,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm2.9'
+    version: str = 'm3.1'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -173,9 +191,26 @@ class Planner:
     yield_window: float = 10.0      # yield to a teammate changing into the lane this close beyond bumper overlap (m)
     yield_margin: float = 1.0       # yielding car aims this far past the changer's side zone (m)
     w_yield: float = 100.0          # slack weight of the soft get-clear constraint toward that teammate
+    mpc: str = 'linear'             # 'linear' (LaneChangeMPC, OSQP) or 'nonlinear' (acados)
+    # Nonlinear MPC (planning/nonlinear.py, acados SQP-RTI on the dynamic bicycle).
+    nmpc_hard_slots: int = 14       # hard obstacle rows per stage (v4 needs up to 11); excess nearest-first, counted
+    nmpc_soft_slots: int = 10       # soft (headway/yield) rows per stage (v4: up to 7)
+    nmpc_sqp_iter: int = 1          # SQP-RTI iterations per replan
+    nmpc_integrator_steps: int = 2  # RK4 steps per MPC step
+    nmpc_steer_cap: bool = False    # also apply the kinematic grip-proxy steer cap (plant.steer_limit)
+    nmpc_slip_limit: float = 0.8    # soft bound on |tan slip| as a fraction of the Fiala saturation slip (99 % of peak)
+    nmpc_w_slip: float = 1000.0     # its slack weight
+    nmpc_w_vy: float = 10.0         # weight on body lateral speed vy: without it RTI/SQP diverges (GN misses r*vy coupling)
+    nmpc_w_yaw_rate: float = 10.0   # weight on yaw rate r
+    nmpc_levenberg_marquardt: float = 0.0   # acados LM regularisation of the Gauss-Newton Hessian
 
     def __post_init__(self):
-        _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time')))
+        _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time', 'mpc', 'nmpc_steer_cap',
+                                                             'nmpc_levenberg_marquardt')))
+        if not isfinite(self.nmpc_levenberg_marquardt) or self.nmpc_levenberg_marquardt < 0:
+            raise ValueError('nmpc_levenberg_marquardt must be non-negative')
+        if self.mpc not in ('linear', 'nonlinear'):
+            raise ValueError(f'unknown mpc {self.mpc!r}')
         if not isfinite(self.rear_closing_time) or self.rear_closing_time < 0:
             raise ValueError('rear_closing_time must be non-negative (0 disables the closing-speed rule)')
         if self.speed_min > self.speed_max:

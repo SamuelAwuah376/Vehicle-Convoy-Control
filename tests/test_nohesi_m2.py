@@ -42,6 +42,12 @@ def drive(target, cars=(), state=(0., 0., 0., 28.), seconds=8.0, keys=None):
     return out
 
 
+def lateral_accel(st):
+    """Steady-state CG lateral acceleration v^2 cos(beta) tan(steer)/L from history rows [x, y, yaw, v, steer]."""
+    beta = np.arctan(P.cg_to_rear_axle/P.wheelbase*np.tan(st[:, 4]))
+    return st[:, 3]**2*np.cos(beta)*np.tan(st[:, 4])/P.wheelbase
+
+
 def min_clearance(out, cars):
     worst = np.inf
     for st, cs in zip(out['state'], out['cars']):
@@ -56,7 +62,7 @@ def test_empty_road_lane_change_within_limits():
     st, t = out['state'], np.arange(1, len(out['state'])+1)*SC.timing.dt
     assert np.all(np.abs(st[t > 4, 1]-3.6) < 0.1)        # done within 4 s
     assert st[-1, 3] == pytest.approx(32, abs=0.1)
-    lateral = st[:, 3]**2*np.tan(st[:, 4])/P.wheelbase
+    lateral = lateral_accel(st)
     assert np.max(np.abs(lateral)) < 1.05*P.lateral_accel_max   # cap applies before the rate limit
     assert np.max(np.abs(st[:, 1])) < ROAD.width/2-P.width/2
     # Model mismatch: planned next MPC state vs executed state.

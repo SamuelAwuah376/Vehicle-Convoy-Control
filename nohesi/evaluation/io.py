@@ -1,8 +1,36 @@
 import csv
 import json
+import re
 from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
 import numpy as np
 from .metrics import metrics
+
+INDEX_FIELDS = ('run', 'time', 'folder', 'scenario', 'policy', 'score', 'seed', 'planner', 'vehicle_model',
+                'team_score', 'collisions', 'end_reason')
+
+
+def next_run_dir(root, label):
+    """results/run_NNN_<label>: one past the highest existing run number, so runs never overwrite."""
+    root = Path(root)
+    taken = [int(m.group(1)) for p in root.glob('run_*') if (m := re.match(r'run_(\d+)', p.name))] if root.exists() else []
+    return root/f'run_{max(taken, default=0)+1:03d}_{label}'
+
+
+def append_index(out, m):
+    """Add one row per run to <results>/runs.csv."""
+    out = Path(out); index = out.parent/'runs.csv'
+    new = not index.exists()
+    with index.open('a', newline='', encoding='utf-8') as stream:
+        writer = csv.writer(stream)
+        if new:
+            writer.writerow(INDEX_FIELDS)
+        number = re.match(r'run_(\d+)', out.name)
+        writer.writerow([number.group(1) if number else '', datetime.now().isoformat(timespec='seconds'), out.name,
+                         m['scenario_version'], m['policy'], m['score_version'], m['seed'],
+                         (m.get('planner_config') or {}).get('version', ''), m['scenario']['vehicle'].get('model', 'kinematic'),
+                         round(m['team_score'], 1), len(m['collisions']), m['end_reason']])
 
 
 def _plans(ep):

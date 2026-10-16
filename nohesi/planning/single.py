@@ -1,6 +1,7 @@
 """Per-vehicle road-frame MPC solved as a QP with OSQP.
 
-The kinematic bicycle (small-angle progress s' = v) is linearised around a reference plan
+The kinematic bicycle referenced at the centre of gravity (slip angle beta = atan(l_r/L tan(steer)),
+small-angle progress s' = v) is linearised around a reference plan
 (normally the previous plan shifted by one step), giving one QP per replan. Collision
 avoidance is convexified per obstacle and horizon step by choosing one separating
 half-plane from the reference: stay behind, stay ahead, or stay beside. For the locked
@@ -15,6 +16,7 @@ shares a lane with: `headway` to traffic and the shorter `teammate_headway` to t
 (drafting). For teammates in `target.yield_to` (changing into the vehicle's lane) a soft longitudinal
 get-clear row per step (weight `w_yield`) opens a slot regardless of lateral offset. These are
 constraints on predicted traffic and an approximate model: they do not guarantee safety.
+The constraint selection lives in constraints.py (solver independent, shared with other MPCs).
 
 Variables x = [z_0..z_N (4 each: s, d, heading error, v), u_0..u_{N-1} (a, steer), slacks].
 Matrices are assembled with vectorised NumPy; the cost Hessian is fixed apart from slacks.
@@ -23,7 +25,8 @@ from time import perf_counter
 import numpy as np
 import osqp
 import scipy.sparse as sp
-from .base import Plan
+from .base import Obstacles, Plan
+from .constraints import obstacle_constraints, state_bounds
 
 STATUS = {1: 'solved', 7: 'timeout', 3: 'infeasible', 4: 'infeasible'}
 
@@ -57,7 +60,8 @@ class LaneChangeMPC:
     def ui(self, k, j):
         return self.nz+2*np.asarray(k)+j
 
-    def solve(self, time, z0, steer_prev, accel_prev, target, obstacles, reference):
+    def solve(self, time, z0, steer_prev, accel_prev, target, obstacles, reference, lateral=None):
+        """lateral: (vy, r) of the plant, unused by this kinematic model (accepted for a common interface)."""
         start = perf_counter()
         c, p, N, h = self.cfg, self.plant.params, self.cfg.horizon, self.cfg.step
         nz, nu, zi, ui = self.nz, self.nu, self.zi, self.ui
@@ -70,23 +74,10 @@ class LaneChangeMPC:
         j4 = np.arange(4)
         rows.block(4, [(j4, zi(0, j4), 1.0)], z0r, z0r)
 
-        # Dynamics: z_{k+1} = z_k + h*(f + Fz (z_k - zr_k) + Fu (u_k - ur_k)).
-        k = np.arange(N)
-        psi, v, delta = zr[:-1, 2], zr[:-1, 3], ur[:, 1]
-        steer_gain = v/(p.wheelbase*np.cos(delta)**2)
-        r = 4*k
-        entries = [(r[:, None]+j4, zi(k+1, 0)[:, None]+j4, 1.0),     # +z_{k+1}
-                   (r[:, None]+j4, zi(k, 0)[:, None]+j4, -1.0),      # -z_k
-                   (r, zi(k, 3), -h),                                 # s' = v
-                   (r+1, zi(k, 2), -h*v*np.cos(psi)), (r+1, zi(k, 3), -h*np.sin(psi)),
-                   (r+2, zi(k, 3), -h*np.tan(delta)/p.wheelbase), (r+2, ui(k, 1), -h*steer_gain),
-                   (r+3, ui(k, 0), -h)]
-        rhs = np.zeros((N, 4))
-        rhs[:, 1] = -h*v*np.cos(psi)*psi
-        rhs[:, 2] = -h*steer_gain*delta
-        rows.block(4*N, entries, rhs.ravel(), rhs.ravel())
+        self._dynamics_rows(rows, zr, ur)
 
         # Inputs: acceleration, steering cap, steering rate (first step relative to the current steer).
+        k = np.arange(N)
         speed = np.maximum(zr[:-1, 3], 0.0)
         rows.block(N, [(k, ui(k, 0), 1.0)], -p.brake_max, self.plant.accel_limit(speed))
         cap = self.plant.steer_limit(speed)
@@ -96,10 +87,7 @@ class LaneChangeMPC:
         rows.block(N-1, [(k[1:]-1, ui(k[1:], 1), 1.0), (k[1:]-1, ui(k[1:]-1, 1), -1.0)], -rate, rate)
 
         # States: road edges and non-negative speed.
-        ks = np.arange(1, N+1)
-        edge = self.road.width/2-p.width/2-c.edge_margin
-        rows.block(N, [(ks-1, zi(ks, 1), 1.0)], -edge, edge)
-        rows.block(N, [(ks-1, zi(ks, 3), 1.0)], 0.0, np.inf)
+        self._constraint_rows(rows, state_bounds(c, p, self.road))
 
         w_slack = self._obstacle_rows(rows, zr, obstacles.s-s0, obstacles.d, obstacles.v, obstacles.keys, target)
         n_slack = len(w_slack)
@@ -119,69 +107,63 @@ class LaneChangeMPC:
         return Plan(time, h, z, result.x[nz:nz+nu].reshape(N, 2).copy(), 'qp', status,
                     int(result.info.iter), elapsed)
 
+    def _dynamics_rows(self, rows, zr, ur):
+        """Dynamics rows linearised around the reference (zr: (N+1, 4), ur: (N, 2)).
+
+        z_{k+1} = z_k + h*(f + Fz (z_k - zr_k) + Fu (u_k - ur_k)); CG bicycle, slip beta = atan(kappa tan(steer)),
+        kappa = l_r/L:  d' = v sin(psi+beta),  psi' = v g(steer),  g = cos(beta) tan(steer)/L = tan/(L sqrt(1+kappa^2 tan^2)).
+        """
+        p, N, h, zi, ui = self.plant.params, self.cfg.horizon, self.cfg.step, self.zi, self.ui
+        k, j4 = np.arange(N), np.arange(4)
+        psi, v, delta = zr[:-1, 2], zr[:-1, 3], ur[:, 1]
+        L = p.wheelbase
+        kappa = getattr(p, 'cg_to_rear_axle', L/2)/L
+        tan, sec2 = np.tan(delta), 1/np.cos(delta)**2
+        root = 1+(kappa*tan)**2
+        beta, dbeta = np.arctan(kappa*tan), kappa*sec2/root
+        g, dg = tan/(L*np.sqrt(root)), sec2/(L*root**1.5)
+        cos_head, sin_head = np.cos(psi+beta), np.sin(psi+beta)
+        r = 4*k
+        entries = [(r[:, None]+j4, zi(k+1, 0)[:, None]+j4, 1.0),     # +z_{k+1}
+                   (r[:, None]+j4, zi(k, 0)[:, None]+j4, -1.0),      # -z_k
+                   (r, zi(k, 3), -h),                                 # s' = v
+                   (r+1, zi(k, 2), -h*v*cos_head), (r+1, zi(k, 3), -h*sin_head), (r+1, ui(k, 1), -h*v*cos_head*dbeta),
+                   (r+2, zi(k, 3), -h*g), (r+2, ui(k, 1), -h*v*dg),
+                   (r+3, ui(k, 0), -h)]
+        rhs = np.zeros((N, 4))   # h*(f - Fz zr - Fu ur)
+        rhs[:, 1] = -h*v*cos_head*(psi+dbeta*delta)
+        rhs[:, 2] = -h*v*dg*delta
+        rows.block(4*N, entries, rhs.ravel(), rhs.ravel())
+
     def _obstacle_rows(self, rows, zr, obs_s, obs_d, obs_v, keys, target):
-        """Add one separating constraint per relevant (step, obstacle) and the soft rows; return the slack weights."""
-        c, p, N = self.cfg, self.plant.params, self.cfg.horizon
+        """Add the separating, headway and yield rows (constraints.obstacle_constraints; zr and obs_s already
+        relative to s0); return the slack weights."""
         if not keys:
             return np.zeros(0)
-        long_gap, lat_gap = p.length+c.margin_long, p.width+c.margin_lat
-        os_, od, ov = obs_s[1:], obs_d[1:], obs_v[1:]
-        ds, dd = zr[1:, :1]-os_, zr[1:, 1:2]-od
-        relevant = (np.abs(ds) <= c.relevance) & (np.abs(dd) <= 2*self.road.cfg.lane_width)
-        front = np.array([key == target.front for key in keys])[None, :]
-        rear = np.array([key == target.rear for key in keys])[None, :]
-        tau = np.where([key[0] == 'team' for key in keys], c.teammate_headway, c.headway)[None, :]
-        lateral_clear = np.abs(dd) >= lat_gap-c.lateral_tolerance
-        # A gap car already past the ego the wrong way (rear car ahead, front car behind) is an ordinary obstacle.
-        stale = (rear & (ds < -long_gap)) | (front & (ds > long_gap))
-        front, rear = front & ~stale, rear & ~stale
-        side = np.where(front, ds > -long_gap,
-                        np.where(rear, ds < long_gap, lateral_clear & (np.abs(ds) < long_gap+c.side_zone)))
-        behind = ~side & (front | (~rear & (ds < 0)))
-        # Axis code per (step, obstacle): +1/-1 beside (left/right of it), 2 behind, -2 ahead, 0 not relevant.
-        # Along the horizon a side flip or a behind<->ahead jump keeps the previous step's choice.
-        code = np.where(side, np.where(dd >= 0, 1, -1), np.where(behind, 2, -2))*relevant
-        for k in range(1, N):
-            flip = (code[k] == -code[k-1]) & (code[k] != 0)
-            code[k, flip] = code[k-1, flip]
-        behind, ahead = code == 2, code == -2
-        kk = np.broadcast_to(np.arange(1, N+1)[:, None], ds.shape)
-        full = lambda x: np.broadcast_to(x, ds.shape)
-        for mask, col, lo, hi in ((code == 1, 1, od+lat_gap, np.inf), (code == -1, 1, -np.inf, od-lat_gap),
-                                  (behind, 0, -np.inf, os_-long_gap), (ahead, 0, os_+long_gap, np.inf)):
-            m = int(mask.sum())
-            if m:
-                rows.block(m, [(np.arange(m), self.zi(kk[mask], col), 1.0)], full(lo)[mask], full(hi)[mask])
-        # Soft headway (slack >= 0) only for cars the reference shares a lane with, tau per obstacle:
-        # behind: s + tau*v - slack <= obs - gap;  ahead: s + slack >= obs + gap + tau*v_obs.
-        slack = 0
-        for mask, sign in ((behind & ~lateral_clear, -1.0), (ahead & ~lateral_clear, 1.0)):
-            m = int(mask.sum())
-            if not m:
-                continue
-            local, cols = np.arange(m), self.nz+self.nu+slack+np.arange(m)
-            entries = [(local, self.zi(kk[mask], 0), 1.0), (local, cols, sign)]
-            if sign < 0:
-                entries.append((local, self.zi(kk[mask], 3), full(tau)[mask]))
-                rows.block(m, entries, -np.inf, (os_-long_gap)[mask])
-            else:
-                rows.block(m, entries, (os_+long_gap+tau*ov)[mask], np.inf)
-            rows.block(m, [(local, cols, 1.0)], 0.0, np.inf)
-            slack += m
-        weights = [np.full(slack, c.w_slack)]
-        # Soft yield to teammates changing into the ego's lane, any lateral offset: get clear along the road the way
-        # the ego already is (behind or level: drop back; ahead: pull ahead), past the changer's stay-beside zone
-        # (side_zone) so its MPC may enter. One slack per step.
-        ks, local = np.arange(1, N+1), np.arange(N)
-        clear = long_gap+c.side_zone+c.yield_margin
-        for o in [keys.index(key) for key in target.yield_to if key in keys]:
-            cols, sign = self.nz+self.nu+slack+local, 1.0 if obs_s[0, o] < 0 else -1.0
-            bound = os_[:, o]+sign*clear
-            rows.block(N, [(local, self.zi(ks, 0), 1.0), (local, cols, sign)],
-                       *((bound, np.inf) if sign > 0 else (-np.inf, bound)))
-            rows.block(N, [(local, cols, 1.0)], 0.0, np.inf)
-            slack += N; weights.append(np.full(N, c.w_yield))
-        return np.concatenate(weights)
+        spec = obstacle_constraints(self.cfg, self.plant.params, self.road, zr, Obstacles(keys, obs_s, obs_d, obs_v),
+                                    target)
+        return self._constraint_rows(rows, spec)
+
+    def _constraint_rows(self, rows, spec, slack=0):
+        """OSQP rows for a StageConstraints: hard rows in one block, then each run of soft rows (a kind; a yield
+        teammate) with its slack columns from nz+nu+slack and sigma >= 0 rows. Returns the new slacks' weights."""
+        def block(idx, extra=()):
+            local, entries = np.arange(len(idx)), list(extra)
+            for col, coef in ((0, spec.cs[idx]), (1, spec.cd[idx]), (3, spec.cv[idx])):
+                nz = coef != 0   # no stored zeros: keeps the sparsity pattern
+                entries.append((local[nz], self.zi(spec.k[idx][nz], col), coef[nz]))
+            rows.block(len(idx), entries, spec.lo[idx], spec.hi[idx])
+        hard, soft = np.flatnonzero(~spec.soft), np.flatnonzero(spec.soft)
+        if len(hard):
+            block(hard)
+        kind, j = spec.kind[soft], spec.j[soft]
+        cut = np.flatnonzero((kind[1:] != kind[:-1]) | ((kind[1:] == 'yield') & (j[1:] != j[:-1])))+1
+        for run in np.split(soft, cut) if len(soft) else []:
+            local, cols = np.arange(len(run)), self.nz+self.nu+slack+np.arange(len(run))
+            block(run, [(local, cols, np.where(np.isfinite(spec.lo[run]), 1.0, -1.0))])   # slack relaxes the finite bound
+            rows.block(len(run), [(local, cols, 1.0)], 0.0, np.inf)
+            slack += len(run)
+        return spec.slack_weight[soft]
 
     def _hessian(self):
         """Upper-triangular cost Hessian over states and inputs as COO (rows, cols, values)."""

@@ -6,7 +6,7 @@ from nohesi.coordination.centralized import CentralizedTeam
 from nohesi.intentions import ACTIONS, IntentionManager, encode
 from nohesi.planning.base import Target
 from tests.test_nohesi import snapshot
-from tests.test_nohesi_m2 import CFG, P, ROAD, SC, drive
+from tests.test_nohesi_m2 import CFG, P, ROAD, SC, drive, lateral_accel
 
 MATES = [(200, -3.6, 28), (0, -3.6, 28), (-300, -3.6, 28)]   # car 1 at s=0 in lane 0; teammates far away
 FAR = [(5, -500, 0, 25)]
@@ -109,7 +109,7 @@ def test_mpc_two_lane_change_within_limits():
     out = drive(Target(d=ROAD.lane_center(2), speed=28.0), state=(0., ROAD.lane_center(0), 0., 28.), seconds=7)
     st, t = out['state'], np.arange(1, len(out['state'])+1)*SC.timing.dt
     assert np.all(np.abs(st[t > 5, 1]-ROAD.lane_center(2)) < 0.1)
-    lateral = st[:, 3]**2*np.tan(st[:, 4])/P.wheelbase
+    lateral = lateral_accel(st)
     assert np.max(np.abs(lateral)) < 1.05*P.lateral_accel_max
     assert np.max(np.abs(st[:, 1])) < ROAD.width/2-P.width/2
 

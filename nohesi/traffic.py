@@ -10,7 +10,7 @@ def _profile(tau):
 class Traffic:
     """Background cars with IDM car following, optional MOBIL lane changes, seeded spawning and recycling.
 
-    Positions are rear-axle Frenet coordinates. `lane` is the lane a car is in (its origin lane while
+    Positions are CG Frenet coordinates. `lane` is the lane a car is in (its origin lane while
     changing); a change moves d from lane centre to lane centre over cfg.lane_change_time, during which
     the car occupies both lanes. Each spawn gets a new id, so scoring can tell a recycled car from the
     one it replaced.

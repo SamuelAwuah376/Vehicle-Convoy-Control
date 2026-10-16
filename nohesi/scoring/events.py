@@ -1,7 +1,7 @@
 """Measurements and events taken from executed snapshots only. No scoring formula lives here."""
 from dataclasses import dataclass
 import numpy as np
-from ..geometry import footprint, clearance
+from ..geometry import body_centre, footprint, clearance
 from ..world import TEAM, traffic_states
 
 PAIRS = ((0, 1), (0, 2), (1, 2))
@@ -24,7 +24,7 @@ class LaneChange:
     from_lane: int
     to_lane: int
     size: int              # abs(to_lane - from_lane)
-    min_traffic_ds: float  # min |rear-axle s difference| to traffic in from/to/between lanes over the move; inf if none
+    min_traffic_ds: float  # min |CG s difference| to traffic in from/to/between lanes over the move; inf if none
     min_speed: float       # min team-car speed over the move
 
 
@@ -87,7 +87,7 @@ class EventDetector:
     def update(self, snap, dt):
         v = self.vehicle
         team_polys = [footprint(st, v) for st in snap.team]
-        centres = snap.team[:, :2]+(v.wheelbase/2)*np.column_stack((np.cos(snap.team[:, 2]), np.sin(snap.team[:, 2])))
+        centres = body_centre(snap.team, v)
         pair_distance = np.array([np.linalg.norm(centres[i]-centres[j]) for i, j in PAIRS])
         pair_clearance = np.array([clearance(team_polys[i], team_polys[j]) for i, j in PAIRS])
         states = traffic_states(snap, self.road)

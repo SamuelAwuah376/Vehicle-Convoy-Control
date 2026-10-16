@@ -10,6 +10,14 @@ from ..rl.scripted import lane_keep_control
 from ..world import TEAM
 
 
+def make_mpc(cfg, plant, road):
+    """Per-vehicle MPC selected by cfg.mpc."""
+    if cfg.mpc == 'linear':
+        return LaneChangeMPC(cfg, plant, road)
+    from ..planning.nonlinear import NonlinearMPC   # lazy: the linear path never imports acados
+    return NonlinearMPC(cfg, plant, road)
+
+
 @dataclass
 class PlannerLog:
     solves: list = field(default_factory=list)       # (time, vehicle, status, iterations, solve_time_s, attempt)
@@ -39,7 +47,7 @@ class CentralizedTeam:
             raise ValueError('planner step and decision interval must be multiples of dt and of each other')
         self.cfg, self.world, self.policy = cfg, world, policy
         self.road, self.plant, self.params = world.road, world.plant, world.plant.params
-        self.mpc = LaneChangeMPC(cfg, world.plant, world.road)
+        self.mpc = make_mpc(cfg, world.plant, world.road)
         self.intentions = IntentionManager(cfg, world.road, self.params, scenario.team_lane, scenario.team_speed)
         self.plans = [None]*TEAM
         self.mode = ['qp']*TEAM
@@ -100,7 +108,9 @@ class CentralizedTeam:
     def _solve(self, snap, i, obstacles, reference, attempt):
         z0 = np.array([snap.team_s[i], snap.team_d[i], snap.team[i, 2]-self.road.heading(snap.team_s[i]), snap.team[i, 3]])
         target = replace(self.intentions.target(i), yield_to=self._yield_to(snap, i))
-        plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], self.held[i, 0], target, obstacles, reference)
+        lateral = tuple(0.0 if x is None else float(x[i]) for x in (snap.team_vy, snap.team_r))   # dynamic plant (vy, r)
+        # lateral passed positionally (solve(..., reference, lateral=None)) so positional solve wrappers keep working.
+        plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], self.held[i, 0], target, obstacles, reference, lateral)
         self.log.solves.append((snap.time, i, plan.status, plan.iterations, plan.solve_time, attempt))
         return plan
 

@@ -3,7 +3,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from .config import SCENARIOS, SCORES, Timing
-from .evaluation.io import save
+from .evaluation.io import append_index, next_run_dir, save
 from .evaluation.runner import POLICIES, run
 
 
@@ -17,12 +17,13 @@ def main():
     parser.add_argument('--out', type=Path)
     parser.add_argument('--animate', action='store_true')
     args = parser.parse_args()
-    args.out = args.out or Path(f'results/nohesi_{args.scenario}_{args.policy}_score{args.score}')
+    args.out = args.out or next_run_dir('results', f'{args.scenario}_{args.policy}_score{args.score}_seed{args.seed}')
     scenario = SCENARIOS[args.scenario]()
     if args.duration:
         scenario = replace(scenario, timing=Timing(scenario.timing.dt, args.duration))
     episode = run(scenario, args.seed, args.policy, score=SCORES[args.score]())
     metrics = save(episode, args.out)
+    append_index(args.out, metrics)
     from .evaluation.viz import plot, animate
     plot(episode, args.out/'summary.png')
     if args.animate:
