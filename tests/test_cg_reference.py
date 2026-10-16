@@ -3,7 +3,6 @@ from dataclasses import replace
 from types import SimpleNamespace
 import numpy as np
 import pytest
-from convoy.dynamics import step as rear_axle_step
 from nohesi.config import Road as RoadConfig, Vehicle
 from nohesi.dynamics import KinematicPlant, kinematic_step
 from nohesi.geometry import body_centre, footprint
@@ -44,13 +43,17 @@ def test_constant_steer_cg_circle(l_r):
 
 @pytest.mark.parametrize('l_r', [1.35, 1.6])
 def test_matches_rear_axle_model(l_r):
-    """Same steering and the rear-axle speed v cos(beta): the CG model's rear axle follows convoy's rear-axle model."""
+    """Same steering and the rear-axle speed v cos(beta): the CG model's rear axle follows the rear-axle kinematic
+    bicycle (x' = v cos yaw, y' = v sin yaw, yaw' = v tan(delta)/L), integrated finely here as the reference."""
     p, delta = params(l_r), 0.2
     beta = np.arctan(l_r/p.wheelbase*np.tan(delta))
     cg, rear = np.array([l_r, 0., 0., 10.]), np.array([0., 0., 0., 10*np.cos(beta)])
     for _ in range(300):
         cg, _, _ = kinematic_step(cg, 0.0, delta, delta, p)
-        rear, _, _ = rear_axle_step(rear, 0.0, delta, delta, p)
+        for _ in range(10):
+            h = p.dt/10
+            mid = rear[2]+0.5*h*rear[3]*np.tan(delta)/p.wheelbase
+            rear = rear+h*np.array([rear[3]*np.cos(mid), rear[3]*np.sin(mid), rear[3]*np.tan(delta)/p.wheelbase, 0.0])
     np.testing.assert_allclose(cg[:2]-l_r*np.array([np.cos(cg[2]), np.sin(cg[2])]), rear[:2], atol=1e-3)
     assert cg[2] == pytest.approx(rear[2], abs=1e-6)
 

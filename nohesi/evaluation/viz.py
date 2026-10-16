@@ -3,10 +3,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 import numpy as np
-from convoy.visualization import COLORS
 from ..geometry import body_centre, footprint
 from ..road import Road
 from ..scoring.score import TERMS
+
+COLORS = ['#087e8b', '#e08e45', '#9255a7']   # cars 0, 1, 2
 
 
 def _cumulative(ep):

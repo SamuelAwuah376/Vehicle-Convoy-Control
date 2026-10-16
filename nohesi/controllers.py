@@ -1,8 +1,13 @@
+"""Low-level tracking laws used by lane keeping and the fallback rollouts."""
 import numpy as np
-from .dynamics import wrap
+
+
+def wrap(angle):
+    return (angle + np.pi) % (2*np.pi) - np.pi
 
 
 def pursuit(state, progress, route, cfg):
+    """Rear-axle pure pursuit: state [x, y, yaw, v] at the rear axle, progress = its arc length on `route`."""
     lookahead = 3.0 + 0.65*state[3]
     target, _ = route.at(progress+lookahead)
     offset = target-state[:2]
@@ -10,16 +15,7 @@ def pursuit(state, progress, route, cfg):
     return np.arctan2(2*cfg.wheelbase*np.sin(alpha), max(np.linalg.norm(offset), 0.1))
 
 
-def leader_acceleration(state, progress, time, route, cfg, scenario):
-    # Stop the rear axle 4 m before the end so the entire body fits the route.
-    # Critically damped position feedback avoids crossing the endpoint at low speed.
-    remaining = route.total-progress-4.0
-    target = cfg.cruise
-    if scenario == 'braking' and 20 <= time < 27:
-        target = min(target, 2.0)
-    return min(1.2*(target-state[3]), remaining-2.0*state[3])
-
-
 def follower_acceleration(state, preceding, gap, cfg):
+    """Gap control: standstill gap plus time headway, damped on the speed difference to the vehicle ahead."""
     desired = cfg.standstill_gap + cfg.headway*state[3]
     return 0.65*(gap-desired) + 1.3*(preceding[3]-state[3])

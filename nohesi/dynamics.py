@@ -2,11 +2,11 @@ from dataclasses import asdict
 import math
 from types import SimpleNamespace
 import numpy as np
-from convoy.dynamics import wrap
+from .controllers import wrap
 
 
 def kinematic_step(state, acceleration, steering, previous_steering, cfg):
-    """CG state [x, y, yaw, v]; bounded controls; midpoint integration (convoy.dynamics.step at the CG).
+    """CG state [x, y, yaw, v]; bounded controls; midpoint integration at the CG.
 
     beta = atan(l_r/L tan delta); x' = v cos(yaw+beta), y' = v sin(yaw+beta), yaw' = v cos(beta) tan(delta)/L.
     Velocity clips at zero without allowing artificial reverse travel.

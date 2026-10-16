@@ -1,5 +1,4 @@
 import numpy as np
-from convoy.geometry import overlap
 
 __all__ = ['footprint', 'overlap', 'clearance', 'cg_offsets', 'body_centre']
 
@@ -24,6 +23,17 @@ def footprint(state, cfg):
                       [front, cfg.width/2], [rear, cfg.width/2]])
     c, s = np.cos(state[2]), np.sin(state[2])
     return local @ np.array([[c, s], [-s, c]]) + state[:2]
+
+
+def overlap(a, b):
+    """Separating-axis test for oriented rectangles; touching counts as collision."""
+    for poly in (a, b):
+        for edge in np.diff(np.vstack((poly, poly[0])), axis=0)[:2]:
+            axis = np.array([-edge[1], edge[0]])
+            pa, pb = a@axis, b@axis
+            if pa.max() < pb.min() or pb.max() < pa.min():
+                return False
+    return True
 
 
 def _point_segment_distance(points, a, b):

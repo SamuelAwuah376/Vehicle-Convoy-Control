@@ -1,11 +1,6 @@
-# Vehicle Convoy Control
+# No Hesi Team Driving
 
-Two Python driving simulators in one repository:
-
-| Package | What it is | Status |
-|---|---|---|
-| `nohesi/` | A **No Hesi-style team game**: three cars weave through highway traffic, scoring points for close passes, staying near teammates and lane-change maneuvers. Each car is driven by a planner (MPC) that turns high-level choices ("change left, speed up") into safe, smooth steering and throttle. | Active (milestone 2, part 1) |
-| `convoy/` | The original **three-car convoy**: a leader follows a curved road and two followers keep a safe gap. | Finished baseline, kept for comparison |
+A **No Hesi-style team game** in Python (`nohesi/`): three cars weave through highway traffic, scoring points for close passes, staying near teammates and lane-change maneuvers. Each car is driven by a model predictive controller (MPC) that turns high-level choices ("change left, speed up") into safe, smooth steering and throttle. The planned next stage is a reinforcement-learning (RL) policy choosing those high-level actions.
 
 Everything uses SI units (metres, seconds, m/s, radians).
 
@@ -20,6 +15,8 @@ python -m venv .venv
 .venv\Scripts\python run_sim.py                # run one No Hesi simulation
 ```
 
+The nonlinear MPC also needs acados built locally (see the `nmpc` extra in `pyproject.toml`): `pip install -e ".[test,nmpc]"` plus `pip install -e C:/acados/interfaces/acados_template`.
+
 On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, use `py -3` to create the environment.
 
 `run_sim.py` is the easiest way to run a simulation. Open it, change the settings at the top, and run it:
@@ -31,6 +28,8 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 | `SCORE` | `'v0'` … `'v3'` (see [Scoring](#scoring)); `'v3'` is the latest |
 | `SEED` | any integer: a different traffic layout |
 | `TRAFFIC` | override the number of traffic cars (`None` keeps the scenario's) |
+| `PLANT` | `'kinematic'` (default) · `'dynamic'` (dynamic bicycle with tyre slip) |
+| `MPC` | `'linear'` (OSQP, kinematic model) · `'nonlinear'` (acados, dynamic model; use with `PLANT = 'dynamic'`) |
 | `ANIMATE` | `True` writes a GIF (takes a few extra seconds) |
 
 Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>/`, so runs never overwrite each other. `results/runs.csv` lists every run with its settings, versions, team score and collisions. The same runs are available from the command line, e.g. `.venv\Scripts\python -m nohesi --scenario v1 --policy overtaker --seed 0 --animate`.
@@ -39,7 +38,6 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 
 | Milestone | What it added |
 |---|---|
-| Convoy baseline | Curved single-lane convoy, pure pursuit steering, gap control, optional leader steering MPC. |
 | No Hesi M1 | Straight 3-lane road, seeded traffic, collision detection, versioned scoring, lane-keeping policy. |
 | No Hesi M2, part 1 | Lane changes executed by a per-car MPC. |
 | No Hesi M2, part 2 | Lane-changing traffic, plus robustness fixes for crowded situations. |
@@ -141,9 +139,10 @@ Each run folder contains:
 | File | Responsibility |
 |---|---|
 | `config.py` | All settings, plus versioned `SCENARIOS` and `SCORES` |
-| `road.py`, `traffic.py`, `world.py`, `dynamics.py`, `geometry.py` | Road, traffic, simulation step, vehicle model, footprints and clearances |
+| `road.py`, `traffic.py`, `world.py`, `dynamics.py`, `geometry.py` | Road, traffic, simulation step, vehicle models (kinematic and dynamic), footprints and clearances |
+| `controllers.py`, `prediction.py` | Pure pursuit and gap control for lane keeping; traffic prediction |
 | `intentions.py` | Action space, gap rule, lane-change phases |
-| `planning/single.py` | Per-car MPC |
+| `planning/single.py`, `planning/constraints.py` | Per-car linear MPC; the collision constraints both MPCs share |
 | `planning/nonlinear.py` | Optional per-car nonlinear MPC (acados, dynamic bicycle) |
 | `planning/fallback.py` | Fallback plans and plan conflict checks |
 | `coordination/centralized.py` | Runs the policy, intentions and the three MPCs together |
@@ -151,18 +150,15 @@ Each run folder contains:
 | `scoring/events.py`, `scoring/score.py` | Measure what happened, then turn it into points |
 | `evaluation/` | Episode runner, metrics, file output and plots/GIFs |
 
-**Vehicle model:** a kinematic bicycle referenced at the centre of gravity (CG), used by both the simulator and the MPC. Positions (`s`, `d`) of every car are CG positions. The CG location is `Vehicle.cg_to_rear_axle` (default 1.35 m, the wheelbase midpoint), and the slip angle is β = atan((l_r/L)·tan δ).
+**Vehicle models:** all positions (`s`, `d`) are centre-of-gravity (CG) positions. The CG is 60/40 front-biased by default (`Vehicle.cg_to_rear_axle = 1.62 m`). There are two models:
+- **Kinematic bicycle:** slip angle β = atan((l_r/L)·tan δ). The default for the simulator, and the linear MPC's model.
+- **Dynamic bicycle:** Fiala tyres with a friction ellipse. Used by `PLANT = 'dynamic'` and by the nonlinear MPC.
 
-**Limitations:** the road is straight and the vehicle model is kinematic, which is fine up to about 35 m/s. Traffic lane changes are only on in v3/v4, and safety checks are sampled every 0.05 s rather than continuous. Planned next steps include a dynamic vehicle model for higher speeds, curved roads, and Assetto Corsa integration.
+**Limitations:**
+- The road is straight.
+- The dynamic model has no load transfer: axle loads are static, and the bicycle model has no left/right tyres.
+- The nonlinear MPC needs a local acados build.
+- Traffic changes lanes only in v3/v4.
+- Safety checks are sampled every 0.05 s rather than continuous.
 
-## Convoy baseline (`convoy/`)
-
-A leader drives a curved road (`y = 12 sin(x/45) + 4 sin(x/22)`, about 430 m) at 8 m/s, following it with **pure pursuit** steering, and stops 4 m before the end. Two followers keep a safe gap with `a = 0.65·(gap − 5 − 1.2·v) + 1.3·(v_ahead − v)`, i.e. a 5 m standstill gap plus 1.2 s of headway. Scenarios: `nominal`, `braking` (the leader slows to 2 m/s at 20–27 s) and `offset` (cars start off the road centre).
-
-```powershell
-.venv\Scripts\python -m convoy --scenario braking --out results/braking --animate
-.venv\Scripts\python -m pip install -e ".[test,mpc]"           # optional: CasADi MPC for leader steering
-.venv\Scripts\python -m convoy --controller mpc --out results/mpc
-```
-
-Tests require zero collisions or lane violations, a minimum gap above 3 m and small tracking errors. Measured results are in `VALIDATION.md` and `results/`. Without CasADi the MPC test is skipped.
+**Planned next steps:** an RL policy, curved roads, and CARLA/Assetto Corsa evaluation.

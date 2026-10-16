@@ -22,7 +22,6 @@ class Road:
 
 @dataclass(frozen=True)
 class Vehicle:
-    # Attribute names match convoy.config.Config so convoy controllers (pursuit, gap control) reuse them.
     # Vehicle states are referenced at the centre of gravity (CG); the body overhangs both axles equally.
     wheelbase: float = 2.7
     cg_to_rear_axle: float = 1.62   # l_r (m); l_f = wheelbase - l_r. 1.62 = 60/40 front-biased weight (l_f = 1.08)

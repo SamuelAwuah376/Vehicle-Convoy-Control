@@ -2,7 +2,7 @@ import numpy as np
 
 
 class LaneRoute:
-    """Lane centreline with the Route.at(s) interface used by convoy.controllers.pursuit."""
+    """Lane centreline with the at(s) interface used by controllers.pursuit."""
     def __init__(self, road, lane):
         self.road, self.d, self.total = road, road.lane_center(lane), road.cfg.length
 

@@ -1,14 +1,14 @@
 """Hand-written policies: sanity baselines that drive the world without RL."""
 import numpy as np
-from convoy.controllers import pursuit, follower_acceleration
+from ..controllers import pursuit, follower_acceleration
 from ..intentions import encode
 from ..world import TEAM, vehicle_ahead, vehicle_behind
 
 
 def lane_keep_law(state, s, route, params, target_speed, lead=None, max_accel=np.inf):
-    """Pure pursuit on a lane centre with convoy gap control; state and s at the CG, lead is (CG gap, speed) or None.
+    """Pure pursuit on a lane centre with gap control; state and s at the CG, lead is (CG gap, speed) or None.
 
-    convoy's pursuit is rear-axle pure pursuit, so it gets the rear-axle pose and progress derived from the CG."""
+    pursuit is rear-axle pure pursuit, so it gets the rear-axle pose and progress derived from the CG."""
     a = 1.2*(target_speed-state[3])
     if lead is not None:
         gap, speed = lead
