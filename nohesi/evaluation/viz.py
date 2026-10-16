@@ -42,6 +42,12 @@ def animate(ep, path, behind=60, ahead=140):
     ax.set_ylim(-half-1, half+1); ax.set_aspect('equal'); ax.set_yticks([])
     cumulative = _cumulative(ep)
     stride = max(1, int(round(0.2/ep.scenario.timing.dt)))
+    # Latest executed plan per vehicle (faint line ahead of the car; dashed when it is a fallback).
+    plans = ep.planner_log.plans if ep.planner_log else []
+    plan_times = [np.array([p[0] for p in plans if p[1] == i]) for i in range(3)]
+    plan_list = [[p for p in plans if p[1] == i] for i in range(3)]
+    paths = [ax.plot([], [], color=c, lw=1.2, alpha=0.45, zorder=1)[0] for c in COLORS]
+    ticks = [ax.plot([], [], 'o', color=c, ms=2, alpha=0.45, zorder=1)[0] for c in COLORS]
 
     def update(k):
         centre = ep.team_s[k].mean()
@@ -50,9 +56,19 @@ def animate(ep, path, behind=60, ahead=140):
             poly.set_xy(footprint(ep.team[k, i], cfg))
         for j, poly in enumerate(traffic):
             poly.set_xy(footprint(np.array([ep.traffic_s[k, j], ep.traffic_d[k, j], 0, 0]), cfg))
+        for i in range(3):
+            n = np.searchsorted(plan_times[i], ep.time[k]+1e-9)-1 if plans else -1
+            if n < 0:
+                continue
+            _, _, source, z = plan_list[i][n]
+            # Draw the body-centre path (rear axle + half wheelbase along the heading).
+            x = z[:, 0]+0.5*cfg.wheelbase*np.cos(z[:, 2]); y = z[:, 1]+0.5*cfg.wheelbase*np.sin(z[:, 2])
+            paths[i].set_data(x, y); paths[i].set_linestyle('-' if source == 'qp' else '--')
+            ticks[i].set_data(x[10::10], y[10::10])   # one dot per planned second
         scores = ' '.join(f'{v:.0f}' for v in cumulative[k])
-        title.set_text(f't={ep.time[k]:.1f} s | team {cumulative[k].sum():.0f} | cars {scores}')
-        return team+traffic+[title]+lines
+        combo = f' | combo x{ep.combo_multiplier[k-1]:g}' if ep.combo_multiplier is not None and k else ''
+        title.set_text(f't={ep.time[k]:.1f} s | team {cumulative[k].sum():.0f} | cars {scores}{combo}')
+        return team+traffic+[title]+lines+paths+ticks
 
     animation = FuncAnimation(fig, update, frames=range(0, len(ep.time), stride), blit=False)
     animation.save(path, writer=PillowWriter(fps=15)); plt.close(fig)

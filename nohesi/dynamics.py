@@ -14,13 +14,14 @@ class KinematicPlant:
     def __init__(self, vehicle, dt):
         self.params = SimpleNamespace(**asdict(vehicle), dt=dt)
 
+    # Limits accept scalars or arrays (the MPC evaluates them along the horizon).
     def accel_limit(self, speed):
         p = self.params
-        return p.accel_max*min(1.0, p.power_speed/max(speed, 1e-6))
+        return p.accel_max*np.minimum(1.0, p.power_speed/np.maximum(speed, 1e-6))
 
     def steer_limit(self, speed):
         p = self.params
-        return min(p.steer_max, np.arctan(p.lateral_accel_max*p.wheelbase/max(speed, 1.0)**2))
+        return np.minimum(p.steer_max, np.arctan(p.lateral_accel_max*p.wheelbase/np.maximum(speed, 1.0)**2))
 
     def step(self, state, acceleration, steering, previous_steering):
         a = min(acceleration, self.accel_limit(state[3]))

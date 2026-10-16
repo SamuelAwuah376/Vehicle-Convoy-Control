@@ -1,95 +1,128 @@
-# Three-vehicle autonomous convoy simulator
+# Vehicle Convoy Control
 
-A working **deterministic** baseline with a curved single-lane route, kinematic bicycle vehicles, leader path tracking, follower gap control, bounded actuators, endpoint stopping, quantitative tests, and saved plots/animation. Optional CasADi MPC replaces **leader steering only**; longitudinal control and follower steering remain the baseline.
+Two Python driving simulators in one repository:
 
-The earlier ChatGPT architecture replies could not be retrieved: they appeared as content references. The defaults below were proposed in this chat and accepted by the user. They are not represented as recovered original parameters.
+| Package | What it is | Status |
+|---|---|---|
+| `nohesi/` | A **No Hesi-style team game**: three cars weave through highway traffic, scoring points for close passes, staying near teammates and lane-change maneuvers. Each car is driven by a planner (MPC) that turns high-level choices ("change left, speed up") into safe, smooth steering and throttle. | Active (milestone 2, part 1) |
+| `convoy/` | The original **three-car convoy**: a leader follows a curved road and two followers keep a safe gap. | Finished baseline, kept for comparison |
 
-## Run from this directory
+Everything uses SI units (metres, seconds, m/s, radians).
 
-Use Python 3.10 or later (verified here with Python 3.12 on Windows). Create an isolated environment and install the package:
+## Quick start
+
+Requires Python 3.10+ (developed on 3.12/3.13, Windows).
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\python -m pip install -e ".[test]"
-.venv\Scripts\python -m pytest -q --basetemp=work/pytest-temp
-.venv\Scripts\python -m convoy --scenario nominal --out results/nominal
-.venv\Scripts\python -m convoy --scenario braking --out results/braking --animate
-.venv\Scripts\python -m convoy --scenario offset --out results/offset
-.venv\Scripts\python -m convoy --scenario braking --dt 0.1 --out results/braking_dt01
+.venv\Scripts\python -m pytest -q              # run all tests
+.venv\Scripts\python run_sim.py                # run one No Hesi simulation
 ```
 
-On macOS/Linux, use `.venv/bin/python` instead. If Windows `python` resolves to an unavailable Microsoft Store alias, use an installed Python executable or `py -3` for the environment creation command.
+On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, use `py -3` to create the environment.
 
-Optional MPC:
+`run_sim.py` is the easiest way to run a simulation. Open it, change the settings at the top, and run it:
+
+| Setting | Options |
+|---|---|
+| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars |
+| `POLICY` | `'overtaker'` (lane changes + MPC) · `'lane_keeping'` (stays in its lane, no MPC) |
+| `SCORE` | `'v0'` … `'v3'` (see [Scoring](#scoring)); `'v3'` is the latest |
+| `SEED` | any integer: a different traffic layout |
+| `TRAFFIC` | override the number of traffic cars (`None` keeps the scenario's) |
+| `ANIMATE` | `True` writes a GIF (takes a few extra seconds) |
+
+Results go to `results/nohesi_<scenario>_<policy>_score<score>_seed<seed>/`. The same runs are available from the command line, e.g. `.venv\Scripts\python -m nohesi --scenario v1 --policy overtaker --seed 0 --animate`.
+
+## Milestones
+
+| Milestone | What it added |
+|---|---|
+| Convoy baseline | Curved single-lane convoy, pure pursuit steering, gap control, optional leader steering MPC. |
+| No Hesi M1 | Straight 3-lane road, seeded traffic, collision detection, versioned scoring, lane-keeping policy. |
+| **No Hesi M2, part 1** | Lane changes executed by a per-car MPC, as described below. |
+
+**Milestone 2, part 1** gives every car a planner that executes high-level choices safely:
+- **Actions:** 45 choices per car: lane (two right, one right, keep, one left, two left) × speed (slower, hold, faster) × lean in the lane (right, centre, left).
+- **Intention layer:** turns a lane choice into a locked target gap. It rejects unsafe requests, such as a gap that's too short, a faster car closing from behind, or a blocked middle lane during a two-lane move.
+- **Per-car MPC:** a quadratic program solved with OSQP in about 2 ms that plans 3 s ahead, avoiding traffic and teammates within hard 0.25 m margins.
+- **Safety net:** fallbacks for failed solves, plus a team-wide check of every plan after each planning cycle.
+- **Scoring up to v3:** a team combo multiplier, teammate proximity and lane-change maneuvers.
+- **Scripted overtaker:** a hand-written policy that exercises all of the above.
+- **Debug outputs:** GIFs that draw each car's current plan.
+
+**Results:** across seeds 0–4 on scenarios v1 and v2 there are 0 collisions. Under score v3 the overtaker averages about 17,000 points on v1 and 14,000 on v2, while the lane-keeping baseline scores almost nothing (it never passes closely). Reference runs: `results/nohesi_v1_overtaker_scorev3/` and `results/nohesi_v1_lane_keeping_scorev3/`.
+
+**Next:** milestone 2, part 2, then milestone 3: replace the scripted overtaker with a reinforcement-learning (RL) policy.
+
+## How the No Hesi simulation works
+
+```
+traffic + team state ──► policy (every 0.5 s) ──► intention layer ──► MPC per car (every 0.1 s) ──► vehicles (every 0.05 s)
+                         chooses an action        locks a gap          plans 3 s of steering            kinematic bicycle
+                                                  or rejects           and throttle                     model
+                                                                                   │
+                                     scoring ◄── only what actually happened ◄─────┘
+```
+
+Key ideas, in the order things happen:
+
+1. **Road and traffic** (`road.py`, `traffic.py`, `world.py`): a straight 3-lane road. Traffic cars stay in their lanes at 18–25 m/s and slow down for cars ahead using the Intelligent Driver Model. Cars that fall far behind the team respawn ahead. Positions are in road coordinates: `s` along the road and `d` across it (positive = left, lane 0 = rightmost).
+2. **Policy** (`rl/scripted.py`): picks one of the 45 actions per car. The scripted *overtaker* changes lanes when stuck behind slower traffic and leans toward cars it passes. Later, RL will replace it.
+3. **Intention layer** (`intentions.py`): a lane request locks the **gap** (the space between two cars) in the target lane where the car will be 3 s later (4 s for a two-lane move). A lane change is *pending* until the car touches the lane line, then *committed* (it can no longer be cancelled by the policy), then *done*.
+4. **MPC** (`planning/single.py`): model predictive control. Every 0.1 s it solves a small optimisation: "which steering and throttle over the next 3 s best reach the target lane and speed, without breaking the vehicle's limits or getting within 0.25 m of anyone?" Only the first command is applied, and then it re-plans. The three cars plan one after another, each avoiding the plans already made.
+5. **Safety net** (`planning/fallback.py`, `coordination/centralized.py`): if a solve fails, the car follows its previous plan for up to 0.5 s, and otherwise returns to its original lane and follows the car ahead. After each planning cycle, every plan is checked against traffic and teammates. If two plans conflict, the lower-priority car aborts its lane change or brakes. These checks use *predicted* traffic, so they reduce risk but are not a guarantee.
+6. **Scoring** (`scoring/`): measured only from the motion that actually happened, kept separate from the planner so the rules can change freely.
+
+## Scoring
+
+Scores are versioned, and each result records which version it used.
+
+| Points for | How |
+|---|---|
+| **Close pass** | Overtaking a traffic car with less than 1.5 m clearance: about 100–200 points, more when closer and faster. |
+| **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
+| **Teammate proximity** (v1+) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
+| **Lane-change maneuvers** (v3) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
+| **Speed** | A small amount for driving above 25 m/s (v1+). |
+| **Collision** | −500 to each car involved, and the episode ends. |
+
+## Outputs
+
+Each run folder contains:
+- `team.gif`: top-down animation. Each car's current plan is drawn faintly ahead of it, dashed when the car is on a fallback.
+- `summary.png`: speed, lane position and score over time.
+- `metrics.json`: scores by term, collisions, lane changes, rejections, fallbacks, solve times, and every setting used.
+- `events.json`: every pass, maneuver, lane-change decision and fallback, with times.
+- `trajectory.npz` and `team.csv`: raw histories, including every MPC plan.
+
+`results/failed_v1_overtaker_scorev2_seed0_m2.4/` keeps a run that exposed planner bugs, which are now fixed, with an explanation in its `NOTE.md`.
+
+## Code map (`nohesi/`)
+
+| File | Responsibility |
+|---|---|
+| `config.py` | All settings, plus versioned `SCENARIOS` and `SCORES` |
+| `road.py`, `traffic.py`, `world.py`, `dynamics.py`, `geometry.py` | Road, traffic, simulation step, vehicle model, footprints and clearances |
+| `intentions.py` | Action space, gap rule, lane-change phases |
+| `planning/single.py` | Per-car MPC |
+| `planning/fallback.py` | Fallback plans and plan conflict checks |
+| `coordination/centralized.py` | Runs the policy, intentions and the three MPCs together |
+| `rl/scripted.py` | Lane-keeping and overtaker policies |
+| `scoring/events.py`, `scoring/score.py` | Measure what happened, then turn it into points |
+| `evaluation/` | Episode runner, metrics, file output and plots/GIFs |
+
+**Limitations:** the road is straight and the vehicle model is kinematic, which is fine up to about 35 m/s. Traffic never changes lanes, and safety checks are sampled every 0.05 s rather than continuous. Planned next steps include a dynamic vehicle model for higher speeds, curved roads, and Assetto Corsa integration.
+
+## Convoy baseline (`convoy/`)
+
+A leader drives a curved road (`y = 12 sin(x/45) + 4 sin(x/22)`, about 430 m) at 8 m/s, following it with **pure pursuit** steering, and stops 4 m before the end. Two followers keep a safe gap with `a = 0.65·(gap − 5 − 1.2·v) + 1.3·(v_ahead − v)`, i.e. a 5 m standstill gap plus 1.2 s of headway. Scenarios: `nominal`, `braking` (the leader slows to 2 m/s at 20–27 s) and `offset` (cars start off the road centre).
 
 ```powershell
-.venv\Scripts\python -m pip install -e ".[test,mpc]"
-.venv\Scripts\python -m pytest -q --basetemp=work/pytest-temp
+.venv\Scripts\python -m convoy --scenario braking --out results/braking --animate
+.venv\Scripts\python -m pip install -e ".[test,mpc]"           # optional: CasADi MPC for leader steering
 .venv\Scripts\python -m convoy --controller mpc --out results/mpc
 ```
 
-Without CasADi, the MPC test is explicitly skipped and the baseline has no CasADi import dependency. The native solver test runs in a subprocess with file output handles to avoid Windows IPOPT/pytest capture conflicts. Python-level solver failures use pure pursuit and increment `mpc_failures`; native process failures cannot be caught by that fallback. MPC construction or missing solver dependencies produce an explicit error.
-
-Every run saves `metrics.json`, `trajectory.csv`, `trajectory.npz`, and `summary.png`; `--animate` adds `convoy.gif`. NPZ state shape is `(samples, 3, 4)` with state order `[x, y, yaw, speed]`; controls are `(samples-1, 3, 2)` in `[acceleration, steering]` order, applied during the interval beginning at the corresponding state sample. CSV vehicle IDs 0, 1, 2 identify the leader and followers. Angles are radians; SI units are used throughout. The GIF runs about six times faster than simulation time and shows the timestamp.
-
-## No Hesi team simulation (`nohesi/`, milestone 1)
-
-A separate package for the No Hesi-style team game; `convoy/` is unchanged. Milestone 1 adds a straight 3-lane road, seeded IDM traffic (8 cars, 18–25 m/s, recycled ahead of the team), collision and road-edge detection, versioned scoring, and a scripted lane-keeping policy. There is no MPC or RL yet.
-
-```powershell
-.venv\Scripts\python -m nohesi --scenario v0 --seed 0 --out results/nohesi_v0 --animate
-```
-
-Outputs: `metrics.json` (seed, scenario and score versions, full scenario config, team/individual scores by term, collisions, overtakes, proximity time, minimum clearances, policy compute time), `events.json` (every overtake with its minimum clearance, scored close passes, collisions), `trajectory.npz`, `team.csv`, `summary.png` and optionally `team.gif`.
-
-Scoring v0 (`nohesi/config.py: Score`): close pass `100·(1+(1.5−c)/1.5)·(v/28)` when footprint clearance `c < 1.5 m` while overtaking from behind; teammate proximity 10 pts/s per pair within 12 m (both above 20 m/s), split between the pair; 1 pt/s per m/s above 20 m/s; collision (traffic, teammate or road edge) −500 to each car involved and the episode ends. Team score is the sum. Detection (`scoring/events.py`) reports raw measurements; only `scoring/score.py` applies the formula. Clearances are sampled at simulation steps, not continuous.
-
-## Architecture and parameters
-
-| Module | Responsibility |
-|---|---|
-| `config.py` | Immutable physical/control parameters and validation |
-| `route.py` | Sampled curved reference, arc-length interpolation and segment projection |
-| `dynamics.py` | Rear-axle bicycle dynamics and actuator bounds |
-| `controllers.py` | Pure pursuit, leader speed/stop control, predecessor gap control |
-| `mpc.py` | Optional nominal CasADi/IPOPT leader steering MPC |
-| `simulation.py` | Synchronous three-vehicle loop, histories and performance metrics |
-| `geometry.py` | Oriented vehicle rectangles, collision and lane checks |
-| `visualization.py` | Route, speed, gap, tracking plots and GIF |
-| `__main__.py` | Command-line simulation and exports |
-| `tests/test_convoy.py` | Model checks and closed-loop acceptance tests |
-
-| Parameter | Default |
-|---|---:|
-| Vehicles | 3 |
-| Wheelbase / length / width | 2.7 / 4.5 / 1.8 m |
-| Lane width | 3.6 m |
-| Cruise speed | 8 m/s |
-| Standstill bumper gap | 5 m |
-| Time headway | 1.2 s |
-| Acceleration limits | −4 to +2 m/s² |
-| Steering angle / rate limits | ±0.5 rad / 0.6 rad/s |
-| Simulation step / duration | 0.05 s / 90 s |
-| Route sampling | 0.2 m in x; ~430.24 m arc length |
-
-The route is `y(x) = 12 sin(x/45) + 4 sin(x/22)` for `0 ≤ x ≤ 420 m`. Initial rear-axle arc lengths are 43.2, 24.1 and 5 m, with all vehicles traveling at 8 m/s. This establishes the desired 14.6 m bumper gap at cruise. The leader stops 4 m before the route endpoint, leaving room for the full body; followers stop behind it at 5 m bumper gaps. This is a route-following demonstration with a precomputed geometric path, not an obstacle-avoidance planner.
-
-The plant is `xdot = v cos(yaw)`, `ydot = v sin(yaw)`, `yawdot = v tan(steering)/wheelbase`, `vdot = acceleration`. Midpoint integration uses bounded commands; a braking step that reaches zero speed integrates only until the stop time and never moves backward. Each vehicle occupies a rectangle extending 0.9 m behind and 3.6 m ahead of its rear axle.
-
-Pure pursuit targets an arc-length lookahead `3 + 0.65v` m. Follower acceleration is `0.65(gap − 5 − 1.2v) + 1.3(v_predecessor − v)`, before actuator saturation. Gap is the difference in rear-axle arc lengths minus vehicle length. This curved-route approximation is checked separately against oriented rectangle collisions. All commands are computed from one shared state snapshot before any vehicle advances.
-
-The leader uses speed feedback and critically damped endpoint feedback: `a = min(1.2(v_target − v), remaining − 2v)`, then actuator saturation. In the braking scenario its target drops to 2 m/s during seconds 20–27, then returns to 8 m/s. The offset scenario introduces ±0.5 m lateral offsets and +0.05 rad yaw error on all vehicles. There is no noise or random seed dependency.
-
-MPC has 12 steps of 0.15 s, a constant measured speed prediction, bicycle heading/position dynamics, steering magnitude/rate constraints, and position, heading, steering and steering-change costs. It replans every simulation step and warm-starts steering. It does not constrain intervehicle gaps or lane boundaries inside the optimizer; those are evaluated afterward. MPC implementation uses the [official CasADi Opti/IPOPT interface](https://web.casadi.org/docs/).
-
-## Acceptance criteria and measured results
-
-The baseline tests require zero sampled rectangle overlaps and lane-boundary violations, >3 m minimum bumper gap, <0.65 m maximum rear-axle cross-track error, <1.5 m gap-error RMS after 10 s, all final speeds <0.05 m/s, leader goal error <0.2 m, forward progress, and actuator/rate bounds. These thresholds are explicit regression criteria for the supplied scenarios, not formal safety guarantees. Tests also check straight motion, exact stopping distance within a step, circular motion against an analytical solution, route projection, rectangle geometry and equilibrium gap control.
-
-Checked results and their complete configurations are saved in `results/`. See `VALIDATION.md` for the measurements. All geometry checks are at recorded simulation times: they do not certify continuous swept-volume safety. Lane checks use projected rectangle corners, appropriate to this gentle route, and do not model tire slip or road-edge interaction.
-
-## Scope and next steps
-
-This version assumes exact states, instantaneous predecessor state availability, fixed known dynamics, no obstacles and no communications delay. The route and controller form a tested nominal baseline. There is **no uncertainty-aware control, RL, perception, dynamic bicycle model, or formal string-stability proof**. Empirical recovery in the offset/braking cases is the extent of robustness established here. Parameter changes outside these tested conditions require fresh evaluation.
-
-Useful next work: acceleration MPC with explicit gap constraints; solver timing and deadline handling; delayed/noisy observations and deterministic disturbance experiments; a dynamic bicycle model and friction limits. Add uncertainty-aware or RL claims only after implementing and evaluating those capabilities against this baseline.
+Tests require zero collisions or lane violations, a minimum gap above 3 m and small tracking errors. Measured results are in `VALIDATION.md` and `results/`. Without CasADi the MPC test is skipped.

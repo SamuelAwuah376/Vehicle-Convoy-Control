@@ -1,0 +1,173 @@
+"""Centralized team policy with one MPC per vehicle, solved sequentially in priority order."""
+from dataclasses import dataclass, field
+import numpy as np
+from ..intentions import IntentionManager
+from ..planning.base import Obstacles, constant_speed_plan
+from ..planning.fallback import first_conflict, lane_keep_plan, shifted_fallback
+from ..planning.single import LaneChangeMPC
+from ..rl.scripted import lane_keep_control
+from ..world import TEAM
+
+
+@dataclass
+class PlannerLog:
+    solves: list = field(default_factory=list)       # (time, vehicle, status, iterations, solve_time_s, attempt)
+    fallbacks: list = field(default_factory=list)    # (time, vehicle, 'shifted' | 'lane_keep' | 'emergency')
+    conflicts: list = field(default_factory=list)    # (time, vehicle, other key, step, resolution)
+    plans: list = field(default_factory=list)        # (time, vehicle, source, z) executed plan per replan
+    predictions: list = field(default_factory=list)  # (due_time, vehicle, s, d) planned one MPC step ahead
+    missed: np.ndarray = field(default_factory=lambda: np.zeros(TEAM))  # missed-opportunity seconds
+
+
+class CentralizedTeam:
+    """Calls the policy every decision interval, replans every MPC step, returns held controls.
+
+    Priority: vehicles mid lane change first, then front to back. A vehicle avoids plans already
+    computed this cycle and the shifted previous-cycle plans of teammates not yet planned. After
+    the cycle, every plan is footprint-checked against predicted traffic and higher-priority
+    teammates' final plans; on a conflict the lower-priority vehicle yields (abort to its origin
+    lane and re-solve, else brake in lane). The check uses predictions: it is not a guarantee.
+    """
+    name = 'centralized'
+
+    def __init__(self, scenario, world, policy, cfg):
+        dt = scenario.timing.dt
+        self.decide_every = int(round(cfg.decision_interval/dt))
+        self.plan_every = int(round(cfg.step/dt))
+        if not np.isclose(self.plan_every*dt, cfg.step) or self.decide_every % self.plan_every:
+            raise ValueError('planner step and decision interval must be multiples of dt and of each other')
+        self.cfg, self.world, self.policy = cfg, world, policy
+        self.road, self.plant, self.params = world.road, world.plant, world.plant.params
+        self.mpc = LaneChangeMPC(cfg, world.plant, world.road)
+        self.intentions = IntentionManager(cfg, world.road, self.params, scenario.team_lane, scenario.team_speed)
+        self.plans = [None]*TEAM
+        self.mode = ['qp']*TEAM
+        self.held = np.zeros((TEAM, 2))
+        self.log = PlannerLog()
+        self.k = 0
+        self.name = f'centralized/{getattr(policy, "name", type(policy).__name__)}'
+
+    def __call__(self, snap):
+        self.intentions.update_phases(snap, self.plans)
+        if self.k % self.decide_every == 0:
+            self._decide(snap)
+        if self.k % self.plan_every == 0:
+            self._replan(snap)
+        controls = self.held.copy()
+        for i in range(TEAM):
+            if self.mode[i] in ('lane_keep', 'emergency'):
+                it = self.intentions.intentions[i]
+                cap = -self.cfg.emergency_decel if self.mode[i] == 'emergency' else np.inf
+                controls[i] = lane_keep_control(snap, self.road, self.params, i, it.lane, it.speed, cap)
+        self.k += 1
+        return controls
+
+    def order(self, snap):
+        busy = [it.phase != 'keep' for it in self.intentions.intentions]
+        return sorted(range(TEAM), key=lambda i: (not busy[i], -snap.team_s[i]))
+
+    def _decide(self, snap):
+        intents = self.intentions.intentions
+        if hasattr(self.policy, 'bind_gap_check'):
+            # Read-only: lets a scripted policy ask whether a lane change would be accepted right now.
+            self.policy.bind_gap_check(lambda i, lane: self.intentions.gap_rule(snap, self.plans, i, lane, intents[i].speed))
+        actions = self.policy(snap, intents)
+        stuck = [it.phase == 'keep' and hasattr(self.policy, 'stuck') and self.policy.stuck(snap, i, it) is not None
+                 for i, it in enumerate(intents)]
+        self.intentions.decide(snap, actions, self.plans, self.order(snap))
+        for i, it in enumerate(intents):
+            # Missed opportunity: stuck, still keeping lane, yet the gap rule would accept a change.
+            if stuck[i] and it.phase == 'keep' and any(
+                    self.intentions.gap_rule(snap, self.plans, i, it.lane+c, it.speed)[0] is not None for c in (-1, 1)):
+                self.log.missed[i] += self.cfg.decision_interval
+
+    def _obstacles(self, snap, i, fresh):
+        cfg, N = self.cfg, self.cfg.horizon
+        t = np.arange(N+1)[:, None]*cfg.step
+        traffic = Obstacles(tuple(('traffic', int(k)) for k in snap.traffic_id),
+                            snap.traffic_s[None, :]+snap.traffic_v[None, :]*t,
+                            np.repeat(snap.traffic_d[None, :], N+1, axis=0),
+                            np.repeat(snap.traffic_v[None, :], N+1, axis=0))
+        mates = []
+        for j in range(TEAM):
+            if j == i:
+                continue
+            plan = fresh.get(j)
+            if plan is None:
+                plan = self.plans[j].shifted(1) if self.plans[j] is not None else \
+                    constant_speed_plan(snap.time, cfg.step, N, snap.team_s[j], snap.team_d[j], snap.team[j, 3])
+            mates.append(Obstacles((('team', j),), plan.z[:, :1], plan.z[:, 1:2], plan.z[:, 3:4]))
+        return Obstacles.stack([traffic, *mates], N+1)
+
+    def _solve(self, snap, i, obstacles, reference, attempt):
+        z0 = np.array([snap.team_s[i], snap.team_d[i], snap.team[i, 2]-self.road.heading(snap.team_s[i]), snap.team[i, 3]])
+        plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], self.held[i, 0],
+                              self.intentions.target(i), obstacles, reference)
+        self.log.solves.append((snap.time, i, plan.status, plan.iterations, plan.solve_time, attempt))
+        return plan
+
+    def _lane_keep(self, snap, i, mode):
+        it = self.intentions.intentions[i]
+        if it.phase != 'keep':
+            self.intentions.cancel(i, snap.time, mode)
+        cap = -self.cfg.emergency_decel if mode == 'emergency' else np.inf
+        self.mode[i] = mode
+        self.log.fallbacks.append((snap.time, i, mode))
+        return lane_keep_plan(snap, self.road, self.plant, i, it.lane, it.speed, self.cfg, cap, mode)
+
+    def _plan_vehicle(self, snap, i, fresh):
+        """QP, then shifted previous plan, then lane-keep rollout."""
+        cfg, N = self.cfg, self.cfg.horizon
+        obstacles = self._obstacles(snap, i, fresh)
+        previous = self.plans[i]
+        reference = previous.shifted(1) if previous is not None else \
+            constant_speed_plan(snap.time, cfg.step, N, snap.team_s[i], snap.team_d[i], snap.team[i, 3])
+        it = self.intentions.intentions[i]
+        plan = self._solve(snap, i, obstacles, reference, 'first')
+        if plan.status != 'solved' and it.fresh:
+            self.intentions.reject_fresh(i, snap.time, f'mpc_{plan.status}')
+            plan = self._solve(snap, i, obstacles, reference, 'retry_keep')
+        it.fresh = False
+        if plan.status == 'solved':
+            self.mode[i] = 'qp'
+            return plan
+        plan = shifted_fallback(previous, obstacles, cfg, self.params)
+        if plan is not None:
+            self.mode[i] = 'shifted'
+            self.log.fallbacks.append((snap.time, i, 'shifted'))
+            return plan
+        return self._lane_keep(snap, i, 'lane_keep')
+
+    def _conflict(self, snap, i, plans, higher):
+        """First conflict of vehicle i's plan with predicted traffic or higher-priority teammates."""
+        cfg, N = self.cfg, self.cfg.horizon
+        t = np.arange(N+1)*cfg.step
+        others = [(('traffic', int(snap.traffic_id[j])), snap.traffic_s[j]+snap.traffic_v[j]*t,
+                   np.full(N+1, snap.traffic_d[j]), np.zeros(N+1)) for j in range(len(snap.traffic_s))]
+        others += [(('team', j), plans[j].z[:, 0], plans[j].z[:, 1], plans[j].z[:, 2]) for j in higher]
+        return first_conflict(plans[i].z, others, self.params, cfg.check_margin)
+
+    def _replan(self, snap):
+        fresh, order = {}, self.order(snap)
+        for i in order:
+            fresh[i] = self._plan_vehicle(snap, i, fresh)
+        for n, i in enumerate(order):
+            hit = self._conflict(snap, i, fresh, order[:n])
+            if hit is None:
+                continue
+            # Yield: abort any lane change and re-plan against everyone's current plans.
+            if self.intentions.intentions[i].phase != 'keep':
+                self.intentions.cancel(i, snap.time, 'conflict')
+            self.plans[i] = None   # no shifted fallback onto the conflicting plan
+            fresh[i] = self._plan_vehicle(snap, i, fresh)
+            resolution = 'replanned'
+            if self._conflict(snap, i, fresh, order[:n]) is not None:
+                fresh[i] = self._lane_keep(snap, i, 'emergency')
+                resolution = 'emergency' if self._conflict(snap, i, fresh, order[:n]) is None else 'unresolved'
+            self.log.conflicts.append((snap.time, i, hit[0], hit[1], resolution))
+        for i in order:
+            if self.mode[i] in ('qp', 'shifted'):
+                self.held[i] = fresh[i].u[0]
+                self.log.predictions.append((snap.time+self.cfg.step, i, *fresh[i].z[1, :2]))
+        self.plans = [fresh[i] for i in range(TEAM)]
+        self.log.plans.extend((snap.time, i, fresh[i].source, fresh[i].z.copy()) for i in range(TEAM))

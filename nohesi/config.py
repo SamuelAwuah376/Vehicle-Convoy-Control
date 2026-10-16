@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from math import isfinite
 
 
@@ -85,9 +85,80 @@ class Score:
     speed_rate: float = 1.0         # points/s per m/s above speed_floor
     speed_floor: float = 20.0
     collision_penalty: float = 500.0
+    combo_step: float = 0.0         # team combo: multiplier gain per scored close pass (0 disables)
+    combo_max: float = 1.0          # multiplier cap
+    combo_window: float = 5.0       # seconds without a scored close pass before the combo resets
+    proximity_falloff: str = 'flat' # 'flat': full rate inside the radius; 'linear': rate*(1 - distance/radius)
+    # Lane-change maneuvers (0 points disables; detection always runs). Base points, times the combo multiplier.
+    lc_base: float = 0.0              # lane change (single or two-lane) without a close pass
+    lc_pass_single: float = 0.0       # single lane change + close pass, no follow-up change
+    lc_pass_double: float = 0.0       # two-lane change + close pass, no follow-up change
+    lc_chain_single: float = 0.0      # single lane change + close pass + another lane change
+    lc_chain_double: float = 0.0      # two-lane change + close pass + another lane change (highest)
+    lc_chain_window: float = 4.0      # s: pass within this of the change settling; follow-up within this of the pass
+    lc_traffic_distance: float = 20.0 # m: a traffic car within this along the road in a lane involved in the move
+    lc_min_speed: float = 25.0        # m/s: minimum speed throughout the lane change
 
     def __post_init__(self):
-        _positive(self, *(k for k in vars(self) if k != 'version'))
+        _positive(self, *(k for k in vars(self) if k not in ('version', 'combo_step', 'proximity_falloff')
+                          and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
+        if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_')):
+            raise ValueError('lane-change points must be non-negative')
+        if self.proximity_falloff not in ('flat', 'linear'):
+            raise ValueError('proximity_falloff must be flat or linear')
+        if not isfinite(self.combo_step) or self.combo_step < 0:
+            raise ValueError('combo_step must be non-negative')
+        if self.combo_max < 1:
+            raise ValueError('combo_max must be at least 1')
+
+
+@dataclass(frozen=True)
+class Planner:
+    """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
+    version: str = 'm2.7'
+    horizon: int = 30               # MPC steps (3 s at step 0.1)
+    step: float = 0.1               # MPC step and replan interval (s)
+    decision_interval: float = 0.5  # policy decisions (s)
+    max_iter: int = 4000            # OSQP iteration budget (reproducible "timeout")
+    speed_step: float = 2.0         # target speed change per speed action
+    speed_min: float = 20.0
+    speed_max: float = 35.0
+    gap_lookahead: float = 3.0      # gap rule prediction time (s)
+    margin_long: float = 0.25       # hard bumper-to-bumper margin (m)
+    margin_lat: float = 0.25        # hard side-to-side margin (m)
+    edge_margin: float = 0.3
+    headway: float = 0.3            # soft time headway to traffic (s), penalised through slack
+    teammate_headway: float = 0.2   # soft headway to teammates (drafting)
+    lean_offset: float = 0.6        # lean action shifts the target this far from the lane centre (m)
+    relevance: float = 60.0         # obstacles farther than this along the road are ignored
+    side_zone: float = 5.0          # beyond bumper overlap, distance where a laterally clear car gets a stay-beside constraint
+    done_tolerance: float = 0.3     # lane change done within this distance of the target d (centre + lean)
+    max_shifted_steps: int = 5      # shifted-plan fallback is open loop; limit how long it is used
+    merge_window: float = 30.0      # reject entering a lane a teammate enters from the other side this close
+    rear_closing_time: float = 0.3  # gap rule: extra rear room per m/s the rear gap car closes on the ego (s)
+    double_gap_lookahead: float = 4.0   # two-lane change: destination gap prediction time (s)
+    middle_window_start: float = 0.8    # two-lane change: middle lane must be clear over this crossing window (s)
+    middle_window_end: float = 2.5
+    check_margin: float = 0.1       # post-cycle footprint check clearance (QP margins are 0.25 m per axis)
+    emergency_decel: float = 2.0    # minimum braking when yielding after an unresolved conflict
+    w_lateral: float = 1.0
+    w_speed: float = 0.5
+    w_heading: float = 5.0
+    w_accel: float = 0.1
+    w_steer: float = 10.0
+    w_accel_rate: float = 1.0
+    w_steer_rate: float = 2000.0
+    w_slack: float = 100.0
+    lateral_tolerance: float = 0.05  # |dd| this close below the side gap still counts as laterally clear (side bound unchanged)
+
+    def __post_init__(self):
+        _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time')))
+        if not isfinite(self.rear_closing_time) or self.rear_closing_time < 0:
+            raise ValueError('rear_closing_time must be non-negative (0 disables the closing-speed rule)')
+        if self.speed_min > self.speed_max:
+            raise ValueError('speed_min must not exceed speed_max')
+        if self.middle_window_start > self.middle_window_end:
+            raise ValueError('middle_window_start must not exceed middle_window_end')
 
 
 @dataclass(frozen=True)
@@ -108,3 +179,39 @@ class Scenario:
             raise ValueError('team_lane outside road')
         if self.vehicle.width >= self.road.lane_width:
             raise ValueError('vehicle must fit in lane')
+
+
+def scenario_v1():
+    """v0 with 120 s episodes and 10 traffic cars (from 8) in the same spawn window; longer road to fit."""
+    return Scenario(version='v1', road=Road(length=10000.0), traffic=Traffic(count=10),
+                    timing=Timing(duration=120.0))
+
+
+def scenario_v2():
+    """v1 with 20 traffic cars (double v1's density) in the same spawn window."""
+    return replace(scenario_v1(), version='v2', traffic=Traffic(count=20))
+
+
+SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2}
+
+
+def score_v1():
+    """Rewards continuous close, fast driving: team combo on close passes, same-lane teammate
+    proximity (20 m), and much smaller steady speed points."""
+    return Score(version='v1', proximity_distance=20.0, speed_rate=0.25, speed_floor=25.0,
+                 combo_step=0.5, combo_max=5.0, combo_window=5.0)
+
+
+def score_v2():
+    """v1 with proximity graded by distance: 20 pts/s per pair at contact, falling linearly to 0 at 20 m
+    (10 pts/s at 10 m, about where 0.2 s drafting sits)."""
+    return replace(score_v1(), version='v2', proximity_rate=20.0, proximity_falloff='linear')
+
+
+def score_v3():
+    """v2 plus lane-change maneuvers: a two-lane change, a close pass and a follow-up lane change scores most."""
+    return replace(score_v2(), version='v3', lc_base=25.0, lc_pass_single=60.0, lc_pass_double=90.0,
+                   lc_chain_single=150.0, lc_chain_double=300.0, lc_chain_window=3.0, lc_traffic_distance=10.0)
+
+
+SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3}

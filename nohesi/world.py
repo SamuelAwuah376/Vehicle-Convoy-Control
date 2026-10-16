@@ -36,17 +36,29 @@ def traffic_states(snapshot, road):
     return np.column_stack((xy, road.heading(snapshot.traffic_s), snapshot.traffic_v))
 
 
-def vehicle_ahead(snapshot, road, s, lane, skip):
-    """Nearest vehicle ahead of s in a lane, excluding teammate `skip`: (rear-axle gap, speed) or None."""
+def _nearest(snapshot, road, s, lane, skip, direction, include_team=True):
     s_all = np.r_[snapshot.team_s, snapshot.traffic_s]
     lane_all = np.r_[road.lane_of(snapshot.team_d), road.lane_of(snapshot.traffic_d)]
     v_all = np.r_[snapshot.team[:, 3], snapshot.traffic_v]
-    mask = (lane_all == lane) & (s_all > s)
+    offset = direction*(s_all-s)
+    mask = (lane_all == lane) & (offset > 0)
     mask[skip] = False
+    if not include_team:
+        mask[:len(snapshot.team_s)] = False
     if not np.any(mask):
         return None
-    j = np.flatnonzero(mask)[np.argmin(s_all[mask])]
-    return s_all[j]-s, v_all[j]
+    j = np.flatnonzero(mask)[np.argmin(offset[mask])]
+    return offset[j], v_all[j]
+
+
+def vehicle_ahead(snapshot, road, s, lane, skip, include_team=True):
+    """Nearest vehicle ahead of s in a lane, excluding teammate `skip`: (rear-axle gap, speed) or None."""
+    return _nearest(snapshot, road, s, lane, skip, 1, include_team)
+
+
+def vehicle_behind(snapshot, road, s, lane, skip):
+    """Nearest vehicle behind s in a lane, excluding teammate `skip`: (rear-axle gap, speed) or None."""
+    return _nearest(snapshot, road, s, lane, skip, -1)
 
 
 class World:

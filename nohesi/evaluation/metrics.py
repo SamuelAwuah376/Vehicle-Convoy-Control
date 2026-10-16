@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import asdict
 import numpy as np
 from ..scoring.events import PAIRS
@@ -13,6 +14,7 @@ def metrics(ep):
     cfg = ep.scenario.score
     individual = sum(ep.score[t].sum(axis=0) for t in ep.score)
     dt = ep.scenario.timing.dt
+    planner = planner_metrics(ep)
     return {
         'scenario_version': ep.scenario.version, 'score_version': cfg.version,
         'seed': ep.seed, 'policy': ep.policy, 'end_reason': ep.end_reason,
@@ -23,10 +25,82 @@ def metrics(ep):
         'collisions': [asdict(c) for c in ep.collisions],
         'overtakes': len(ep.overtakes),
         'close_passes_scored': len(ep.awarded),
+        'combo': combo_metrics(ep),
+        'maneuvers': maneuver_metrics(ep),
         'proximity_time_s': {f'{i}-{j}': float(np.sum(ep.score['proximity'][:, i] > 0)*dt) for i, j in PAIRS},
         'min_clearance_traffic_m': _finite_min(ep.traffic_clearance),
         'min_clearance_teammates_m': _finite_min(ep.pair_clearance),
-        'mpc_failures': None,   # no MPC in milestone 1
+        'mpc_failures': planner['qp_failures'] if planner else None,
         'policy_compute_ms': {'mean': float(1e3*ep.compute_time.mean()), 'max': float(1e3*ep.compute_time.max())},
+        'planner': planner,
         'scenario': asdict(ep.scenario),
+        'planner_config': asdict(ep.planner) if ep.planner else None,
+    }
+
+
+def combo_metrics(ep):
+    m = getattr(ep, 'combo_multiplier', None)
+    if m is None or not len(m):
+        return None
+    return {'max_multiplier': float(m.max()), 'time_above_1_s': float(np.sum(m > 1)*ep.scenario.timing.dt),
+            'max_count': int(ep.max_combo)}
+
+
+def maneuver_metrics(ep):
+    awards = getattr(ep, 'maneuvers', [])
+    return {'count': dict(Counter(a['kind'] for a in awards)), 'points': float(sum(a['points'] for a in awards))}
+
+
+def _gap_margins(records):
+    """Predicted bumper margin (m) of accepted lane changes to the nearer car of the locked gap; open gaps excluded."""
+    m = np.array([r.gap_margin for r in records if r.kind == 'accepted'])
+    m = m[np.isfinite(m)]
+    return {'count': int(m.size), 'min': float(m.min()), 'median': float(np.median(m))} if m.size else None
+
+
+def double_lane_changes(records, lane):
+    """Accepted/completed lane changes spanning two lanes. Records carry only the destination lane, so
+    each vehicle's lane is tracked from `lane` (the scenario team lane), updated only on 'completed';
+    assumes cancelled/aborted/rejected changes leave the car in its last completed lane."""
+    last, out = {}, Counter()
+    for r in records:
+        if r.kind in ('accepted', 'completed'):
+            if abs(r.lane-last.get(r.vehicle, lane)) == 2:
+                out[r.kind] += 1
+            if r.kind == 'completed':
+                last[r.vehicle] = r.lane
+    return {'accepted': out['accepted'], 'completed': out['completed']}
+
+
+def planner_metrics(ep):
+    log = ep.planner_log
+    if log is None:
+        return None
+    kinds = Counter(r.kind for r in ep.intention_records)
+    times = np.array([s[4] for s in log.solves])
+    iterations = np.array([s[3] for s in log.solves])
+    errors = []
+    for due, i, s, d in log.predictions:
+        k = int(round(due/ep.scenario.timing.dt))
+        if k < len(ep.time):
+            errors.append((abs(ep.team_s[k, i]-s), abs(ep.team_d[k, i]-d)))
+    errors = np.array(errors).reshape(-1, 2)
+    return {
+        'lane_changes_accepted': kinds['accepted'], 'lane_changes_completed': kinds['completed'],
+        'double_lane_changes': double_lane_changes(ep.intention_records, ep.scenario.team_lane),
+        'locked_gap_margin_m': _gap_margins(ep.intention_records),
+        'lane_changes_aborted': kinds['aborted'], 'lane_changes_cancelled': kinds['cancelled'],
+        'masked_lane_actions': kinds['masked'],
+        'rejections': dict(Counter(r.reason for r in ep.intention_records if r.kind == 'rejected')),
+        'qp_solves': len(log.solves),
+        'qp_failures': int(sum(s[2] != 'solved' for s in log.solves)),
+        'qp_status': dict(Counter(s[2] for s in log.solves)),
+        'fallbacks': dict(Counter(f[2] for f in log.fallbacks)),
+        'plan_conflicts': dict(Counter(c[4] for c in log.conflicts)),
+        'solve_ms': {'mean': float(1e3*times.mean()), 'p95': float(1e3*np.percentile(times, 95)),
+                     'max': float(1e3*times.max())} if times.size else None,
+        'iterations': {'mean': float(iterations.mean()), 'max': int(iterations.max())} if iterations.size else None,
+        'plan_error_next_step_m': {'s_mean': float(errors[:, 0].mean()), 's_max': float(errors[:, 0].max()),
+                            'd_mean': float(errors[:, 1].mean()), 'd_max': float(errors[:, 1].max())} if len(errors) else None,
+        'missed_opportunity_s': log.missed.tolist(),
     }
