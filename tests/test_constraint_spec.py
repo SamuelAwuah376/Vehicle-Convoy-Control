@@ -90,7 +90,7 @@ def test_osqp_rows_follow_description_on_captured_case():
         return orig(self, *args, **kw)
     single.LaneChangeMPC.solve = rec
     try:
-        run(replace(SCENARIOS['v4'](), timing=Timing(duration=3.0)), 0, 'overtaker', Planner(), score=SCORES['v3']())
+        run(replace(SCENARIOS['v4'](), timing=Timing(duration=3.0)), 0, 'overtaker', Planner(qp_reuse=False), score=SCORES['v3']())   # golden counts from the setup-per-solve path
     finally:
         single.LaneChangeMPC.solve = orig
     mpc, kinds = LaneChangeMPC(CFG, PLANT, Road(SCENARIOS['v4']().road)), collections.Counter()

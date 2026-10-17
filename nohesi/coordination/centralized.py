@@ -34,8 +34,10 @@ class CentralizedTeam:
     Priority: vehicles mid lane change first, then front to back. A vehicle avoids plans already
     computed this cycle and the shifted previous-cycle plans of teammates not yet planned. After
     the cycle, every plan is footprint-checked against predicted traffic and higher-priority
-    teammates' final plans; on a conflict the lower-priority vehicle yields (abort to its origin
-    lane and re-solve, else brake in lane). The check uses predictions: it is not a guarantee.
+    teammates' final plans; on a conflict the lower-priority vehicle yields (abandon any lane change
+    for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape:
+    full braking or holding speed in the clearest nearby lane). The check uses predictions: it is
+    not a guarantee.
     """
     name = 'centralized'
 
@@ -51,23 +53,34 @@ class CentralizedTeam:
         self.intentions = IntentionManager(cfg, world.road, self.params, scenario.team_lane, scenario.team_speed)
         self.plans = [None]*TEAM
         self.mode = ['qp']*TEAM
+        self.escape = [None]*TEAM   # (lane, target speed, accel cap) of the lane_keep/emergency control law
         self.held = np.zeros((TEAM, 2))
         self.log = PlannerLog()
         self.k = 0
+        self.prepared = None   # step whose phase update already ran (prepare)
         self.name = f'centralized/{getattr(policy, "name", type(policy).__name__)}'
 
+    def prepare(self, snap):
+        """Run the next call's phase update now, so an external policy sees the intentions that call decides with."""
+        if self.prepared != self.k:
+            self.intentions.update_phases(snap, self.plans)
+            self.prepared = self.k
+
+    @property
+    def deciding(self):
+        """The next call makes a policy decision."""
+        return self.k % self.decide_every == 0
+
     def __call__(self, snap):
-        self.intentions.update_phases(snap, self.plans)
-        if self.k % self.decide_every == 0:
+        self.prepare(snap)
+        if self.deciding:
             self._decide(snap)
         if self.k % self.plan_every == 0:
             self._replan(snap)
         controls = self.held.copy()
         for i in range(TEAM):
             if self.mode[i] in ('lane_keep', 'emergency'):
-                it = self.intentions.intentions[i]
-                cap = -self.cfg.emergency_decel if self.mode[i] == 'emergency' else np.inf
-                controls[i] = lane_keep_control(snap, self.road, self.params, i, it.lane, it.speed, cap)
+                controls[i] = lane_keep_control(snap, self.road, self.params, i, *self.escape[i])
         self.k += 1
         return controls
 
@@ -130,14 +143,58 @@ class CentralizedTeam:
             out.append(('team', i))
         return tuple(out)
 
-    def _lane_keep(self, snap, i, mode):
+    def _lanes(self, snap, i, first=()):
+        """Fallback lanes in preference order: `first`, the intention lane, the origin, the CG's lane, the lane across
+        the closer lane line, then the lane across the other one."""
+        it, d = self.intentions.intentions[i], snap.team_d[i]
+        here = int(self.road.lane_of(d))
+        side = 1 if d >= self.road.lane_center(here) else -1
+        out = []
+        for lane in (*first, it.lane, it.origin, here, here+side, here-side):
+            if lane is not None and 0 <= lane < self.road.cfg.lanes and int(lane) not in out:
+                out.append(int(lane))
+        return out
+
+    def _rollout(self, snap, i, candidates, plans, check, source):
+        """First candidate (lane, speed, cap) whose lane-keep rollout is clear of predicted traffic and the
+        `check` teammates' plans (this cycle's, else the shifted previous or a constant-speed one), else the one
+        whose first conflict comes latest (earlier candidate on ties)."""
+        plans, best = dict(plans), None
+        for j in check:
+            if j not in plans:
+                plans[j] = self.plans[j].shifted(1) if self.plans[j] is not None else constant_speed_plan(
+                    snap.time, self.cfg.step, self.cfg.horizon, snap.team_s[j], snap.team_d[j], snap.team[j, 3])
+        for n, (lane, speed, cap) in enumerate(candidates):
+            plan = lane_keep_plan(snap, self.road, self.plant, i, lane, speed, self.cfg, cap, source)
+            hit = self._conflict(snap, i, {**plans, i: plan}, list(check))
+            key = (hit is None, hit[1] if hit else 0, -n)
+            if best is None or key > best[0]:
+                best = (key, (lane, speed, cap), plan)
+            if hit is None:
+                break
+        return best[1], best[2]
+
+    def _lane_keep(self, snap, i, mode, plans, check):
+        """Lane-keep fallback in the clearest nearby lane. 'emergency' also tries full braking first, then
+        holding the current speed, in each lane."""
+        it, v = self.intentions.intentions[i], float(snap.team[i, 3])
+        lanes = self._lanes(snap, i)
+        if mode == 'emergency':
+            candidates = [(l, it.speed, -self.cfg.emergency_decel) for l in lanes]+[(l, v, np.inf) for l in lanes]
+        else:
+            candidates = [(l, it.speed, np.inf) for l in lanes]
+        (lane, speed, cap), plan = self._rollout(snap, i, candidates, plans, check, mode)
+        self._keep_lane(snap, i, lane, mode)
+        self.mode[i], self.escape[i] = mode, (lane, speed, cap)
+        self.log.fallbacks.append((snap.time, i, mode))
+        return plan
+
+    def _keep_lane(self, snap, i, lane, reason):
         it = self.intentions.intentions[i]
         if it.phase != 'keep':
-            self.intentions.cancel(i, snap.time, mode)
-        cap = -self.cfg.emergency_decel if mode == 'emergency' else np.inf
-        self.mode[i] = mode
-        self.log.fallbacks.append((snap.time, i, mode))
-        return lane_keep_plan(snap, self.road, self.plant, i, it.lane, it.speed, self.cfg, cap, mode)
+            self.intentions.cancel(i, snap.time, reason, lane)
+        elif it.lane != lane:
+            self.intentions._keep(i, lane)
 
     def _plan_vehicle(self, snap, i, fresh):
         """QP, then shifted previous plan, then lane-keep rollout."""
@@ -160,7 +217,8 @@ class CentralizedTeam:
             self.mode[i] = 'shifted'
             self.log.fallbacks.append((snap.time, i, 'shifted'))
             return plan
-        return self._lane_keep(snap, i, 'lane_keep')
+        others = [j for j in range(TEAM) if j != i]
+        return self._lane_keep(snap, i, 'lane_keep', fresh, others)
 
     def _conflict(self, snap, i, plans, higher):
         """First conflict of vehicle i's plan with predicted traffic or higher-priority teammates."""
@@ -178,14 +236,19 @@ class CentralizedTeam:
             hit = self._conflict(snap, i, fresh, order[:n])
             if hit is None:
                 continue
-            # Yield: abort any lane change and re-plan against everyone's current plans.
-            if self.intentions.intentions[i].phase != 'keep':
-                self.intentions.cancel(i, snap.time, 'conflict')
+            # Yield: abandon any lane change for the nearby lane (CG lane first: still reversible there) whose
+            # lane-keep rollout stays clear longest, and re-plan against everyone's current plans.
+            it = self.intentions.intentions[i]
+            if it.phase != 'keep':
+                lanes = [l for l in self._lanes(snap, i, (int(self.road.lane_of(snap.team_d[i])),)) if l != it.lane]                     or [it.origin]
+                (lane, _, _), _ = self._rollout(snap, i, [(l, it.speed, np.inf) for l in lanes], fresh, order[:n],
+                                                'lane_keep')
+                self.intentions.cancel(i, snap.time, 'conflict', lane)
             self.plans[i] = None   # no shifted fallback onto the conflicting plan
             fresh[i] = self._plan_vehicle(snap, i, fresh)
             resolution = 'replanned'
             if self._conflict(snap, i, fresh, order[:n]) is not None:
-                fresh[i] = self._lane_keep(snap, i, 'emergency')
+                fresh[i] = self._lane_keep(snap, i, 'emergency', fresh, order[:n])
                 resolution = 'emergency' if self._conflict(snap, i, fresh, order[:n]) is None else 'unresolved'
             self.log.conflicts.append((snap.time, i, hit[0], hit[1], resolution))
         for i in order:

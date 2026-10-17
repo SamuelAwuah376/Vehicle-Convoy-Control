@@ -25,7 +25,7 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 |---|---|
 | `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic |
 | `POLICY` | `'overtaker'` (lane changes + MPC) · `'lane_keeping'` (stays in its lane, no MPC) |
-| `SCORE` | `'v0'` … `'v3'` (see [Scoring](#scoring)); `'v3'` is the latest |
+| `SCORE` | `'v0'` … `'v4'` (see [Scoring](#scoring)); `'v4'` is the latest (default) |
 | `SEED` | any integer: a different traffic layout |
 | `TRAFFIC` | override the number of traffic cars (`None` keeps the scenario's) |
 | `PLANT` | `'kinematic'` (default) · `'dynamic'` (dynamic bicycle with tyre slip) |
@@ -41,7 +41,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M1 | Straight 3-lane road, seeded traffic, collision detection, versioned scoring, lane-keeping policy. |
 | No Hesi M2, part 1 | Lane changes executed by a per-car MPC. |
 | No Hesi M2, part 2 | Lane-changing traffic, plus robustness fixes for crowded situations. |
-| **No Hesi M2, part 3** | CG reference, dynamic bicycle simulator and a nonlinear MPC (acados). |
+| No Hesi M2, part 3 | CG reference, dynamic bicycle simulator and a nonlinear MPC (acados). |
+| **No Hesi M3** | PPO policy (MaskablePPO), score v4 with drafting, and stronger safety fallbacks. |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -81,7 +82,31 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Linear MPC + dynamic sim:** crashes in all 10 runs.
 - **Nonlinear MPC + dynamic sim:** 0 collisions, about 13,000–13,500 points. Lane changes are slower because of solver-stabilising penalties. Planned motion matches the car to about 0.3 mm per 0.1 s, against 5 mm for the linear MPC on its own kinematic sim. Solves take about 3–6 ms.
 
-**Next:** milestone 3, replacing the scripted overtaker with a reinforcement-learning (RL) policy. CARLA (Town04 highway) is planned later for visualisation and evaluation only.
+**Milestone 3** replaces the scripted overtaker with a reinforcement-learning (RL) policy:
+- **Score v4 (default):** a close pass is worth more when teammates are near (up to 20 m), and **drafting** replaces proximity. Drafting means driving directly behind a teammate in the same lane, within 1 s, with no traffic in between.
+- **RL environment** (`nohesi/rl/env.py`): one step is one team decision (0.5 s), where each car picks one of its 45 actions. Lane changes that the gap rule would reject right now are masked out. The observation includes, for each nearby traffic car, whether it could merge left or right right now.
+- **Traffic merges blind:** a traffic car may cut in front of a team car closing from behind. It only holds back when a car in the target lane is alongside it or within half a car length.
+- **Faster MPC:** the QP structure is reused between solves (`Planner.qp_reuse`), which makes solves about 30 % faster.
+- **Stronger fallbacks:**
+  - Emergency braking now uses the car's full 6 m/s².
+  - The emergency escape tries full braking and holding speed in every nearby lane, and picks the option that stays clear longest.
+  - An abandoned lane change keeps the clearest nearby lane instead of always returning to the start lane.
+  - The gap rule counts a teammate leaning over a lane line as being in both lanes.
+
+**Results (first 3M-decision PPO run, before the fallback changes):** on seeds 1000–1019 PPO scored about 47,800 points, against 18,200 for the overtaker. It crashed in 5 of 20 episodes. Replaying the same policy with the new fallbacks gave 2 crashes in 20 against traffic that looked before merging. With traffic merging blind it was back to 5. The policy is now being retrained so it learns to deal with blind cut-ins.
+
+**Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
+
+## Training (milestone 3)
+
+Needs the `rl` extra (`pip install -e ".[test,rl]"`, CPU torch). `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
+
+- **Setup:** 16 `SubprocVecEnv` workers × 512 steps (8192 per update), batch 1024, 10 epochs, lr 3e-4 decaying linearly to 0, clip 0.2, entropy 0.01, γ 0.99, λ 0.95. Separate 256×256 tanh networks for policy and value. `VecNormalize` normalises observations and rewards (clip 10), and its statistics are saved with every model.
+- **Threads:** each worker uses one thread (`OMP/MKL/OPENBLAS_NUM_THREADS=1`), and the learner uses 1 torch thread while collecting rollouts and 4 during PPO updates. With 16 envs, training runs at about 80 timesteps/s; the environment (mostly the MPC) is the bottleneck.
+- **Evaluation:** every 500k timesteps on held-out seeds 1000–1009 (`--seeds` for the final evaluation, default 1000–1019), with deterministic actions and masks applied. The model with the best mean team score is saved as `best_model.zip` + `best_vecnormalize.pkl`.
+- **Outputs:** everything goes to `runs_rl/<run_id>/` (git-ignored): `config.json` (configs, library versions, git commit), TensorBoard logs in `tb/` (per-term reward, aux penalties, episode and eval metrics; view with `.venv\Scripts\tensorboard --logdir runs_rl`), `checkpoints/`, and `eval_history.csv`.
+
+`.venv\Scripts\python -m nohesi.rl.evaluate runs_rl/<run_id>` evaluates the best model on seeds 1000–1019. It compares the result with the scripted overtaker on the same seeds, scenario and score (cached in `runs_rl/baselines/`). Options: `--mpc nonlinear --vehicle dynamic` for transfer to the dynamic plant; `--store` saves the first seed to `results/` like `run_sim.py` (numbered folder + GIF, label `<scenario>_ppo-<run_id>_score<score>_seed<seed>`).
 
 ## How the No Hesi simulation works
 
@@ -112,14 +137,16 @@ Key ideas, in the order things happen:
 
 ## Scoring
 
-Scores are versioned, and each result records which version it used.
+Scores are versioned, and each result records which version it used. v4 is the default.
 
 | Points for | How |
 |---|---|
 | **Close pass** | Overtaking a traffic car with less than 1.5 m clearance: about 100–200 points, more when closer and faster. |
+| **Team close pass** (v4) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. |
 | **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
-| **Teammate proximity** (v1+) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
-| **Lane-change maneuvers** (v3) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
+| **Teammate proximity** (v1–v3) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
+| **Drafting** (v4, replaces proximity) | 5 points per second for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. |
+| **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
 | **Collision** | −500 to each car involved, and the episode ends. |
 

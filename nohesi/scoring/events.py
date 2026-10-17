@@ -38,6 +38,28 @@ class Measurements:
     overtakes: tuple
     collisions: tuple
     lane_changes: tuple = ()
+    team_s: np.ndarray = None       # (3,) CG s
+    team_d: np.ndarray = None       # (3,) CG d
+    team_lane: np.ndarray = None    # (3,) int, road.lane_of(team_d)
+    draft_leader: np.ndarray = None # (3,) int: nearest teammate ahead in the same lane, -1 if none
+    draft_gap: np.ndarray = None    # (3,) bumper gap (m) to draft_leader, inf if none
+
+
+def draft_leaders(team_s, team_lane, length, traffic_s=(), traffic_lane=()):
+    """Teammate directly ahead in the same lane for each car: the nearest vehicle ahead (bumper gap >= 0) must be a
+    teammate, not traffic. Returns (leader (3,) int, -1 if none; gap (3,), inf if none)."""
+    leader, gap = np.full(TEAM, -1), np.full(TEAM, np.inf)
+    traffic_s, traffic_lane = np.asarray(traffic_s, float), np.asarray(traffic_lane, int)
+    for i in range(TEAM):
+        for j in range(TEAM):
+            g = team_s[j]-team_s[i]-length
+            if j != i and team_lane[j] == team_lane[i] and 0 <= g < gap[i]:
+                leader[i], gap[i] = j, g
+        if leader[i] >= 0:
+            between = (traffic_lane == team_lane[i]) & (traffic_s > team_s[i]) & (traffic_s < team_s[leader[i]])
+            if np.any(between):   # a traffic car sits between: not drafting
+                leader[i], gap[i] = -1, np.inf
+    return leader, gap
 
 
 class EventDetector:
@@ -112,6 +134,9 @@ class EventDetector:
         # Windows of recycled cars close without an overtake.
         for key in [k for k in self.active if k[1] not in ids]:
             del self.active[key]
+        lanes = self.road.lane_of(snap.team_d)
+        leader, gap = draft_leaders(snap.team_s, lanes, v.length, snap.traffic_s, self.road.lane_of(snap.traffic_d))
         return Measurements(dt, snap.team[:, 3].copy(), pair_distance, pair_clearance,
                             traffic_clearance, tuple(overtakes), snap.collisions,
-                            tuple(self._lane_changes(snap)))
+                            tuple(self._lane_changes(snap)), np.array(snap.team_s, float), np.array(snap.team_d, float),
+                            lanes, leader, gap)

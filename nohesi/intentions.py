@@ -67,8 +67,10 @@ class IntentionManager:
 
     def _lane_vehicles(self, snap, plans, i, lane, horizon):
         """(key, s at `horizon`, s now, v now, v at `horizon`) of vehicles in, entering or crossing `lane`, excluding
-        teammate i. Traffic changing lanes counts in its current and its target lane."""
+        teammate i. Traffic changing lanes counts in its current and its target lane; a teammate counts in any lane
+        its footprint reaches into (e.g. leaning over a lane line) and in lanes its lane change enters."""
         current, target = traffic_lanes(snap, self.road)
+        reach = (self.road.cfg.lane_width+self.params.width)/2
         out = [(('traffic', int(snap.traffic_id[j])), snap.traffic_s[j]+snap.traffic_v[j]*horizon,
                 snap.traffic_s[j], snap.traffic_v[j], snap.traffic_v[j])
                for j in np.flatnonzero((current == lane) | (target == lane))]
@@ -77,7 +79,7 @@ class IntentionManager:
                 continue
             it = self.intentions[j]
             crossing = it.phase != 'keep' and lane in self.entered(it.origin, it.lane)
-            if self.road.lane_of(snap.team_d[j]) == lane or crossing:
+            if abs(snap.team_d[j]-self.road.lane_center(lane)) < reach or crossing:
                 plan, v = plans[j], snap.team[j, 3]
                 z = plan.at(int(round(horizon/plan.step))) if plan is not None else (snap.team_s[j]+v*horizon, 0, 0, v)
                 out.append((('team', j), z[0], snap.team_s[j], v, z[3]))

@@ -11,6 +11,8 @@ dependencies = ["numpy==2.2.6", "matplotlib==3.10.3", "pillow==12.3.0", "osqp==1
 
 [project.optional-dependencies]
 test = ["pytest==8.4.1"]
+# Reinforcement learning (milestone 3); torch is the CPU build: pip install torch --index-url https://download.pytorch.org/whl/cpu
+rl = ["torch==2.14.1", "stable-baselines3==2.9.0", "sb3-contrib==2.9.0", "gymnasium==1.4.0", "tensorboard==2.21.0"]
 # Nonlinear MPC (Planner(mpc='nonlinear')): acados built in C:/acados (ACADOS_SOURCE_DIR), its Python interface
 # installed editable with `pip install -e C:/acados/interfaces/acados_template` (not on PyPI); MSYS2 UCRT64 gcc.
 nmpc = ["casadi==3.8.1", "cmake==4.4.4"]   # + acados_template 0.5.1 from C:/acados

@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--scenario', choices=sorted(SCENARIOS), default='v1')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--policy', choices=POLICIES, default='lane_keeping')
-    parser.add_argument('--score', choices=sorted(SCORES), default='v3')
+    parser.add_argument('--score', choices=sorted(SCORES), default='v4')
     parser.add_argument('--duration', type=float)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--animate', action='store_true')

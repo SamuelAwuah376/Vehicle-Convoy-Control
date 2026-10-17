@@ -80,7 +80,7 @@ class Traffic:
     mobil_safe_brake: float = 3.0     # m/s^2 most braking imposed on the new follower
     lane_change_time: float = 3.0     # s, lane centre to lane centre (quintic profile)
     lane_change_interval: float = 1.0 # s between MOBIL evaluations per car (seeded phase)
-    lane_change_gap: float = 2.0      # m, minimum bumper gap to both target-lane neighbours at the start
+    lane_change_gap: float = 0.5      # car lengths: no lane change with a target-lane car alongside or within this bumper gap
     lane_change_cooldown: float = 8.0 # s after finishing a lane change before the same car may start another
     keep_right_bias: float = 0.0      # m/s^2 added to the incentive for moving right, subtracted for left
 
@@ -130,16 +130,27 @@ class Score:
     lc_chain_window: float = 4.0      # s: pass within this of the change settling; follow-up within this of the pass
     lc_traffic_distance: float = 20.0 # m: a traffic car within this along the road in a lane involved in the move
     lc_min_speed: float = 25.0        # m/s: minimum speed throughout the lane change
+    # Team close pass: points*(1 + team_pass_gain*sum over teammates of max(0, 1 - distance/team_pass_distance)).
+    team_pass_gain: float = 0.0       # 0 disables
+    team_pass_distance: float = 20.0  # m, body-centre distance at the pass step
+    # Drafting: following a teammate in the same lane within draft_headway, both above draft_min_speed,
+    # earns draft_rate pts/s times the combo multiplier.
+    draft_rate: float = 0.0           # 0 disables
+    draft_headway: float = 1.0        # s: bumper gap <= draft_headway*follower speed
+    draft_min_speed: float = 20.0     # m/s
+
+    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate')
 
     def __post_init__(self):
-        _positive(self, *(k for k in vars(self) if k not in ('version', 'combo_step', 'proximity_falloff')
+        _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
         if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_')):
             raise ValueError('lane-change points must be non-negative')
+        for k in self.NON_NEGATIVE:
+            if not isfinite(getattr(self, k)) or getattr(self, k) < 0:
+                raise ValueError(f'{k} must be non-negative')
         if self.proximity_falloff not in ('flat', 'linear'):
             raise ValueError('proximity_falloff must be flat or linear')
-        if not isfinite(self.combo_step) or self.combo_step < 0:
-            raise ValueError('combo_step must be non-negative')
         if self.combo_max < 1:
             raise ValueError('combo_max must be at least 1')
 
@@ -147,11 +158,14 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm3.1'
+    version: str = 'm3.3'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
     max_iter: int = 4000            # OSQP iteration budget (reproducible "timeout")
+    qp_eps: float = 1e-4            # OSQP absolute/relative tolerance
+    qp_reuse: bool = True           # one OSQP instance, fixed sparsity, data updated per solve (False: setup per solve)
+    qp_soft_slots: int = 6          # qp_reuse: soft rows per step (v4: up to 7, >6 in 0.2 % of solves: those use a setup)
     speed_step: float = 2.0         # target speed change per speed action
     speed_min: float = 20.0
     speed_max: float = 35.0
@@ -177,7 +191,7 @@ class Planner:
     pending_max_time: float = 4.0       # cancel a pending change not committed within this (s)
     retry_cooldown: float = 3.0         # after a stalled/timed-out/forced cancel, the same car can't re-request that lane (s)
     check_margin: float = 0.1       # post-cycle footprint check clearance (QP margins are 0.25 m per axis)
-    emergency_decel: float = 2.0    # minimum braking when yielding after an unresolved conflict
+    emergency_decel: float = 6.0    # braking of the emergency escape's braking candidates (= brake_max)
     w_lateral: float = 1.0
     w_speed: float = 0.5
     w_heading: float = 5.0
@@ -205,7 +219,7 @@ class Planner:
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time', 'mpc', 'nmpc_steer_cap',
-                                                             'nmpc_levenberg_marquardt')))
+                                                             'qp_reuse', 'nmpc_levenberg_marquardt')))
         if not isfinite(self.nmpc_levenberg_marquardt) or self.nmpc_levenberg_marquardt < 0:
             raise ValueError('nmpc_levenberg_marquardt must be non-negative')
         if self.mpc not in ('linear', 'nonlinear'):
@@ -283,4 +297,11 @@ def score_v3():
                    lc_chain_single=150.0, lc_chain_double=300.0, lc_chain_window=3.0, lc_traffic_distance=10.0)
 
 
-SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3}
+def score_v4():
+    """v3 with drafting in place of proximity (5 pts/s following a teammate in the same lane within 1 s,
+    both above 20 m/s) and team close passes (up to 2x with both teammates at contact, 0 bonus beyond 20 m)."""
+    return replace(score_v3(), version='v4', proximity_rate=0.0, team_pass_gain=0.5, team_pass_distance=20.0,
+                   draft_rate=5.0, draft_headway=1.0, draft_min_speed=20.0)
+
+
+SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4}

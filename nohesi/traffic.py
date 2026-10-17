@@ -161,8 +161,8 @@ class Traffic:
                 if not 0 <= new < lanes:
                     continue
                 ln, fn = leader(i, new, i), follower(s, new, i)
-                # Room: bumper gaps to both new neighbours (and nobody alongside).
-                beside = occupants(new) & (np.abs(all_s-s) < length+c.lane_change_gap) & (idx != i)
+                # No car alongside, or within lane_change_gap car lengths bumper to bumper, in the new lane.
+                beside = occupants(new) & (np.abs(all_s-s) < length*(1+c.lane_change_gap)) & (idx != i)
                 if np.any(beside):
                     continue
                 at_c = acc(i, ln)

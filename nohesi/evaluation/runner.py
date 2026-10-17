@@ -51,40 +51,60 @@ def make_controller(name, scenario, world, planner):
     raise ValueError(f'unknown policy {name!r}')
 
 
+class EpisodeRun:
+    """run() one sim step at a time: step() advances one dt, episode() builds the Episode so far."""
+    def __init__(self, scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):
+        scenario, planner = scenario or Scenario(), planner or Planner()
+        if score is not None:
+            scenario = replace(scenario, score=score)
+        self.scenario, self.seed, self.planner = scenario, seed, planner
+        self.world = World(scenario, seed)
+        self.policy = make_controller(policy, scenario, self.world, planner) if isinstance(policy, str) else policy(self.world)
+        self.detector = EventDetector(self.world.plant.params, self.world.road)
+        self.scorer = Scorer(scenario.score)
+        self.snap = self.world.snapshot
+        self.detector.update(self.snap, 0.0)
+        self.snaps, self.controls, self.increments, self.pair_c, self.traffic_c = [self.snap], [], [], [], []
+        self.compute, self.overtakes, self.combo = [], [], []
+        self.steps = int(round(scenario.timing.duration/scenario.timing.dt))
+
+    @property
+    def done(self):
+        return self.snap.done or len(self.controls) >= self.steps
+
+    def step(self):
+        """One sim step; returns the Scorer increments (term -> (3,))."""
+        start = perf_counter()
+        command = self.policy(self.snap)
+        self.compute.append(perf_counter()-start)
+        self.snap, applied = self.world.step(command)
+        m = self.detector.update(self.snap, self.scenario.timing.dt)
+        inc = self.scorer.update(m)
+        self.increments.append(inc); self.combo.append(self.scorer.multiplier)
+        self.snaps.append(self.snap); self.controls.append(applied)
+        self.pair_c.append(m.pair_clearance); self.traffic_c.append(m.traffic_clearance)
+        self.overtakes.extend(m.overtakes)
+        return inc
+
+    def episode(self):
+        policy, snap, scorer = self.policy, self.snap, self.scorer
+        stack = lambda name: np.array([getattr(s, name) for s in self.snaps])
+        return Episode(self.scenario, self.seed, getattr(policy, 'name', type(policy).__name__),
+                       stack('time'), stack('team'), stack('team_s'), stack('team_d'),
+                       stack('traffic_s'), stack('traffic_d'), stack('traffic_v'), stack('traffic_id'),
+                       np.array(self.controls), {t: np.array([inc[t] for inc in self.increments]) for t in TERMS},
+                       np.array(self.pair_c), np.array(self.traffic_c), np.array(self.compute),
+                       list(self.overtakes), list(scorer.awarded), list(snap.collisions), 'collision' if snap.done else 'time',
+                       self.planner if hasattr(policy, 'log') else None, getattr(policy, 'log', None),
+                       list(policy.intentions.records) if hasattr(policy, 'intentions') else [],
+                       np.array(self.combo), scorer.max_combo, list(scorer.maneuvers),
+                       np.stack((stack('team_vy'), stack('team_r')), -1))
+
+
 def run(scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):
     """policy: a name from POLICIES, or a callable world -> controller (snapshot -> (3, 2) controls).
     score: a Score replacing scenario.score (None keeps it)."""
-    scenario, planner = scenario or Scenario(), planner or Planner()
-    if score is not None:
-        scenario = replace(scenario, score=score)
-    world = World(scenario, seed)
-    policy = make_controller(policy, scenario, world, planner) if isinstance(policy, str) else policy(world)
-    detector = EventDetector(world.plant.params, world.road)
-    scorer = Scorer(scenario.score)
-    snap = world.snapshot
-    detector.update(snap, 0.0)
-    snaps, controls, increments, pair_c, traffic_c, compute, overtakes, combo = [snap], [], [], [], [], [], [], []
-    steps = int(round(scenario.timing.duration/scenario.timing.dt))
-    for _ in range(steps):
-        start = perf_counter()
-        command = policy(snap)
-        compute.append(perf_counter()-start)
-        snap, applied = world.step(command)
-        m = detector.update(snap, scenario.timing.dt)
-        increments.append(scorer.update(m)); combo.append(scorer.multiplier)
-        snaps.append(snap); controls.append(applied)
-        pair_c.append(m.pair_clearance); traffic_c.append(m.traffic_clearance)
-        overtakes.extend(m.overtakes)
-        if snap.done:
-            break
-    stack = lambda name: np.array([getattr(s, name) for s in snaps])
-    return Episode(scenario, seed, getattr(policy, 'name', type(policy).__name__),
-                   stack('time'), stack('team'), stack('team_s'), stack('team_d'),
-                   stack('traffic_s'), stack('traffic_d'), stack('traffic_v'), stack('traffic_id'),
-                   np.array(controls), {t: np.array([inc[t] for inc in increments]) for t in TERMS},
-                   np.array(pair_c), np.array(traffic_c), np.array(compute),
-                   overtakes, scorer.awarded, list(snap.collisions), 'collision' if snap.done else 'time',
-                   planner if hasattr(policy, 'log') else None, getattr(policy, 'log', None),
-                   list(policy.intentions.records) if hasattr(policy, 'intentions') else [],
-                   np.array(combo), scorer.max_combo, scorer.maneuvers,
-                   np.stack((stack('team_vy'), stack('team_r')), -1))
+    r = EpisodeRun(scenario, seed, policy, planner, score)
+    while not r.done:
+        r.step()
+    return r.episode()

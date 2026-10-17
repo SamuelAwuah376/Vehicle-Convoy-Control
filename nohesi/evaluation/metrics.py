@@ -1,7 +1,9 @@
 from collections import Counter
 from dataclasses import asdict
 import numpy as np
+from ..geometry import body_centre
 from ..scoring.events import PAIRS
+from ..scoring.score import team_pass_multiplier
 
 
 def _finite_min(values):
@@ -25,9 +27,11 @@ def metrics(ep):
         'collisions': [asdict(c) for c in ep.collisions],
         'overtakes': len(ep.overtakes),
         'close_passes_scored': len(ep.awarded),
+        'team_pass': team_pass_metrics(ep),
         'combo': combo_metrics(ep),
         'maneuvers': maneuver_metrics(ep),
         'proximity_time_s': {f'{i}-{j}': float(np.sum(ep.score['proximity'][:, i] > 0)*dt) for i, j in PAIRS},
+        'draft_time_s': [float(np.sum(ep.score['draft'][:, i] > 0)*dt) for i in range(3)] if 'draft' in ep.score else None,
         'min_clearance_traffic_m': _finite_min(ep.traffic_clearance),
         'min_clearance_teammates_m': _finite_min(ep.pair_clearance),
         'mpc_failures': planner['qp_failures'] if planner else None,
@@ -44,6 +48,18 @@ def combo_metrics(ep):
         return None
     return {'max_multiplier': float(m.max()), 'time_above_1_s': float(np.sum(m > 1)*ep.scenario.timing.dt),
             'max_count': int(ep.max_combo)}
+
+
+def team_pass_metrics(ep):
+    """Team multipliers of scored passes, from body-centre distances at each pass step."""
+    cfg = ep.scenario.score
+    m = []
+    for o, _ in ep.awarded:
+        c = body_centre(ep.team[int(np.argmin(np.abs(ep.time-o.time)))], ep.scenario.vehicle)
+        m.append(team_pass_multiplier(o.vehicle, [np.linalg.norm(c[i]-c[j]) for i, j in PAIRS], cfg))
+    m = np.array(m)
+    return {'count': int(m.size), 'boosted': int(np.sum(m > 1)), 'mean_multiplier': float(m.mean()) if m.size else None,
+            'max_multiplier': float(m.max()) if m.size else None}
 
 
 def maneuver_metrics(ep):

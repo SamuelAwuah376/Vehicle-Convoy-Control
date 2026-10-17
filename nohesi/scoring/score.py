@@ -3,7 +3,7 @@ import numpy as np
 from ..world import TEAM
 from .events import PAIRS
 
-TERMS = ('close_pass', 'proximity', 'speed', 'collision', 'maneuver')
+TERMS = ('close_pass', 'proximity', 'speed', 'collision', 'maneuver', 'draft')
 EPS = 1e-9
 
 
@@ -14,9 +14,19 @@ def close_pass_points(min_clearance, speed, cfg):
     return cfg.pass_base*closeness*speed/cfg.pass_ref_speed
 
 
+def team_pass_multiplier(vehicle, pair_distance, cfg):
+    """1 + team_pass_gain * sum over the passer's teammates of max(0, 1 - body-centre distance/team_pass_distance)."""
+    if not cfg.team_pass_gain:
+        return 1.0
+    near = sum(max(0.0, 1-d/cfg.team_pass_distance) for (i, j), d in zip(PAIRS, pair_distance) if vehicle in (i, j))
+    return 1+cfg.team_pass_gain*near
+
+
 class Scorer:
     """Team combo: each scored close pass earns points*multiplier (multiplier from the combo before it),
-    then raises the combo. Proximity is multiplied too; speed and collisions are not. The combo resets
+    then raises the combo. A pass near teammates is first scaled by team_pass_multiplier. Proximity and
+    drafting (following the nearest teammate ahead in the same lane within draft_headway) are multiplied
+    too; speed and collisions are not. The combo resets
     after combo_window s without a scored close pass and on any collision.
 
     Maneuvers: an eligible lane change L1 (traffic within lc_traffic_distance, speed above lc_min_speed)
@@ -29,6 +39,7 @@ class Scorer:
         self.cfg = cfg
         self.total = {term: np.zeros(TEAM) for term in TERMS}
         self.awarded = []   # (Overtake, points incl. multiplier)
+        self.team_pass = [] # team_pass_multiplier of each awarded pass
         self.time, self.last_pass = 0.0, 0.0
         self.combo, self.max_combo = 0, 0
         self.passes = {}      # vehicle -> scored pass times
@@ -49,7 +60,9 @@ class Scorer:
         for o in m.overtakes:
             points = close_pass_points(o.min_clearance, o.speed, cfg)
             if points:
-                points *= self.multiplier
+                team = team_pass_multiplier(o.vehicle, m.pair_distance, cfg)
+                points *= team*self.multiplier
+                self.team_pass.append(team)
                 inc['close_pass'][o.vehicle] += points
                 self.awarded.append((o, points))
                 self.passes.setdefault(o.vehicle, []).append(o.time)
@@ -59,6 +72,10 @@ class Scorer:
             if distance < cfg.proximity_distance and min(m.speeds[i], m.speeds[j]) > cfg.proximity_min_speed:
                 weight = 1-distance/cfg.proximity_distance if cfg.proximity_falloff == 'linear' else 1.0
                 inc['proximity'][[i, j]] += 0.5*cfg.proximity_rate*weight*m.dt*self.multiplier
+        if cfg.draft_rate and m.draft_leader is not None:
+            for i, j in enumerate(m.draft_leader):
+                if j >= 0 and m.draft_gap[i] <= cfg.draft_headway*m.speeds[i]                         and min(m.speeds[i], m.speeds[j]) > cfg.draft_min_speed:
+                    inc['draft'][i] += cfg.draft_rate*m.dt*self.multiplier
         inc['speed'] += cfg.speed_rate*np.maximum(m.speeds-cfg.speed_floor, 0)*m.dt
         for c in m.collisions:
             inc['collision'][c.vehicle] -= cfg.collision_penalty
