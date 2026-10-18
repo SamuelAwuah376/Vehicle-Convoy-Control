@@ -72,3 +72,22 @@ def test_actions_respect_masks(trained):
     run_policy(model, ObsNormalizer(), venv, [1000])   # deterministic evaluation with masks
     assert len(seen) > 64
     venv.close()
+
+
+def test_init_from_copies_policy_and_obs_norm_only(trained, tmp_path):
+    import pickle
+    import torch
+    from sb3_contrib import MaskablePPO
+    from dataclasses import replace
+    src = trained.run_dir/'final_model.zip'
+    # total_timesteps=0: no learning, so the new run's saved model is exactly its starting point.
+    cfg = replace(trained, run_id='tiny_ft', env=replace(trained.env, score='v5'), total_timesteps=0,
+                  out_root=str(tmp_path), init_from=str(src))
+    model = train(cfg)
+    assert model.num_timesteps == 0
+    a, b = MaskablePPO.load(str(src)).policy.state_dict(), MaskablePPO.load(str(cfg.run_dir/'final_model.zip')).policy.state_dict()
+    assert a.keys() == b.keys() and all(torch.equal(a[k], b[k]) for k in a)
+    old = pickle.load(open(trained.run_dir/'final_vecnormalize.pkl', 'rb'))
+    new = pickle.load(open(cfg.run_dir/'final_vecnormalize.pkl', 'rb'))
+    assert np.array_equal(old.obs_rms.mean, new.obs_rms.mean) and new.ret_rms.count < 1
+    assert json.loads((cfg.run_dir/'config.json').read_text(encoding='utf-8'))['train']['init_from'] == str(src)

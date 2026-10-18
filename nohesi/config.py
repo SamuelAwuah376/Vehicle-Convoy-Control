@@ -304,4 +304,9 @@ def score_v4():
                    draft_rate=5.0, draft_headway=1.0, draft_min_speed=20.0)
 
 
-SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4}
+def score_v5():
+    """v4 with drafting 5x more rewarding (25 pts/s)."""
+    return replace(score_v4(), version='v5', draft_rate=25.0)
+
+
+SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5}

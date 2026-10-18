@@ -99,7 +99,7 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 
 ## Training (milestone 3)
 
-Needs the `rl` extra (`pip install -e ".[test,rl]"`, CPU torch). `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
+Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE = 'cuda'` in `train_rl.py`), install the CUDA build: `pip install --force-reinstall --no-deps torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130`. `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
 
 - **Setup:** 16 `SubprocVecEnv` workers × 512 steps (8192 per update), batch 1024, 10 epochs, lr 3e-4 decaying linearly to 0, clip 0.2, entropy 0.01, γ 0.99, λ 0.95. Separate 256×256 tanh networks for policy and value. `VecNormalize` normalises observations and rewards (clip 10), and its statistics are saved with every model.
 - **Threads:** each worker uses one thread (`OMP/MKL/OPENBLAS_NUM_THREADS=1`), and the learner uses 1 torch thread while collecting rollouts and 4 during PPO updates. With 16 envs, training runs at about 80 timesteps/s; the environment (mostly the MPC) is the bottleneck.
@@ -137,7 +137,7 @@ Key ideas, in the order things happen:
 
 ## Scoring
 
-Scores are versioned, and each result records which version it used. v4 is the default.
+Scores are versioned, and each result records which version it used. v4 is the default; v5 (v4 with drafting 5× more rewarding) is used for training from the second PPO run on.
 
 | Points for | How |
 |---|---|
@@ -145,7 +145,7 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | **Team close pass** (v4) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. |
 | **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
 | **Teammate proximity** (v1–v3) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
-| **Drafting** (v4, replaces proximity) | 5 points per second for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. |
+| **Drafting** (v4+, replaces proximity) | 5 points per second (v4) or 25 (v5) for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. Multiplied by the team combo. |
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
 | **Collision** | −500 to each car involved, and the episode ends. |

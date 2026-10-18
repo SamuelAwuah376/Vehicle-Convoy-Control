@@ -121,3 +121,11 @@ def test_no_draft_with_traffic_in_between():
     assert leader[1] == -1 and gap[1] == np.inf
     leader, gap = draft_leaders(s, lanes, LENGTH, traffic_s=[15.0], traffic_lane=[2])   # traffic in another lane
     assert leader[1] == 0
+
+
+def test_score_v5_is_v4_with_5x_drafting():
+    from dataclasses import replace
+    from nohesi.config import SCORES
+    v4, v5 = SCORES['v4'](), SCORES['v5']()
+    assert v5.version == 'v5' and v5.draft_rate == 5*v4.draft_rate
+    assert replace(v5, version='v4', draft_rate=v4.draft_rate) == v4

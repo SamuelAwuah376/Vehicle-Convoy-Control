@@ -103,18 +103,16 @@ class Traffic:
         tgt = self.target_lane
         all_s = np.r_[self.s, others_s]; all_lane = np.r_[self.lane, others_lane]; all_v = np.r_[self.v, others_v]
         all_lane2 = np.r_[tgt, others_lane]
-        accel = np.empty(len(self.s))
-        for i in range(len(self.s)):
-            ahead = ((all_lane == self.lane[i]) | (all_lane2 == self.lane[i]) | (all_lane == tgt[i]) |
-                     (all_lane2 == tgt[i])) & (all_s > self.s[i])
-            free = 1-(self.v[i]/self.v0[i])**4
-            if np.any(ahead):
-                j = np.flatnonzero(ahead)[np.argmin(all_s[ahead])]
-                gap = max(all_s[j]-self.s[i]-length, 0.1)
-                desired = c.idm_gap+self.v[i]*c.idm_headway+self.v[i]*(self.v[i]-all_v[j])/(2*np.sqrt(c.idm_accel*c.idm_brake))
-                free -= (max(desired, 0)/gap)**2
-            accel[i] = np.clip(c.idm_accel*free, -c.idm_brake_max, c.idm_accel)
-        return accel
+        # All cars at once: row i masks the vehicles leading car i (either of its lanes, ahead of it).
+        mine, theirs = np.c_[self.lane, tgt], np.c_[all_lane, all_lane2]
+        ahead = (mine[:, :, None, None] == theirs[None, None, :, :]).any(axis=(1, 3)) & (all_s[None, :] > self.s[:, None])
+        free = 1-(self.v/self.v0)**4
+        has = ahead.any(axis=1)
+        j = np.argmin(np.where(ahead, all_s[None, :], np.inf), axis=1)
+        gap = np.maximum(all_s[j]-self.s-length, 0.1)
+        desired = c.idm_gap+self.v*c.idm_headway+self.v*(self.v-all_v[j])/(2*np.sqrt(c.idm_accel*c.idm_brake))
+        free = np.where(has, free-(np.maximum(desired, 0)/gap)**2, free)
+        return np.clip(c.idm_accel*free, -c.idm_brake_max, c.idm_accel)
 
     def _mobil(self, others_s, others_lane, others_v, length, others_lane2):
         """Start lane changes for cars due an evaluation (in index order, so earlier starts are seen)."""

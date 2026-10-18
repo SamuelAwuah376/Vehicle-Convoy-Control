@@ -88,8 +88,9 @@ class IntentionManager:
     def reach(self, v, speed, T, dt=0.1):
         """Distance and speed after T s tracking `speed` within the plant's accel (power-limited) and brake limits."""
         p, s = self.params, 0.0
+        v, speed = float(v), float(speed)
         for _ in range(int(round(T/dt))):
-            a = float(np.clip((speed-v)/dt, -p.brake_max, p.accel_max*min(1.0, p.power_speed/max(v, 1e-6))))
+            a = min(max((speed-v)/dt, -p.brake_max), p.accel_max*min(1.0, p.power_speed/max(v, 1e-6)))
             s, v = s+v*dt+0.5*a*dt*dt, v+a*dt
         return s, v
 

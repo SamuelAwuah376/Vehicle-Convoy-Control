@@ -48,6 +48,10 @@ def clearance(a, b):
         return 0.0
     best = np.inf
     for poly, other in ((a, b), (b, a)):
-        for i in range(len(poly)):
-            best = min(best, _point_segment_distance(other, poly[i], poly[(i+1) % len(poly)]).min())
+        # Every vertex of `other` against every edge of `poly` at once (same arithmetic as _point_segment_distance).
+        start, ab = poly, np.roll(poly, -1, axis=0)-poly                      # (E, 2)
+        rel = other[None, :, :]-start[:, None, :]                              # (E, P, 2)
+        t = np.clip((rel[..., 0]*ab[:, None, 0]+rel[..., 1]*ab[:, None, 1])/(ab[:, 0]*ab[:, 0]+ab[:, 1]*ab[:, 1])[:, None], 0, 1)
+        diff = other[None, :, :]-(start[:, None, :]+t[..., None]*ab[:, None, :])
+        best = min(best, float(np.sqrt(diff[..., 0]**2+diff[..., 1]**2).min()))
     return float(best)

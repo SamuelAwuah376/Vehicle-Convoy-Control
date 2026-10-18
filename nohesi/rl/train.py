@@ -2,6 +2,11 @@
 
     python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000 --envs 16
     python -m nohesi.rl.train --run-id ppo_v4_001 --resume runs_rl/ppo_v4_001/checkpoints/model_2000000.zip
+    python -m nohesi.rl.train --run-id ppo_v5_001 --score v5 --init-from runs_rl/ppo_v4_001/final_model.zip
+
+--resume continues the same run (timestep count, LR schedule and reward normalisation carry on). --init-from starts
+a new run (fresh timestep count, LR schedule and optimiser) from another run's policy weights and observation
+normalisation; the reward normalisation is reset, since a new run may use a different score.
 
 Everything for a run goes to runs_rl/<run_id>/:
     config.json                 TrainConfig + EnvConfig, library versions, git commit
@@ -79,6 +84,7 @@ class TrainConfig:
     device: str = 'cpu'
     out_root: str = 'runs_rl'
     resume: str = None               # checkpoint .zip to continue from (its vecnormalize_<t>.pkl alongside)
+    init_from: str = None            # model .zip whose policy weights + observation normalisation start a new run
     verbose: int = 1
 
     def __post_init__(self):
@@ -286,6 +292,11 @@ def _make_callback_class():
     return TrainingMonitor
 
 
+def _vecnorm_path(model_path):
+    """vecnormalize .pkl saved alongside a model .zip (model_<t> / best_model / final_model)."""
+    return model_path.with_name(model_path.stem.replace('model', 'vecnormalize')+'.pkl')
+
+
 def _history_state(run_dir):
     """(best eval score, last eval timesteps, wall seconds) from an existing eval_history.csv, for resuming."""
     path = Path(run_dir)/'eval_history.csv'
@@ -319,17 +330,25 @@ def train(cfg):
     venv = make_vec_env(cfg.env, cfg.n_envs, base_seed, cfg.subproc)
     eval_env = None
     try:
+        if cfg.resume and cfg.init_from:
+            raise ValueError('use either resume or init_from')
         if cfg.resume:
             resume = Path(cfg.resume)
-            vecnorm_path = resume.with_name(resume.stem.replace('model', 'vecnormalize')+'.pkl')
+            vecnorm_path = _vecnorm_path(resume)
             venv = VecNormalize.load(str(vecnorm_path), venv)
             venv.training, venv.norm_reward = True, cfg.norm_reward
             model = MaskablePPO.load(str(resume), env=venv, device=cfg.device,
                                      tensorboard_log=str(run_dir/'tb'))
             best, last_eval, wall = _history_state(run_dir)
         else:
-            venv = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma,
-                                clip_obs=cfg.clip_obs)
+            if cfg.init_from:
+                from stable_baselines3.common.running_mean_std import RunningMeanStd
+                venv = VecNormalize.load(str(_vecnorm_path(Path(cfg.init_from))), venv)
+                venv.training, venv.norm_reward = True, cfg.norm_reward
+                venv.ret_rms, venv.returns = RunningMeanStd(shape=()), np.zeros(venv.num_envs)   # new score: new return scale
+            else:
+                venv = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma,
+                                    clip_obs=cfg.clip_obs)
             policy_kwargs = dict(net_arch=dict(pi=list(cfg.net_pi), vf=list(cfg.net_vf)),
                                  activation_fn=torch.nn.Tanh if cfg.activation == 'tanh' else torch.nn.ReLU)
             model = MaskablePPO('MlpPolicy', venv, learning_rate=LinearSchedule(cfg.learning_rate, cfg.lr_final),
@@ -339,6 +358,10 @@ def train(cfg):
                                 target_kl=cfg.target_kl, policy_kwargs=policy_kwargs,
                                 tensorboard_log=str(run_dir/'tb'), seed=cfg.seed, device=cfg.device,
                                 verbose=cfg.verbose)
+            if cfg.init_from:   # policy weights only: the optimiser and LR schedule start fresh
+                source = MaskablePPO.load(str(cfg.init_from), device=cfg.device)
+                model.policy.load_state_dict(source.policy.state_dict())
+                del source
             best, last_eval, wall = -np.inf, None, 0.0
         n_eval = max(1, min(cfg.eval_envs, len(cfg.eval_seeds)))
         eval_env = make_vec_env(cfg.env, n_eval, 0, cfg.subproc)
@@ -347,6 +370,10 @@ def train(cfg):
         if remaining > 0:
             model.learn(total_timesteps=remaining, callback=callback, reset_num_timesteps=not cfg.resume,
                         tb_log_name='ppo')
+        else:   # nothing left to train: give the model a (silent) logger and bind the callback for the final eval/save
+            from stable_baselines3.common.logger import configure
+            model.set_logger(configure(None, []))
+            callback.init_callback(model)
         if callback.last_eval != model.num_timesteps:
             callback._evaluate()
         callback.save(run_dir, 'final_model', 'final_vecnormalize')
@@ -379,6 +406,7 @@ def main(argv=None):
     p.add_argument('--mpc', choices=('linear', 'nonlinear'))
     p.add_argument('--vehicle', choices=('kinematic', 'dynamic'))
     p.add_argument('--resume', help='checkpoint .zip; the run config is reloaded from runs_rl/<run-id>/config.json')
+    p.add_argument('--init-from', help="another run's model .zip to start this new run from")
     a = p.parse_args(argv)
     if a.resume:
         saved = load_train_config(ROOT/TrainConfig.out_root/a.run_id)
@@ -390,7 +418,7 @@ def main(argv=None):
         cfg = TrainConfig(run_id=a.run_id, env=env, n_envs=a.envs, total_timesteps=a.timesteps, n_steps=a.n_steps,
                           batch_size=a.batch_size, learning_rate=a.lr, ent_coef=a.ent_coef, activation=a.activation,
                           eval_every=a.eval_every, eval_envs=a.eval_envs, checkpoint_every=a.checkpoint_every,
-                          seed=a.seed, torch_threads=a.torch_threads)
+                          seed=a.seed, torch_threads=a.torch_threads, init_from=a.init_from)
     train(cfg)
 
 
