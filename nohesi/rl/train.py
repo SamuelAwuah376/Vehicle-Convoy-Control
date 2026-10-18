@@ -38,7 +38,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 EVAL_FIELDS = ('timesteps', 'wall_s', 'team_score_mean', 'team_score_std', 'collision_rate', 'close_passes',
-               'draft_time_s', 'maneuvers', 'fallbacks', 'rejections', 'episode_length', 'best')
+               'draft_time_s', 'maneuvers', 'fallbacks', 'rejections', 'episode_length', 'draft_passes', 'best')
 
 
 def _env_config_default():
@@ -222,7 +222,7 @@ def _make_callback_class():
                     from .evaluate import summarize
                     s = summarize(m)
                     for k in ('team_score', 'collision', 'close_passes', 'maneuvers', 'fallbacks', 'rejections',
-                              'duration_s', 'draft_time_s'):
+                              'duration_s', 'draft_time_s', 'draft_passes'):
                         if s.get(k) is not None:
                             self.episodes.setdefault(f'episode/{k}', []).append(float(s[k]))
             if self.num_timesteps-self.last_eval >= self.cfg.eval_every:
@@ -272,7 +272,8 @@ def _make_callback_class():
                    'team_score_mean': s['team_score'], 'team_score_std': s['team_score_std'],
                    'collision_rate': s['collision_rate'], 'close_passes': s['close_passes'],
                    'draft_time_s': s['draft_time_s'], 'maneuvers': s['maneuvers'], 'fallbacks': s['fallbacks'],
-                   'rejections': s['rejections'], 'episode_length': s['decisions'], 'best': int(improved)}
+                   'rejections': s['rejections'], 'episode_length': s['decisions'], 'draft_passes': s['draft_passes'],
+                   'best': int(improved)}
             path = self.run_dir/'eval_history.csv'
             new = not path.exists()
             with path.open('a', newline='', encoding='utf-8') as stream:
@@ -286,6 +287,7 @@ def _make_callback_class():
             if self.verbose:
                 print(f"[eval t={self.num_timesteps}] team score {s['team_score']:.1f} +- {s['team_score_std']:.1f} | "
                       f"collisions {s['collision_rate']:.2f} | close passes {s['close_passes']:.1f} | "
+                      f"draft passes {s['draft_passes']:.1f} | "
                       f"len {s['decisions']:.0f} | {time.time()-start:.0f} s{' | new best' if improved else ''}", flush=True)
             return res
 

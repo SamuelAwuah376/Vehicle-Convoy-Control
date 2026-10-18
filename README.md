@@ -137,7 +137,7 @@ Key ideas, in the order things happen:
 
 ## Scoring
 
-Scores are versioned, and each result records which version it used. v4 is the default; v5 (v4 with drafting 5× more rewarding) is used for training from the second PPO run on.
+Scores are versioned, and each result records which version it used. v4 is the default. v5 is v4 with drafting 5× more rewarding; v6 is v5 plus draft passes. v6 is used for PPO fine-tuning.
 
 | Points for | How |
 |---|---|
@@ -146,6 +146,7 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
 | **Teammate proximity** (v1–v3) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
 | **Drafting** (v4+, replaces proximity) | 5 points per second (v4) or 25 (v5) for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. Multiplied by the team combo. |
+| **Draft pass** (v6) | A close pass by a car that is drafting a teammate, or left the draft within the last 1 s (a slingshot), is worth 3× more, on top of the team pass bonus and the combo. The highest-scoring event. |
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
 | **Collision** | −500 to each car involved, and the episode ends. |

@@ -138,6 +138,10 @@ class Score:
     draft_rate: float = 0.0           # 0 disables
     draft_headway: float = 1.0        # s: bumper gap <= draft_headway*follower speed
     draft_min_speed: float = 20.0     # m/s
+    # Draft pass: a close pass by a car that was drafting (as above) at the pass or within draft_pass_window s
+    # before it (pulling out of the draft to pass) is worth draft_pass_gain times more (on top of team pass and combo).
+    draft_pass_gain: float = 1.0      # 1 disables
+    draft_pass_window: float = 1.0    # s
 
     NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate')
 
@@ -309,4 +313,9 @@ def score_v5():
     return replace(score_v4(), version='v5', draft_rate=25.0)
 
 
-SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5}
+def score_v6():
+    """v5 plus draft passes: a close pass by a car drafting a teammate (or within 1 s of leaving the draft) is worth 3x."""
+    return replace(score_v5(), version='v6', draft_pass_gain=3.0, draft_pass_window=1.0)
+
+
+SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6}

@@ -27,6 +27,7 @@ def metrics(ep):
         'collisions': [asdict(c) for c in ep.collisions],
         'overtakes': len(ep.overtakes),
         'close_passes_scored': len(ep.awarded),
+        'draft_passes_scored': int(sum(getattr(ep, 'draft_pass', None) or ())),
         'team_pass': team_pass_metrics(ep),
         'combo': combo_metrics(ep),
         'maneuvers': maneuver_metrics(ep),

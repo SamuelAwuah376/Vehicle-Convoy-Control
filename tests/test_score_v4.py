@@ -129,3 +129,35 @@ def test_score_v5_is_v4_with_5x_drafting():
     v4, v5 = SCORES['v4'](), SCORES['v5']()
     assert v5.version == 'v5' and v5.draft_rate == 5*v4.draft_rate
     assert replace(v5, version='v4', draft_rate=v4.draft_rate) == v4
+
+
+def test_draft_pass_scores_3x_while_drafting_or_just_after():
+    from nohesi.config import SCORES
+    cfg = SCORES['v6']()
+    base = close_pass_points(0.5, 28.0, cfg)
+    drafting = dict(s=(0., LENGTH+10., 200.), lanes=(1, 1, 2))   # car 0 drafts car 1 (both far from 2)
+    alone = dict(s=(0., 100., 200.), lanes=(1, 1, 2))
+    far = (100., 100., 100.)                                      # no team-pass bonus
+    scorer = Scorer(cfg)                                          # pass while drafting
+    assert scorer.update(step(far, overtakes=[close(0)], **drafting))['close_pass'][0] == pytest.approx(3*base)
+    scorer = Scorer(cfg)                                          # slingshot: left the draft 1 s before the pass
+    scorer.update(step(far, **drafting))
+    for _ in range(9):
+        scorer.update(step(far, **alone))
+    assert scorer.update(step(far, overtakes=[close(0)], **alone))['close_pass'][0] == pytest.approx(3*base)
+    assert scorer.draft_pass == [True]
+    scorer = Scorer(cfg)                                          # 1.1 s after the draft: plain pass
+    scorer.update(step(far, **drafting))
+    for _ in range(10):
+        scorer.update(step(far, **alone))
+    assert scorer.update(step(far, overtakes=[close(0)], **alone))['close_pass'][0] == pytest.approx(base)
+    assert scorer.draft_pass == [False]
+    scorer = Scorer(SCORES['v5']())                               # v5: no draft-pass bonus
+    assert scorer.update(step(far, overtakes=[close(0)], **drafting))['close_pass'][0] == pytest.approx(base)
+
+
+def test_score_v6_is_v5_with_draft_passes():
+    from nohesi.config import SCORES
+    v5, v6 = SCORES['v5'](), SCORES['v6']()
+    assert (v6.version, v6.draft_pass_gain, v6.draft_pass_window) == ('v6', 3.0, 1.0)
+    assert replace(v6, version='v5', draft_pass_gain=v5.draft_pass_gain) == v5
