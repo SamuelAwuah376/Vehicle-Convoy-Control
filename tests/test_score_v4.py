@@ -4,7 +4,7 @@ import pytest
 from nohesi.config import SCENARIOS, Planner, Score, Timing, score_v3, score_v4
 from nohesi.evaluation.metrics import metrics
 from nohesi.evaluation.runner import run
-from nohesi.scoring.events import Measurements, Overtake, draft_leaders
+from nohesi.scoring.events import Measurements, Overtake, draft_leaders, train_gaps
 from nohesi.scoring.score import Scorer, TERMS, close_pass_points
 
 DT, LENGTH = 0.1, 4.5
@@ -13,7 +13,8 @@ DT, LENGTH = 0.1, 4.5
 def step(distance=(100., 100., 100.), speeds=(28., 28., 28.), s=(0., 100., 200.), lanes=(0, 1, 2), overtakes=()):
     leader, gap = draft_leaders(np.array(s), np.array(lanes), LENGTH)
     return Measurements(DT, np.array(speeds), np.array(distance), np.full(3, 5.), np.full(3, np.inf),
-                        tuple(overtakes), (), (), np.array(s), np.zeros(3), np.array(lanes), leader, gap)
+                        tuple(overtakes), (), (), np.array(s), np.zeros(3), np.array(lanes), leader, gap,
+                        train_gaps(np.array(s, float), LENGTH))
 
 
 def close(vehicle=0):
@@ -164,32 +165,82 @@ def test_score_v6_is_v5_with_draft_passes():
     assert replace(v6, version='v5', draft_pass_gain=v5.draft_pass_gain) == v5
 
 
-@pytest.mark.parametrize('distance, per_s', [((30., 20., 10.), (0., 0., 0.)),           # all within 30 m: free
-                                             ((40., 100., 60.), (1+49, 1+9, 49+9))])    # 2*((d-30)/10)^2, split per pair
-def test_spread_penalty_v7(distance, per_s):
+@pytest.mark.parametrize('distance, per_s', [((50., 40., 10.), (0., 0., 0.)),            # all within 50 m: free
+                                             ((60., 100., 70.), (1+25, 1+4, 25+4))])     # 2*((d-50)/10)^2, split per pair
+def test_v7_spread_penalty(distance, per_s):
     from nohesi.config import SCORES
     inc = Scorer(SCORES['v7']()).update(step(distance))
     assert inc['spread'].tolist() == pytest.approx([-p*DT for p in per_s])
     assert Scorer(SCORES['v6']()).update(step(distance))['spread'].sum() == 0
 
 
-def test_spread_penalty_ignores_combo():
+def test_v7_spread_penalty_ignores_combo():
     from nohesi.config import SCORES
     scorer = Scorer(SCORES['v7']())
     for _ in range(4):
         scorer.update(step(overtakes=[close(2)]))
     assert scorer.multiplier > 1
-    assert scorer.update(step((40., 30., 30.)))['spread'].tolist() == pytest.approx([-1*DT, -1*DT, 0])
+    assert scorer.update(step((60., 30., 30.)))['spread'].tolist() == pytest.approx([-1*DT, -1*DT, 0])
 
 
 @pytest.mark.parametrize('distance, factor', [((10., 100., 100.), 1.0),     # only one teammate near: no bonus in v7
-                                              ((10., 10., 25.), 1.0),       # passer's mates near, but they are 25 m apart
-                                              ((10., 10., 15.), 1.5),       # whole team within 20 m: graded as v4
+                                              ((20., 20., 45.), 1.0),       # passer's mates near, but 45 m apart
+                                              ((20., 20., 30.), 1.5),       # whole team within 40 m: graded
                                               ((0., 0., 0.), 2.0)])
 def test_v7_team_pass_needs_whole_team(distance, factor):
     from nohesi.config import SCORES
-    cfg = SCORES['v7']()
-    points, scorer = pass_points(cfg, distance)
+    points, scorer = pass_points(SCORES['v7'](), distance)
     assert scorer.team_pass == [pytest.approx(factor)]
-    assert points == pytest.approx(factor*close_pass_points(0.5, 28.0, cfg))
-    assert pass_points(SCORES['v6'](), (10., 100., 100.))[1].team_pass == [pytest.approx(1.25)]   # v6 unchanged
+    assert pass_points(SCORES['v6'](), (10., 100., 100.))[1].team_pass == [pytest.approx(1.25)]   # v6: 20 m, any mate
+
+
+# Car spacing for the train tests: 28 m/s, 0.5 s = 14 m bumper gap; body length 4.5 m.
+TRAIN = dict(s=(0., 18., 36.), lanes=(0, 1, 2))          # in a row along the road, different lanes, 13.5 m gaps
+LOOSE = dict(s=(0., 18., 40.), lanes=(0, 1, 2))          # front gap 17.5 m > 14 m: no train
+PAIR = dict(s=(0., LENGTH+10., 200.), lanes=(1, 1, 2))   # car 0 drafts car 1 in lane 1
+
+
+def test_v7_train_any_lanes_pays_every_car():
+    from nohesi.config import SCORES
+    scorer = Scorer(SCORES['v7']())
+    assert scorer.update(step(**TRAIN))['draft'].tolist() == pytest.approx([25*DT]*3) and scorer.train_time == DT
+    assert Scorer(SCORES['v7']()).update(step(**LOOSE))['draft'].sum() == 0
+    assert Scorer(SCORES['v7']()).update(step(**TRAIN, speeds=(28., 28., 19.)))['draft'].sum() == 0   # too slow
+    side = dict(s=(0., 2., 16.), lanes=(0, 1, 1))           # two alongside (overlapping) still count as a row
+    assert Scorer(SCORES['v7']()).update(step(**side))['draft'].tolist() == pytest.approx([25*DT]*3)
+    assert Scorer(SCORES['v6']()).update(step(**TRAIN))['draft'].sum() == 0                     # v6: no train
+
+
+def test_v7_pair_draft_keeps_lower_rate():
+    from nohesi.config import SCORES
+    inc = Scorer(SCORES['v7']()).update(step(**PAIR))['draft']
+    assert inc.tolist() == pytest.approx([5*DT, 0, 0])
+
+
+def test_v7_pass_gains_train_3x_pair_1_5x():
+    from nohesi.config import SCORES
+    cfg = SCORES['v7']()
+    base = close_pass_points(0.5, 28.0, cfg)
+    far = (100., 100., 100.)                                # no team-pass bonus
+    scorer = Scorer(cfg)                                    # the train leader passes: 3x
+    assert scorer.update(step(far, overtakes=[close(2)], **TRAIN))['close_pass'][2] == pytest.approx(3*base)
+    assert scorer.train_pass == [True] and scorer.draft_pass == [True]
+    scorer = Scorer(cfg)                                    # train broke 1 s before the pass: still 3x
+    scorer.update(step(far, **TRAIN))
+    for _ in range(9):
+        scorer.update(step(far, **LOOSE))
+    assert scorer.update(step(far, overtakes=[close(0)], **LOOSE))['close_pass'][0] == pytest.approx(3*base)
+    scorer = Scorer(cfg)                                    # pairwise draft: 1.5x
+    assert scorer.update(step(far, overtakes=[close(0)], **PAIR))['close_pass'][0] == pytest.approx(1.5*base)
+    assert scorer.train_pass == [False] and scorer.draft_pass == [True]
+
+
+def test_score_v7_settings():
+    from nohesi.config import SCORES
+    v7 = SCORES['v7']()
+    assert (v7.version, v7.draft_rate, v7.draft_pass_gain, v7.train_rate, v7.train_headway, v7.train_pass_gain) == \
+        ('v7', 5.0, 1.5, 25.0, 0.5, 3.0)
+    assert (v7.team_pass_distance, v7.team_pass_require_all, v7.spread_free_distance) == (40.0, True, 50.0)
+    assert v7.spread_penalty_cap == 200.0
+    inc = Scorer(v7).update(step((150., 400., 50.)))['spread']          # 150 m: exactly the cap; 400 m: capped
+    assert inc.tolist() == pytest.approx([-200*DT, -100*DT, -100*DT])   # each pair split between its two cars

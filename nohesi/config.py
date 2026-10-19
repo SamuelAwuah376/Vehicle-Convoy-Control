@@ -143,17 +143,26 @@ class Score:
     # before it (pulling out of the draft to pass) is worth draft_pass_gain times more (on top of team pass and combo).
     draft_pass_gain: float = 1.0      # 1 disables
     draft_pass_window: float = 1.0    # s
+    # Draft train: all three cars in a row along the road (any lanes), each within train_headway bumper to bumper of the
+    # car ahead, all above draft_min_speed. Each car earns train_rate pts/s (times the combo) instead of draft_rate, and
+    # a close pass by a train member (or within draft_pass_window s after the train breaks) is worth train_pass_gain.
+    train_rate: float = 0.0           # 0 disables
+    train_headway: float = 0.5        # s
+    train_pass_gain: float = 1.0      # 1 disables
     # Team spread penalty: each teammate pair loses spread_penalty_rate*((distance - spread_free_distance)/spread_scale)^2
     # pts/s beyond spread_free_distance (body-centre distance), split between the pair; not multiplied by the combo.
     spread_penalty_rate: float = 0.0  # 0 disables
     spread_free_distance: float = 30.0  # m
     spread_scale: float = 10.0        # m
+    spread_penalty_cap: float = float('inf')  # pts/s: most a pair can lose per second
 
-    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate')
+    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate', 'train_rate')
 
     def __post_init__(self):
+        if not self.spread_penalty_cap > 0:   # inf allowed (no cap)
+            raise ValueError('spread_penalty_cap must be positive')
         _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', 'team_pass_require_all',
-                                                             *self.NON_NEGATIVE)
+                                                             'spread_penalty_cap', *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
         if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_')):
             raise ValueError('lane-change points must be non-negative')
@@ -326,10 +335,13 @@ def score_v6():
 
 
 def score_v7():
-    """v6 plus a quadratic team spread penalty (2*((d - 30 m)/10 m)^2 pts/s per teammate pair beyond 30 m apart), and
-    the team close-pass bonus only when the whole team (all three pairs) is within 20 m."""
-    return replace(score_v6(), version='v7', spread_penalty_rate=2.0, spread_free_distance=30.0, spread_scale=10.0,
-                   team_pass_require_all=True)
+    """Team play: a three-car draft train (each car within 0.5 s bumper to bumper of the car ahead along the road, any
+    lanes) earns 25 pts/s per car and 3x draft passes; a two-car draft keeps 5 pts/s and 1.5x passes. The team close-pass
+    bonus needs all three cars within 40 m, and each pair beyond 50 m apart loses 2*((d - 50 m)/10 m)^2 pts/s, at most
+    200 pts/s per pair (reached at 150 m)."""
+    return replace(score_v6(), version='v7', draft_rate=5.0, draft_pass_gain=1.5, train_rate=25.0, train_headway=0.5,
+                   train_pass_gain=3.0, team_pass_distance=40.0, team_pass_require_all=True,
+                   spread_penalty_rate=2.0, spread_free_distance=50.0, spread_scale=10.0, spread_penalty_cap=200.0)
 
 
 SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,

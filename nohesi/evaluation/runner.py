@@ -39,6 +39,8 @@ class Episode:
     maneuvers: list = field(default_factory=list)   # Scorer.maneuvers award dicts
     team_lat: np.ndarray = None   # (T, 3, 2) body [vy, yaw rate] (kinematic relations for the kinematic plant)
     draft_pass: list = field(default_factory=list)   # per awarded pass: was it a draft pass
+    train_pass: list = field(default_factory=list)   # per awarded pass: did it get the draft-train bonus
+    train_time: float = 0.0                          # s the three-car draft train held
 
 
 POLICIES = ('lane_keeping', 'overtaker')
@@ -99,7 +101,8 @@ class EpisodeRun:
                        self.planner if hasattr(policy, 'log') else None, getattr(policy, 'log', None),
                        list(policy.intentions.records) if hasattr(policy, 'intentions') else [],
                        np.array(self.combo), scorer.max_combo, list(scorer.maneuvers),
-                       np.stack((stack('team_vy'), stack('team_r')), -1), list(scorer.draft_pass))
+                       np.stack((stack('team_vy'), stack('team_r')), -1), list(scorer.draft_pass),
+                       list(scorer.train_pass), scorer.train_time)
 
 
 def run(scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):

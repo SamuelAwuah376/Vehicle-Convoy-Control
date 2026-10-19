@@ -43,6 +43,8 @@ class Measurements:
     team_lane: np.ndarray = None    # (3,) int, road.lane_of(team_d)
     draft_leader: np.ndarray = None # (3,) int: nearest teammate ahead in the same lane, -1 if none
     draft_gap: np.ndarray = None    # (3,) bumper gap (m) to draft_leader, inf if none
+    train_gap: np.ndarray = None    # (3,) bumper gap (m) along the road to the next teammate ahead in any lane
+                                    # (negative when overlapping alongside), inf for the front car
 
 
 def draft_leaders(team_s, team_lane, length, traffic_s=(), traffic_lane=()):
@@ -60,6 +62,16 @@ def draft_leaders(team_s, team_lane, length, traffic_s=(), traffic_lane=()):
             if np.any(between):   # a traffic car sits between: not drafting
                 leader[i], gap[i] = -1, np.inf
     return leader, gap
+
+
+def train_gaps(team_s, length):
+    """Bumper gap along the road from each car to the next teammate ahead of it in s order, in any lane (negative when
+    they overlap alongside); inf for the front car."""
+    order = np.argsort(team_s, kind='stable')
+    gap = np.full(TEAM, np.inf)
+    for back, front in zip(order[:-1], order[1:]):
+        gap[back] = team_s[front]-team_s[back]-length
+    return gap
 
 
 class EventDetector:
@@ -139,4 +151,4 @@ class EventDetector:
         return Measurements(dt, snap.team[:, 3].copy(), pair_distance, pair_clearance,
                             traffic_clearance, tuple(overtakes), snap.collisions,
                             tuple(self._lane_changes(snap)), np.array(snap.team_s, float), np.array(snap.team_d, float),
-                            lanes, leader, gap)
+                            lanes, leader, gap, train_gaps(np.asarray(snap.team_s, float), v.length))

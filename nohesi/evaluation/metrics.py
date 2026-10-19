@@ -28,6 +28,8 @@ def metrics(ep):
         'overtakes': len(ep.overtakes),
         'close_passes_scored': len(ep.awarded),
         'draft_passes_scored': int(sum(getattr(ep, 'draft_pass', None) or ())),
+        'train_passes_scored': int(sum(getattr(ep, 'train_pass', None) or ())),
+        'train_time_s': float(getattr(ep, 'train_time', 0.0)),
         'team_pass': team_pass_metrics(ep),
         'combo': combo_metrics(ep),
         'maneuvers': maneuver_metrics(ep),

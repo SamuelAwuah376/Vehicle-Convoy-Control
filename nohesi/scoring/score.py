@@ -30,7 +30,9 @@ class Scorer:
     then raises the combo. A pass near teammates is first scaled by team_pass_multiplier. Proximity and
     drafting (following the nearest teammate ahead in the same lane within draft_headway) are multiplied
     too; speed and collisions are not. A close pass by a car drafting now or within draft_pass_window s
-    (a draft pass) is also scaled by draft_pass_gain. The team spread penalty (pairs beyond spread_free_distance,
+    (a draft pass) is also scaled by draft_pass_gain. While all three cars form a draft train (in a row along the road,
+    any lanes, each within train_headway of the car ahead), every car earns train_rate instead of draft_rate, and a pass
+    by any car while the train holds (or within draft_pass_window after) is scaled by train_pass_gain instead. The team spread penalty (pairs beyond spread_free_distance,
     quadratic in the excess) is not multiplied. The combo resets
     after combo_window s without a scored close pass and on any collision.
 
@@ -45,8 +47,11 @@ class Scorer:
         self.total = {term: np.zeros(TEAM) for term in TERMS}
         self.awarded = []   # (Overtake, points incl. multiplier)
         self.team_pass = [] # team_pass_multiplier of each awarded pass
-        self.draft_pass = []  # whether each awarded pass was a draft pass
+        self.draft_pass = []  # whether each awarded pass got a draft (pair or train) bonus
+        self.train_pass = []  # whether each awarded pass got the draft-train bonus
         self.last_draft = np.full(TEAM, -np.inf)   # last time each car was drafting
+        self.last_train = -np.inf                  # last time the three-car draft train held
+        self.train_time = 0.0
         self.time, self.last_pass = 0.0, 0.0
         self.combo, self.max_combo = 0, 0
         self.passes = {}      # vehicle -> scored pass times
@@ -69,13 +74,21 @@ class Scorer:
             for i, j in enumerate(m.draft_leader):
                 drafting[i] = j >= 0 and m.draft_gap[i] <= cfg.draft_headway*m.speeds[i]                     and min(m.speeds[i], m.speeds[j]) > cfg.draft_min_speed
         self.last_draft[drafting] = self.time
+        train = bool(cfg.train_rate or cfg.train_pass_gain != 1.0) and m.train_gap is not None and \
+            all(g <= cfg.train_headway*v for g, v in zip(m.train_gap, m.speeds) if np.isfinite(g)) and \
+            min(m.speeds) > cfg.draft_min_speed
+        if train:
+            self.last_train, self.train_time = self.time, self.train_time+m.dt
         for o in m.overtakes:
             points = close_pass_points(o.min_clearance, o.speed, cfg)
             if points:
                 team = team_pass_multiplier(o.vehicle, m.pair_distance, cfg)
+                train_pass = cfg.train_pass_gain != 1.0 and self.time-self.last_train <= cfg.draft_pass_window+EPS
                 draft_pass = self.time-self.last_draft[o.vehicle] <= cfg.draft_pass_window+EPS
-                points *= team*self.multiplier*(cfg.draft_pass_gain if draft_pass else 1.0)
-                self.team_pass.append(team); self.draft_pass.append(bool(draft_pass))
+                gain = cfg.train_pass_gain if train_pass else cfg.draft_pass_gain if draft_pass else 1.0
+                points *= team*self.multiplier*gain
+                self.team_pass.append(team); self.draft_pass.append(bool(train_pass or draft_pass))
+                self.train_pass.append(bool(train_pass))
                 inc['close_pass'][o.vehicle] += points
                 self.awarded.append((o, points))
                 self.passes.setdefault(o.vehicle, []).append(o.time)
@@ -85,12 +98,14 @@ class Scorer:
             if distance < cfg.proximity_distance and min(m.speeds[i], m.speeds[j]) > cfg.proximity_min_speed:
                 weight = 1-distance/cfg.proximity_distance if cfg.proximity_falloff == 'linear' else 1.0
                 inc['proximity'][[i, j]] += 0.5*cfg.proximity_rate*weight*m.dt*self.multiplier
-        if cfg.draft_rate:
+        if train and cfg.train_rate:
+            inc['draft'] += cfg.train_rate*m.dt*self.multiplier
+        elif cfg.draft_rate:
             inc['draft'][drafting] += cfg.draft_rate*m.dt*self.multiplier
         if cfg.spread_penalty_rate:
             for (i, j), distance in zip(PAIRS, m.pair_distance):
                 excess = max(0.0, distance-cfg.spread_free_distance)/cfg.spread_scale
-                inc['spread'][[i, j]] -= 0.5*cfg.spread_penalty_rate*excess**2*m.dt
+                inc['spread'][[i, j]] -= 0.5*min(cfg.spread_penalty_rate*excess**2, cfg.spread_penalty_cap)*m.dt
         inc['speed'] += cfg.speed_rate*np.maximum(m.speeds-cfg.speed_floor, 0)*m.dt
         for c in m.collisions:
             inc['collision'][c.vehicle] -= cfg.collision_penalty

@@ -101,7 +101,7 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Fine-tuning** (`--init-from` / `INIT_FROM` in `train_rl.py`): a new run starts from another run's policy weights and observation scaling. The optimiser, learning-rate schedule and reward scaling start fresh.
 - **Score v5:** drafting 5× more rewarding (25 points per second).
 - **Score v6:** v5 plus **draft passes**. A close pass by a car that is drafting, or left the draft within the last 1 s (a slingshot), is worth 3×. The v6 model (`models/ppo_v6_e4_5m`) is the 5M model fine-tuned on v6 for 5M decisions at a learning rate of 1e-4.
-- **Score v7 (ready, not trained yet):** v6 plus a quadratic **team spread penalty**, so the team stays together, and the team close-pass bonus only when all three cars are within 20 m of each other. `train_rl.py` is set up to fine-tune the v6 model on it.
+- **Score v7 (ready, not trained yet):** rewards the whole team together. A three-car **draft train** (any lanes, within 0.5 s of each other) pays 25 pts/s per car and 3× passes; a two-car draft 5 pts/s and 1.5×. The team close-pass bonus needs all three cars within 40 m, and a capped quadratic **team spread penalty** applies beyond 50 m. The v6 model scores 45,200 on v7 (70,700 on v6) and the overtaker 6,700. `train_rl.py` is set up to fine-tune the v6 model on it.
 - **Faster simulator:** about 15 % more decisions per second, with the same episodes. Traffic car-following and polygon distance checks are computed for all cars at once.
 - **GPU learner:** the PPO network trains on the GPU; the simulator workers stay on the CPU.
 
@@ -167,14 +167,15 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | Points for | How |
 |---|---|
 | **Close pass** | Overtaking a traffic car with less than 1.5 m clearance: about 100–200 points, more when closer and faster. |
-| **Team close pass** (v4+) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. From v7 it only counts when the whole team is together: all three cars within 20 m of each other. |
+| **Team close pass** (v4+) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. In v7 it only counts when the whole team is together: all three cars within 40 m of each other (graded over 40 m). |
 | **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
 | **Teammate proximity** (v1–v3) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
 | **Drafting** (v4+, replaces proximity) | 5 points per second (v4) or 25 (v5) for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. Multiplied by the team combo. |
-| **Draft pass** (v6) | A close pass by a car that is drafting a teammate, or left the draft within the last 1 s (a slingshot), is worth 3× more, on top of the team pass bonus and the combo. The highest-scoring event. |
+| **Draft pass** (v6+) | A close pass by a car that is drafting a teammate, or left the draft within the last 1 s (a slingshot), is worth 3× more, on top of the team pass bonus and the combo. In v7 a two-car draft pass is worth 1.5×, and a pass by any car of a draft train 3×. |
+| **Draft train** (v7) | All three cars in a row along the road, in any lanes, each within 0.5 s bumper to bumper of the car ahead, all above 20 m/s. Every car earns 25 points per second (times the combo) while it holds; a two-car draft earns 5. |
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
-| **Team spread penalty** (v7) | For each pair of teammates more than 30 m apart: −2 × ((distance − 30 m) / 10 m)² points per second, split between the pair (−18 pts/s at 60 m, −98 at 100 m). Not multiplied by the combo. |
+| **Team spread penalty** (v7) | For each pair of teammates more than 50 m apart: −2 × ((distance − 50 m) / 10 m)² points per second, at most 200 (reached at 150 m), split between the pair (−18 pts/s at 80 m, −50 at 100 m). Not multiplied by the combo. |
 | **Collision** | −500 to each car involved, and the episode ends. |
 
 ## Outputs

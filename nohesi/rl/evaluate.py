@@ -16,8 +16,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 EVAL_SEEDS = tuple(range(1000, 1020))
-SUMMARY_FIELDS = ('team_score', 'collision', 'close_passes', 'draft_passes', 'draft_time_s', 'maneuvers', 'fallbacks',
-                  'rejections', 'decisions', 'duration_s')
+SUMMARY_FIELDS = ('team_score', 'collision', 'close_passes', 'draft_passes', 'train_passes', 'draft_time_s',
+                  'train_time_s', 'maneuvers', 'fallbacks', 'rejections', 'decisions', 'duration_s')
 
 
 # ---------------------------------------------------------------------------------------------- metrics
@@ -46,6 +46,8 @@ def summarize(m, decisions=None):
             'collision': bool(m.get('collisions')) or m.get('end_reason') == 'collision',
             'close_passes': int(m.get('close_passes_scored', 0)),
             'draft_passes': int(m.get('draft_passes_scored', 0)),
+            'train_passes': int(m.get('train_passes_scored', 0)),
+            'train_time_s': float(m.get('train_time_s', 0.0)),
             'draft_time_s': _draft_time(m),
             'maneuvers': _total((m.get('maneuvers') or {}).get('count')),
             'fallbacks': _total(planner.get('fallbacks')), 'rejections': _total(planner.get('rejections')),
@@ -285,7 +287,8 @@ def _seed_list(text):
 
 
 def print_report(out):
-    keys = ('team_score', 'team_score_std', 'collision_rate', 'close_passes', 'draft_passes', 'draft_time_s', 'maneuvers',
+    keys = ('team_score', 'team_score_std', 'collision_rate', 'close_passes', 'draft_passes', 'train_passes',
+            'draft_time_s', 'train_time_s', 'maneuvers',
             'fallbacks', 'rejections', 'decisions')
     cols = [('ppo', out['summary'])]+([('overtaker', out['overtaker']['summary'])] if 'overtaker' in out else [])
     print(f"{'':16}"+''.join(f'{name:>12}' for name, _ in cols))
