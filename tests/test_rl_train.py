@@ -91,3 +91,36 @@ def test_init_from_copies_policy_and_obs_norm_only(trained, tmp_path):
     new = pickle.load(open(cfg.run_dir/'final_vecnormalize.pkl', 'rb'))
     assert np.array_equal(old.obs_rms.mean, new.obs_rms.mean) and new.ret_rms.count < 1
     assert json.loads((cfg.run_dir/'config.json').read_text(encoding='utf-8'))['train']['init_from'] == str(src)
+
+
+def test_vf_warmup_trains_value_network_only(trained, tmp_path):
+    import torch
+    from sb3_contrib import MaskablePPO
+    from dataclasses import replace
+    src = trained.run_dir/'final_model.zip'
+    # The whole run is warm-up: the policy must come out unchanged, the value network trained.
+    cfg = replace(trained, run_id='tiny_warm', env=replace(trained.env, score='v7'), total_timesteps=256, vf_warmup=256,
+                  out_root=str(tmp_path), init_from=str(src))
+    model = train(cfg)
+    assert model.num_timesteps >= 256
+    a, b = MaskablePPO.load(str(src)).policy.state_dict(), MaskablePPO.load(str(cfg.run_dir/'final_model.zip')).policy.state_dict()
+    policy = [k for k in a if k.startswith(('mlp_extractor.policy_net', 'action_net'))]
+    value = [k for k in a if k.startswith(('mlp_extractor.value_net', 'value_net'))]
+    assert policy and value
+    assert all(torch.equal(a[k], b[k]) for k in policy)
+    assert not all(torch.equal(a[k], b[k]) for k in value)
+    assert all(p.requires_grad for p in model.policy.parameters())   # unfrozen afterwards
+
+
+def test_vf_warmup_then_policy_trains(trained, tmp_path):
+    import torch
+    from sb3_contrib import MaskablePPO
+    from dataclasses import replace
+    src = trained.run_dir/'final_model.zip'
+    # lr_final > 0: this tiny run updates once after the warm-up, at the end of the schedule.
+    cfg = replace(trained, run_id='tiny_warm2', total_timesteps=512, vf_warmup=256, lr_final=1e-4, out_root=str(tmp_path),
+                  init_from=str(src))
+    model = train(cfg)
+    assert model.num_timesteps >= 512
+    a, b = MaskablePPO.load(str(src), device='cpu').policy.state_dict(), model.policy.state_dict()
+    assert not all(torch.equal(a[k], b[k].cpu()) for k in a if k.startswith('action_net'))

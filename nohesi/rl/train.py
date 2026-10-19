@@ -6,7 +6,9 @@
 
 --resume continues the same run (timestep count, LR schedule and reward normalisation carry on). --init-from starts
 a new run (fresh timestep count, LR schedule and optimiser) from another run's policy weights and observation
-normalisation; the reward normalisation is reset, since a new run may use a different score.
+normalisation; the reward normalisation is reset, since a new run may use a different score. --vf-warmup N trains only
+the value network (policy frozen, constant LR) for the first N decisions of a new run, so a fine-tune's value estimates
+fit the new score before the policy follows them.
 
 Everything for a run goes to runs_rl/<run_id>/:
     config.json                 TrainConfig + EnvConfig, library versions, git commit
@@ -86,6 +88,7 @@ class TrainConfig:
     out_root: str = 'runs_rl'
     resume: str = None               # checkpoint .zip to continue from (its vecnormalize_<t>.pkl alongside)
     init_from: str = None            # model .zip whose policy weights + observation normalisation start a new run
+    vf_warmup: int = 0               # new runs: first decisions train only the value network (policy frozen)
     verbose: int = 1
 
     def __post_init__(self):
@@ -110,6 +113,21 @@ class LinearSchedule:
 
     def __call__(self, progress_remaining):
         return self.end+(self.start-self.end)*progress_remaining
+
+
+class ConstantSchedule:
+    """Constant learning rate (picklable)."""
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __call__(self, progress_remaining):
+        return self.value
+
+
+def policy_parameters(model):
+    """Parameters of the action head and its MLP (not the value network); the features extractor (Flatten) has none."""
+    return [*model.policy.mlp_extractor.policy_net.parameters(), *model.policy.action_net.parameters()]
 
 
 # ---------------------------------------------------------------------------------------------- provenance
@@ -370,10 +388,23 @@ def train(cfg):
         eval_env = make_vec_env(cfg.env, n_eval, 0, cfg.subproc)
         callback = _make_callback_class()(cfg, run_dir, eval_env, best, last_eval, None, wall)
         remaining = cfg.total_timesteps-model.num_timesteps
+        warmup = 0 if cfg.resume else min(cfg.vf_warmup, remaining)
+        if warmup > 0:   # value network only: freeze the policy, hold the LR at its start value
+            schedule, model.lr_schedule = model.lr_schedule, ConstantSchedule(cfg.learning_rate)
+            for param in policy_parameters(model):
+                param.requires_grad_(False)
+            if cfg.verbose:
+                print(f'[warm-up] value network only for {warmup} decisions', flush=True)
+            model.learn(total_timesteps=warmup, callback=callback, reset_num_timesteps=True, tb_log_name='ppo')
+            for param in policy_parameters(model):
+                param.requires_grad_(True)
+            model.lr_schedule = schedule
+            remaining -= warmup
         if remaining > 0:
-            model.learn(total_timesteps=remaining, callback=callback, reset_num_timesteps=not cfg.resume,
+            # After a warm-up the run continues (progress, and so the LR schedule, counts the warm-up decisions).
+            model.learn(total_timesteps=remaining, callback=callback, reset_num_timesteps=not (cfg.resume or warmup),
                         tb_log_name='ppo')
-        else:   # nothing left to train: give the model a (silent) logger and bind the callback for the final eval/save
+        elif not warmup:   # nothing to train: give the model a (silent) logger and bind the callback for the final eval/save
             from stable_baselines3.common.logger import configure
             model.set_logger(configure(None, []))
             callback.init_callback(model)
@@ -410,6 +441,7 @@ def main(argv=None):
     p.add_argument('--vehicle', choices=('kinematic', 'dynamic'))
     p.add_argument('--resume', help='checkpoint .zip; the run config is reloaded from runs_rl/<run-id>/config.json')
     p.add_argument('--init-from', help="another run's model .zip to start this new run from")
+    p.add_argument('--vf-warmup', type=int, default=0, help='decisions training only the value network at the start')
     a = p.parse_args(argv)
     if a.resume:
         saved = load_train_config(ROOT/TrainConfig.out_root/a.run_id)
@@ -421,7 +453,7 @@ def main(argv=None):
         cfg = TrainConfig(run_id=a.run_id, env=env, n_envs=a.envs, total_timesteps=a.timesteps, n_steps=a.n_steps,
                           batch_size=a.batch_size, learning_rate=a.lr, ent_coef=a.ent_coef, activation=a.activation,
                           eval_every=a.eval_every, eval_envs=a.eval_envs, checkpoint_every=a.checkpoint_every,
-                          seed=a.seed, torch_threads=a.torch_threads, init_from=a.init_from)
+                          seed=a.seed, torch_threads=a.torch_threads, init_from=a.init_from, vf_warmup=a.vf_warmup)
     train(cfg)
 
 
