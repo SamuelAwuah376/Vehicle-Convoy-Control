@@ -78,10 +78,10 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Nonlinear MPC** (`planning/nonlinear.py`, `Planner.mpc = 'nonlinear'`, `MPC` in `run_sim.py`): uses the same dynamic bicycle and tyres, solved with acados (one real-time SQP iteration per 0.1 s replan, Gauss-Newton Hessian). It reuses the linear MPC's collision constraints. A **soft lateral grip limit** keeps each axle's slip below 80 % of the saturation slip of its remaining grip; in force terms that is about 99 % of the available lateral grip. acados setup: see `pyproject.toml` (`nmpc` extra); generated code goes to `C:/dev/acados_build`.
 - **Comparisons:** `run_sim.py` covers all three cases. `viz.animate_compare` and `viz.plot_compare` show episodes side by side, and results folders are numbered (`run_NNN_...`, indexed in `results/runs.csv`).
 
-**Results (milestone 2, part 3):** over seeds 0–4 on v1 and v4:
-- **Linear MPC + kinematic sim:** 0 collisions, about 16,600–16,900 points.
-- **Linear MPC + dynamic sim:** crashes in all 10 runs.
-- **Nonlinear MPC + dynamic sim:** 0 collisions, about 13,000–13,500 points. Lane changes are slower because of solver-stabilising penalties. Planned motion matches the car to about 0.3 mm per 0.1 s, against 5 mm for the linear MPC on its own kinematic sim. Solves take about 3–6 ms.
+**Results (milestone 2, part 3):** scripted overtaker, seeds 0–4 on v1 and v4, score v3. Re-run with the current code (planner m3.3, commit `ec3f1d6`) by `experiments/nmpc_sweep.py`; the tables are in `results/run_022_nmpc_sweep_v1_v4_seeds0-4_scorev3/`.
+- **Linear MPC + kinematic sim:** 0 collisions, about 16,800 points on both scenarios.
+- **Linear MPC + dynamic sim:** crashes in all 10 runs, within 7–45 s.
+- **Nonlinear MPC + dynamic sim:** 0 collisions, about 13,500 points on v1 and 10,100 on v4 (blind-merging traffic). Lane changes are slower because of solver-stabilising penalties. Planned motion matches the car to about 0.2–0.3 mm per 0.1 s, against about 5 mm for the linear MPC on its own kinematic sim. Solves take about 7 ms on average (12 ms p95), against 2.4 ms for the linear MPC, timed one episode at a time.
 
 **Milestone 3** replaces the scripted overtaker with a reinforcement-learning (RL) policy:
 - **Score v4 (default):** a close pass is worth more when teammates are near (up to 20 m), and **drafting** replaces proximity. Drafting means driving directly behind a teammate in the same lane, within 1 s, with no traffic in between.
