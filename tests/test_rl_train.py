@@ -124,3 +124,16 @@ def test_vf_warmup_then_policy_trains(trained, tmp_path):
     assert model.num_timesteps >= 512
     a, b = MaskablePPO.load(str(src), device='cpu').policy.state_dict(), model.policy.state_dict()
     assert not all(torch.equal(a[k], b[k].cpu()) for k in a if k.startswith('action_net'))
+
+
+def test_cli_builds_fine_tune_config(monkeypatch, tmp_path):
+    import nohesi.rl.train as train_module
+    seen = {}
+    monkeypatch.setattr(train_module, 'train', lambda cfg: seen.setdefault('cfg', cfg))
+    train_module.main(['--run-id', 'cli', '--timesteps', '6000000', '--envs', '32', '--n-steps', '256', '--score', 'v7',
+                       '--lr', '1e-4', '--lr-final', '0', '--init-from', 'models/x/final_model.zip', '--vf-warmup', '200000',
+                       '--collision-extra', '0', '--device', 'cpu', '--out-root', str(tmp_path)])
+    cfg = seen['cfg']
+    assert (cfg.total_timesteps, cfg.n_envs, cfg.n_steps, cfg.learning_rate, cfg.vf_warmup) == (6_000_000, 32, 256, 1e-4, 200_000)
+    assert (cfg.env.score, cfg.env.collision_extra, cfg.init_from, cfg.device) == ('v7', 0.0, 'models/x/final_model.zip', 'cpu')
+    assert cfg.run_dir == tmp_path/'cli'

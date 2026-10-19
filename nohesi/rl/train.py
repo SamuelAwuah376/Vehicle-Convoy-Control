@@ -132,6 +132,8 @@ def policy_parameters(model):
 
 # ---------------------------------------------------------------------------------------------- provenance
 def git_commit():
+    if os.environ.get('NOHESI_GIT_COMMIT'):   # set by launchers that copy the code without .git (e.g. cloud/modal_train.py)
+        return {'commit': os.environ['NOHESI_GIT_COMMIT'], 'dirty': os.environ.get('NOHESI_GIT_DIRTY') == '1'}
     try:
         commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True, timeout=10).stdout.strip()
         dirty = subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True, timeout=10).stdout.strip()
@@ -442,18 +444,25 @@ def main(argv=None):
     p.add_argument('--resume', help='checkpoint .zip; the run config is reloaded from runs_rl/<run-id>/config.json')
     p.add_argument('--init-from', help="another run's model .zip to start this new run from")
     p.add_argument('--vf-warmup', type=int, default=0, help='decisions training only the value network at the start')
+    p.add_argument('--lr-final', type=float, default=TrainConfig.lr_final)
+    p.add_argument('--collision-extra', type=float, help='training-only extra multiple of the collision term (EnvConfig)')
+    p.add_argument('--device', default=TrainConfig.device, help="learner device: 'cpu' or 'cuda'")
+    p.add_argument('--out-root', default=TrainConfig.out_root, help='folder for run outputs (relative: under the repo)')
     a = p.parse_args(argv)
     if a.resume:
-        saved = load_train_config(ROOT/TrainConfig.out_root/a.run_id)
+        root = Path(a.out_root)
+        saved = load_train_config((root if root.is_absolute() else ROOT/root)/a.run_id)
         cfg = replace(saved, resume=a.resume, total_timesteps=a.timesteps)
     else:
         from .config import EnvConfig
         env = replace(EnvConfig(), **{k: v for k, v in (('scenario', a.scenario), ('score', a.score), ('mpc', a.mpc),
-                                                         ('vehicle_model', a.vehicle)) if v})
+                                                         ('vehicle_model', a.vehicle),
+                                                         ('collision_extra', a.collision_extra)) if v is not None})
         cfg = TrainConfig(run_id=a.run_id, env=env, n_envs=a.envs, total_timesteps=a.timesteps, n_steps=a.n_steps,
                           batch_size=a.batch_size, learning_rate=a.lr, ent_coef=a.ent_coef, activation=a.activation,
                           eval_every=a.eval_every, eval_envs=a.eval_envs, checkpoint_every=a.checkpoint_every,
-                          seed=a.seed, torch_threads=a.torch_threads, init_from=a.init_from, vf_warmup=a.vf_warmup)
+                          seed=a.seed, torch_threads=a.torch_threads, init_from=a.init_from, vf_warmup=a.vf_warmup,
+                          lr_final=a.lr_final, device=a.device, out_root=a.out_root)
     train(cfg)
 
 
