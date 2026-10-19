@@ -42,7 +42,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M2, part 1 | Lane changes executed by a per-car MPC. |
 | No Hesi M2, part 2 | Lane-changing traffic, plus robustness fixes for crowded situations. |
 | No Hesi M2, part 3 | CG reference, dynamic bicycle simulator and a nonlinear MPC (acados). |
-| **No Hesi M3** | PPO policy (MaskablePPO), score v4 with drafting, and stronger safety fallbacks. |
+| No Hesi M3 | PPO policy (MaskablePPO), score v4 with drafting, and stronger safety fallbacks. |
+| **No Hesi M3, part 2** | Trained PPO models, drafting-focused fine-tuning (scores v5–v6), faster simulator, team spread penalty (v7). |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -93,17 +94,41 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
   - An abandoned lane change keeps the clearest nearby lane instead of always returning to the start lane.
   - The gap rule counts a teammate leaning over a lane line as being in both lanes.
 
-**Results (first 3M-decision PPO run, before the fallback changes):** on seeds 1000–1019 PPO scored about 47,800 points, against 18,200 for the overtaker. It crashed in 5 of 20 episodes. Replaying the same policy with the new fallbacks gave 2 crashes in 20 against traffic that looked before merging. With traffic merging blind it was back to 5. The policy is now being retrained so it learns to deal with blind cut-ins.
+**Results (first 3M-decision PPO run, before the fallback changes):** on seeds 1000–1019 PPO scored about 47,800 points, against 18,200 for the overtaker. It crashed in 5 of 20 episodes. Replaying the same policy with the new fallbacks gave 2 crashes in 20 against traffic that looked before merging. With traffic merging blind it was back to 5. The policy was then retrained (part 2).
 
-**Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
+**Milestone 3, part 2** trains the policy that is saved in `models/`, then fine-tunes it toward team play:
+- **5M-decision run** (`models/ppo_v4_e4_5m`): trained from scratch on score v4, with blind-merging traffic and the new observation (environment `e4`).
+- **Fine-tuning** (`--init-from` / `INIT_FROM` in `train_rl.py`): a new run starts from another run's policy weights and observation scaling. The optimiser, learning-rate schedule and reward scaling start fresh.
+- **Score v5:** drafting 5× more rewarding (25 points per second).
+- **Score v6:** v5 plus **draft passes**. A close pass by a car that is drafting, or left the draft within the last 1 s (a slingshot), is worth 3×. The v6 model (`models/ppo_v6_e4_5m`) is the 5M model fine-tuned on v6 for 5M decisions at a learning rate of 1e-4.
+- **Score v7 (ready, not trained yet):** v6 plus a quadratic **team spread penalty**, so the team stays together. `train_rl.py` is set up to fine-tune the v6 model on it.
+- **Faster simulator:** about 15 % more decisions per second, with the same episodes. Traffic car-following and polygon distance checks are computed for all cars at once.
+- **GPU learner:** the PPO network trains on the GPU; the simulator workers stay on the CPU.
+
+**Results (milestone 3, part 2):** seeds 1000–1019, every model scored on v6:
+
+| | Overtaker | 5M model (best) | v6 model (final) |
+|---|---|---|---|
+| Team score | 24,596 | 62,498 | **70,683** |
+| Crash rate | 0.00 | **0.00** | 0.15 |
+| Close passes | 40.0 | 55.5 | 54.0 |
+| Draft passes | 4.3 | 4.6 | **7.9** |
+| Draft time (s) | 21.7 | 13.2 | **23.0** |
+
+- **The 5M model** beats the overtaker on all 20 seeds with 0 crashes. Under v4 it scores 53,800, against 47,800 and 25 % crashes for the first run.
+- **The v6 fine-tune** drafts about 75 % more and scores 13 % more, but crashes on 3 of 20 seeds.
+- **Seed 1050, unseen by all policies:** the v6 model scored 98,400, the 5M model 54,100, and the overtaker crashed at 29.5 s (`results/run_021_...`). Both PPO policies spread out to a median 105–110 m between the first and last car. The team close-pass bonus therefore averaged only about 1.06×, which is what v7 targets.
+
+**Next:** fine-tune the v6 model on v7. CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
 
 ## Training (milestone 3)
 
-Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE = 'cuda'` in `train_rl.py`), install the CUDA build: `pip install --force-reinstall --no-deps torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130`. `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
+Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE = 'cuda'` in `train_rl.py`), install the CUDA build: `pip install --force-reinstall --no-deps torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130`. `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run; `--init-from <model>.zip` starts a new run from a trained model, for fine-tuning). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
 
 - **Setup:** 16 `SubprocVecEnv` workers × 512 steps (8192 per update), batch 1024, 10 epochs, lr 3e-4 decaying linearly to 0, clip 0.2, entropy 0.01, γ 0.99, λ 0.95. Separate 256×256 tanh networks for policy and value. `VecNormalize` normalises observations and rewards (clip 10), and its statistics are saved with every model.
 - **Threads:** each worker uses one thread (`OMP/MKL/OPENBLAS_NUM_THREADS=1`), and the learner uses 1 torch thread while collecting rollouts and 4 during PPO updates. With 16 envs, training runs at about 80 timesteps/s; the environment (mostly the MPC) is the bottleneck.
 - **Evaluation:** every 500k timesteps on held-out seeds 1000–1009 (`--seeds` for the final evaluation, default 1000–1019), with deterministic actions and masks applied. The model with the best mean team score is saved as `best_model.zip` + `best_vecnormalize.pkl`.
+- **Saved models:** `models/<name>/` holds the trained models kept in git: best and final models with their `vecnormalize` files, `config.json`, `eval_history.csv` and the 20-seed evaluations. `run_sim.py` (`POLICY = 'ppo'`, `PPO_RUN`) and `nohesi.rl.evaluate` accept these folders like a run folder.
 - **Outputs:** everything goes to `runs_rl/<run_id>/` (git-ignored): `config.json` (configs, library versions, git commit), TensorBoard logs in `tb/` (per-term reward, aux penalties, episode and eval metrics; view with `.venv\Scripts\tensorboard --logdir runs_rl`), `checkpoints/`, and `eval_history.csv`.
 
 `.venv\Scripts\python -m nohesi.rl.evaluate runs_rl/<run_id>` evaluates the best model on seeds 1000–1019. It compares the result with the scripted overtaker on the same seeds, scenario and score (cached in `runs_rl/baselines/`). Options: `--mpc nonlinear --vehicle dynamic` for transfer to the dynamic plant; `--store` saves the first seed to `results/` like `run_sim.py` (numbered folder + GIF, label `<scenario>_ppo-<run_id>_score<score>_seed<seed>`).
@@ -149,6 +174,7 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | **Draft pass** (v6) | A close pass by a car that is drafting a teammate, or left the draft within the last 1 s (a slingshot), is worth 3× more, on top of the team pass bonus and the combo. The highest-scoring event. |
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
+| **Team spread penalty** (v7) | For each pair of teammates more than 30 m apart: −2 × ((distance − 30 m) / 10 m)² points per second, split between the pair (−18 pts/s at 60 m, −98 at 100 m). Not multiplied by the combo. |
 | **Collision** | −500 to each car involved, and the episode ends. |
 
 ## Outputs

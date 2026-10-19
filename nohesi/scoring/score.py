@@ -3,7 +3,7 @@ import numpy as np
 from ..world import TEAM
 from .events import PAIRS
 
-TERMS = ('close_pass', 'proximity', 'speed', 'collision', 'maneuver', 'draft')
+TERMS = ('close_pass', 'proximity', 'speed', 'collision', 'maneuver', 'draft', 'spread')
 EPS = 1e-9
 
 
@@ -27,7 +27,8 @@ class Scorer:
     then raises the combo. A pass near teammates is first scaled by team_pass_multiplier. Proximity and
     drafting (following the nearest teammate ahead in the same lane within draft_headway) are multiplied
     too; speed and collisions are not. A close pass by a car drafting now or within draft_pass_window s
-    (a draft pass) is also scaled by draft_pass_gain. The combo resets
+    (a draft pass) is also scaled by draft_pass_gain. The team spread penalty (pairs beyond spread_free_distance,
+    quadratic in the excess) is not multiplied. The combo resets
     after combo_window s without a scored close pass and on any collision.
 
     Maneuvers: an eligible lane change L1 (traffic within lc_traffic_distance, speed above lc_min_speed)
@@ -83,6 +84,10 @@ class Scorer:
                 inc['proximity'][[i, j]] += 0.5*cfg.proximity_rate*weight*m.dt*self.multiplier
         if cfg.draft_rate:
             inc['draft'][drafting] += cfg.draft_rate*m.dt*self.multiplier
+        if cfg.spread_penalty_rate:
+            for (i, j), distance in zip(PAIRS, m.pair_distance):
+                excess = max(0.0, distance-cfg.spread_free_distance)/cfg.spread_scale
+                inc['spread'][[i, j]] -= 0.5*cfg.spread_penalty_rate*excess**2*m.dt
         inc['speed'] += cfg.speed_rate*np.maximum(m.speeds-cfg.speed_floor, 0)*m.dt
         for c in m.collisions:
             inc['collision'][c.vehicle] -= cfg.collision_penalty

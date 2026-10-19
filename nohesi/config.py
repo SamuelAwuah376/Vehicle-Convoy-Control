@@ -142,8 +142,13 @@ class Score:
     # before it (pulling out of the draft to pass) is worth draft_pass_gain times more (on top of team pass and combo).
     draft_pass_gain: float = 1.0      # 1 disables
     draft_pass_window: float = 1.0    # s
+    # Team spread penalty: each teammate pair loses spread_penalty_rate*((distance - spread_free_distance)/spread_scale)^2
+    # pts/s beyond spread_free_distance (body-centre distance), split between the pair; not multiplied by the combo.
+    spread_penalty_rate: float = 0.0  # 0 disables
+    spread_free_distance: float = 30.0  # m
+    spread_scale: float = 10.0        # m
 
-    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate')
+    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate')
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', *self.NON_NEGATIVE)
@@ -318,4 +323,10 @@ def score_v6():
     return replace(score_v5(), version='v6', draft_pass_gain=3.0, draft_pass_window=1.0)
 
 
-SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6}
+def score_v7():
+    """v6 plus a quadratic team spread penalty: 2*((d - 30 m)/10 m)^2 pts/s per teammate pair beyond 30 m apart."""
+    return replace(score_v6(), version='v7', spread_penalty_rate=2.0, spread_free_distance=30.0, spread_scale=10.0)
+
+
+SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,
+          'v7': score_v7}

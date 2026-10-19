@@ -9,9 +9,9 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v6_e4_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v7_e4_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
 SCENARIO = 'v4'              # SCENARIOS key (v4: 20 lane-changing traffic cars, 120 s)
-SCORE = 'v6'                 # SCORES key (v6: v5 + draft passes worth 3x; v5: v4 with drafting 5x more rewarding)
+SCORE = 'v7'                 # SCORES key (v7: v6 + team spread penalty; v6: v5 + draft passes worth 3x; v5: 5x drafting)
 PLANT = 'kinematic'          # 'kinematic' or 'dynamic'
 MPC = 'linear'               # 'linear' or 'nonlinear'
 N_ENVS = 16                  # parallel SubprocVecEnv workers (one CPU thread each)
@@ -21,7 +21,7 @@ CHECKPOINT_EVERY = 1_000_000
 SEED = 0
 LEARNING_RATE = 1e-4         # initial LR, decayed linearly to 0 (3e-4 from scratch; lower when fine-tuning)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'runs_rl/ppo_v4_e4_5m_001/final_model.zip'   # new run from this model's weights (None: from scratch)
+INIT_FROM = 'models/ppo_v6_e4_5m/final_model.zip'   # new run from this model's weights (None: from scratch)
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows

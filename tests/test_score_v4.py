@@ -104,7 +104,8 @@ def test_v3_episode_unchanged():
     recorded = {'close_pass': [792.4908288505974, 715.0234787505149, 1312.491191483923],
                 'proximity': [0.336337730622279, 0.7283486357173736, 0.3920109050950946],
                 'speed': [21.629356174065794, 27.007946816801706, 32.79250335165954],
-                'collision': [0., 0., 0.], 'maneuver': [25., 0., 0.], 'draft': [0., 0., 0.]}
+                'collision': [0., 0., 0.], 'maneuver': [25., 0., 0.], 'draft': [0., 0., 0.],
+                'spread': [0., 0., 0.]}
     assert set(ep.score) == set(TERMS) == set(recorded)
     for t, v in recorded.items():
         assert ep.score[t].sum(axis=0).tolist() == pytest.approx(v, rel=1e-12, abs=1e-12)
@@ -161,3 +162,21 @@ def test_score_v6_is_v5_with_draft_passes():
     v5, v6 = SCORES['v5'](), SCORES['v6']()
     assert (v6.version, v6.draft_pass_gain, v6.draft_pass_window) == ('v6', 3.0, 1.0)
     assert replace(v6, version='v5', draft_pass_gain=v5.draft_pass_gain) == v5
+
+
+@pytest.mark.parametrize('distance, per_s', [((30., 20., 10.), (0., 0., 0.)),           # all within 30 m: free
+                                             ((40., 100., 60.), (1+49, 1+9, 49+9))])    # 2*((d-30)/10)^2, split per pair
+def test_spread_penalty_v7(distance, per_s):
+    from nohesi.config import SCORES
+    inc = Scorer(SCORES['v7']()).update(step(distance))
+    assert inc['spread'].tolist() == pytest.approx([-p*DT for p in per_s])
+    assert Scorer(SCORES['v6']()).update(step(distance))['spread'].sum() == 0
+
+
+def test_spread_penalty_ignores_combo():
+    from nohesi.config import SCORES
+    scorer = Scorer(SCORES['v7']())
+    for _ in range(4):
+        scorer.update(step(overtakes=[close(2)]))
+    assert scorer.multiplier > 1
+    assert scorer.update(step((40., 30., 30.)))['spread'].tolist() == pytest.approx([-1*DT, -1*DT, 0])
