@@ -133,6 +133,7 @@ class Score:
     # Team close pass: points*(1 + team_pass_gain*sum over teammates of max(0, 1 - distance/team_pass_distance)).
     team_pass_gain: float = 0.0       # 0 disables
     team_pass_distance: float = 20.0  # m, body-centre distance at the pass step
+    team_pass_require_all: bool = False  # True: no bonus unless all three teammate pairs are within team_pass_distance
     # Drafting: following a teammate in the same lane within draft_headway, both above draft_min_speed,
     # earns draft_rate pts/s times the combo multiplier.
     draft_rate: float = 0.0           # 0 disables
@@ -151,7 +152,8 @@ class Score:
     NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate')
 
     def __post_init__(self):
-        _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', *self.NON_NEGATIVE)
+        _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', 'team_pass_require_all',
+                                                             *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
         if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_')):
             raise ValueError('lane-change points must be non-negative')
@@ -324,8 +326,10 @@ def score_v6():
 
 
 def score_v7():
-    """v6 plus a quadratic team spread penalty: 2*((d - 30 m)/10 m)^2 pts/s per teammate pair beyond 30 m apart."""
-    return replace(score_v6(), version='v7', spread_penalty_rate=2.0, spread_free_distance=30.0, spread_scale=10.0)
+    """v6 plus a quadratic team spread penalty (2*((d - 30 m)/10 m)^2 pts/s per teammate pair beyond 30 m apart), and
+    the team close-pass bonus only when the whole team (all three pairs) is within 20 m."""
+    return replace(score_v6(), version='v7', spread_penalty_rate=2.0, spread_free_distance=30.0, spread_scale=10.0,
+                   team_pass_require_all=True)
 
 
 SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,

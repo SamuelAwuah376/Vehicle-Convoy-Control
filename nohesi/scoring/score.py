@@ -15,8 +15,11 @@ def close_pass_points(min_clearance, speed, cfg):
 
 
 def team_pass_multiplier(vehicle, pair_distance, cfg):
-    """1 + team_pass_gain * sum over the passer's teammates of max(0, 1 - body-centre distance/team_pass_distance)."""
+    """1 + team_pass_gain * sum over the passer's teammates of max(0, 1 - body-centre distance/team_pass_distance).
+    With team_pass_require_all, 1 unless every teammate pair is within team_pass_distance (the whole team is close)."""
     if not cfg.team_pass_gain:
+        return 1.0
+    if cfg.team_pass_require_all and any(d >= cfg.team_pass_distance for d in pair_distance):
         return 1.0
     near = sum(max(0.0, 1-d/cfg.team_pass_distance) for (i, j), d in zip(PAIRS, pair_distance) if vehicle in (i, j))
     return 1+cfg.team_pass_gain*near

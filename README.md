@@ -101,7 +101,7 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Fine-tuning** (`--init-from` / `INIT_FROM` in `train_rl.py`): a new run starts from another run's policy weights and observation scaling. The optimiser, learning-rate schedule and reward scaling start fresh.
 - **Score v5:** drafting 5× more rewarding (25 points per second).
 - **Score v6:** v5 plus **draft passes**. A close pass by a car that is drafting, or left the draft within the last 1 s (a slingshot), is worth 3×. The v6 model (`models/ppo_v6_e4_5m`) is the 5M model fine-tuned on v6 for 5M decisions at a learning rate of 1e-4.
-- **Score v7 (ready, not trained yet):** v6 plus a quadratic **team spread penalty**, so the team stays together. `train_rl.py` is set up to fine-tune the v6 model on it.
+- **Score v7 (ready, not trained yet):** v6 plus a quadratic **team spread penalty**, so the team stays together, and the team close-pass bonus only when all three cars are within 20 m of each other. `train_rl.py` is set up to fine-tune the v6 model on it.
 - **Faster simulator:** about 15 % more decisions per second, with the same episodes. Traffic car-following and polygon distance checks are computed for all cars at once.
 - **GPU learner:** the PPO network trains on the GPU; the simulator workers stay on the CPU.
 
@@ -167,7 +167,7 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | Points for | How |
 |---|---|
 | **Close pass** | Overtaking a traffic car with less than 1.5 m clearance: about 100–200 points, more when closer and faster. |
-| **Team close pass** (v4) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. |
+| **Team close pass** (v4+) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. From v7 it only counts when the whole team is together: all three cars within 20 m of each other. |
 | **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
 | **Teammate proximity** (v1–v3) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
 | **Drafting** (v4+, replaces proximity) | 5 points per second (v4) or 25 (v5) for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. Multiplied by the team combo. |

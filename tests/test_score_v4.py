@@ -180,3 +180,16 @@ def test_spread_penalty_ignores_combo():
         scorer.update(step(overtakes=[close(2)]))
     assert scorer.multiplier > 1
     assert scorer.update(step((40., 30., 30.)))['spread'].tolist() == pytest.approx([-1*DT, -1*DT, 0])
+
+
+@pytest.mark.parametrize('distance, factor', [((10., 100., 100.), 1.0),     # only one teammate near: no bonus in v7
+                                              ((10., 10., 25.), 1.0),       # passer's mates near, but they are 25 m apart
+                                              ((10., 10., 15.), 1.5),       # whole team within 20 m: graded as v4
+                                              ((0., 0., 0.), 2.0)])
+def test_v7_team_pass_needs_whole_team(distance, factor):
+    from nohesi.config import SCORES
+    cfg = SCORES['v7']()
+    points, scorer = pass_points(cfg, distance)
+    assert scorer.team_pass == [pytest.approx(factor)]
+    assert points == pytest.approx(factor*close_pass_points(0.5, 28.0, cfg))
+    assert pass_points(SCORES['v6'](), (10., 100., 100.))[1].team_pass == [pytest.approx(1.25)]   # v6 unchanged
