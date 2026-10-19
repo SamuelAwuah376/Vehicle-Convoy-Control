@@ -101,7 +101,7 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Fine-tuning** (`--init-from` / `INIT_FROM` in `train_rl.py`): a new run starts from another run's policy weights and observation scaling. The optimiser, learning-rate schedule and reward scaling start fresh.
 - **Score v5:** drafting 5× more rewarding (25 points per second).
 - **Score v6:** v5 plus **draft passes**. A close pass by a car that is drafting, or left the draft within the last 1 s (a slingshot), is worth 3×. The v6 model (`models/ppo_v6_e4_5m`) is the 5M model fine-tuned on v6 for 5M decisions at a learning rate of 1e-4.
-- **Score v7 (ready, not trained yet):** rewards the whole team together. A three-car **draft train** (any lanes, within 0.5 s of each other) pays 25 pts/s per car and 3× passes; a two-car draft 5 pts/s and 1.5×. The team close-pass bonus needs all three cars within 40 m, and a capped quadratic **team spread penalty** applies beyond 50 m. The v6 model scores 45,200 on v7 (70,700 on v6) and the overtaker 6,700. `train_rl.py` is set up to fine-tune the v6 model on it.
+- **Score v7 (ready, not trained yet):** rewards the whole team together. A three-car **draft train** (any lanes, within 0.5 s of each other) pays 25 pts/s per car and 3× passes; a two-car draft 5 pts/s and 1.5×. The team close-pass bonus needs all three cars within 40 m, and a capped quadratic **team spread penalty** applies beyond 50 m. A crash wipes 50 % of the team's banked points (so training no longer needs the extra 5× crash penalty), and a car can re-score the same traffic car only after 10 s. `train_rl.py` is set up to fine-tune the v6 model on it.
 - **Faster simulator:** about 15 % more decisions per second, with the same episodes. Traffic car-following and polygon distance checks are computed for all cars at once.
 - **GPU learner:** the PPO network trains on the GPU; the simulator workers stay on the CPU.
 
@@ -176,7 +176,8 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
 | **Team spread penalty** (v7) | For each pair of teammates more than 50 m apart: −2 × ((distance − 50 m) / 10 m)² points per second, at most 200 (reached at 150 m), split between the pair (−18 pts/s at 80 m, −50 at 100 m). Not multiplied by the combo. |
-| **Collision** | −500 to each car involved, and the episode ends. |
+| **Collision** | −500 to each car involved, and the episode ends. In v7 a collision also wipes 50 % of the whole team's banked points (No Hesi-style run reset). |
+| **Re-pass cooldown** (v7) | A team car scores the same traffic car again only after 10 s (no farming one slow car). |
 
 ## Outputs
 

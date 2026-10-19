@@ -244,3 +244,33 @@ def test_score_v7_settings():
     assert v7.spread_penalty_cap == 200.0
     inc = Scorer(v7).update(step((150., 400., 50.)))['spread']          # 150 m: exactly the cap; 400 m: capped
     assert inc.tolist() == pytest.approx([-200*DT, -100*DT, -100*DT])   # each pair split between its two cars
+
+
+def test_v7_collision_wipes_half_of_team_points():
+    from dataclasses import replace as dc_replace
+    from nohesi.config import SCORES
+    from nohesi.world import Collision
+    for version, wipe in (('v7', 0.5), ('v6', 0.0)):
+        scorer = Scorer(SCORES[version]())
+        for k in range(3):                                  # bank some points on cars 0 and 2
+            scorer.update(step(overtakes=[Overtake(0.0, 0, 10+k, 0.5, 28.0), Overtake(0.0, 2, 20+k, 0.5, 28.0)]))
+        banked = scorer.individual().copy()
+        crash = dc_replace(step(), collisions=(Collision(0, 'team', 1),))   # car 0 hits teammate 1
+        inc = scorer.update(crash)['collision']
+        expected = [-500-wipe*banked[0], -500-wipe*max(banked[1], 0), -wipe*banked[2]]   # whole team wiped
+        assert inc.tolist() == pytest.approx(expected) and banked[0] > 0 and scorer.combo == 0
+
+
+def test_v7_repass_same_car_within_10s_scores_nothing():
+    from nohesi.config import SCORES
+    scorer = Scorer(SCORES['v7']())
+    assert scorer.update(step(overtakes=[close(0)]))['close_pass'][0] > 0
+    combo = scorer.combo
+    assert scorer.update(step(overtakes=[close(0)]))['close_pass'][0] == 0 and scorer.combo == combo   # same car, 0.1 s
+    assert scorer.update(step(overtakes=[close(1)]))['close_pass'][1] > 0      # another teammate passing it still scores
+    for _ in range(98):
+        scorer.update(step())
+    assert scorer.update(step(overtakes=[close(0)]))['close_pass'][0] > 0      # 10 s after its scored pass
+    s6 = Scorer(SCORES['v6']())
+    s6.update(step(overtakes=[close(0)]))
+    assert s6.update(step(overtakes=[close(0)]))['close_pass'][0] > 0          # v6: no cooldown

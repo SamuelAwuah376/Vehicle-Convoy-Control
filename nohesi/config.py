@@ -117,6 +117,8 @@ class Score:
     speed_rate: float = 1.0         # points/s per m/s above speed_floor
     speed_floor: float = 20.0
     collision_penalty: float = 500.0
+    collision_wipe: float = 0.0     # share of the whole team's banked points a collision also removes (No Hesi run reset)
+    repass_cooldown: float = 0.0    # s: a team car scores the same traffic car again only after this long (0: always)
     combo_step: float = 0.0         # team combo: multiplier gain per scored close pass (0 disables)
     combo_max: float = 1.0          # multiplier cap
     combo_window: float = 5.0       # seconds without a scored close pass before the combo resets
@@ -156,11 +158,14 @@ class Score:
     spread_scale: float = 10.0        # m
     spread_penalty_cap: float = float('inf')  # pts/s: most a pair can lose per second
 
-    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate', 'train_rate')
+    NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate', 'train_rate',
+                    'collision_wipe', 'repass_cooldown')
 
     def __post_init__(self):
         if not self.spread_penalty_cap > 0:   # inf allowed (no cap)
             raise ValueError('spread_penalty_cap must be positive')
+        if not 0 <= self.collision_wipe <= 1:
+            raise ValueError('collision_wipe must be in [0, 1]')
         _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', 'team_pass_require_all',
                                                              'spread_penalty_cap', *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
@@ -338,10 +343,12 @@ def score_v7():
     """Team play: a three-car draft train (each car within 0.5 s bumper to bumper of the car ahead along the road, any
     lanes) earns 25 pts/s per car and 3x draft passes; a two-car draft keeps 5 pts/s and 1.5x passes. The team close-pass
     bonus needs all three cars within 40 m, and each pair beyond 50 m apart loses 2*((d - 50 m)/10 m)^2 pts/s, at most
-    200 pts/s per pair (reached at 150 m)."""
+    200 pts/s per pair (reached at 150 m). A collision also wipes 50 % of the team's banked points, and a car
+    scores the same traffic car again only after 10 s."""
     return replace(score_v6(), version='v7', draft_rate=5.0, draft_pass_gain=1.5, train_rate=25.0, train_headway=0.5,
                    train_pass_gain=3.0, team_pass_distance=40.0, team_pass_require_all=True,
-                   spread_penalty_rate=2.0, spread_free_distance=50.0, spread_scale=10.0, spread_penalty_cap=200.0)
+                   spread_penalty_rate=2.0, spread_free_distance=50.0, spread_scale=10.0, spread_penalty_cap=200.0,
+                   collision_wipe=0.5, repass_cooldown=10.0)
 
 
 SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,

@@ -32,7 +32,9 @@ class Scorer:
     too; speed and collisions are not. A close pass by a car drafting now or within draft_pass_window s
     (a draft pass) is also scaled by draft_pass_gain. While all three cars form a draft train (in a row along the road,
     any lanes, each within train_headway of the car ahead), every car earns train_rate instead of draft_rate, and a pass
-    by any car while the train holds (or within draft_pass_window after) is scaled by train_pass_gain instead. The team spread penalty (pairs beyond spread_free_distance,
+    by any car while the train holds (or within draft_pass_window after) is scaled by train_pass_gain instead.
+    A pass of a traffic car the same team car scored within repass_cooldown s scores nothing (and leaves the combo).
+    A collision costs collision_penalty per involved car, plus collision_wipe of every car's banked points (the team's run). The team spread penalty (pairs beyond spread_free_distance,
     quadratic in the excess) is not multiplied. The combo resets
     after combo_window s without a scored close pass and on any collision.
 
@@ -52,6 +54,7 @@ class Scorer:
         self.last_draft = np.full(TEAM, -np.inf)   # last time each car was drafting
         self.last_train = -np.inf                  # last time the three-car draft train held
         self.train_time = 0.0
+        self.last_scored = {}  # (vehicle, traffic id) -> time of its last scored pass
         self.time, self.last_pass = 0.0, 0.0
         self.combo, self.max_combo = 0, 0
         self.passes = {}      # vehicle -> scored pass times
@@ -81,7 +84,11 @@ class Scorer:
             self.last_train, self.train_time = self.time, self.train_time+m.dt
         for o in m.overtakes:
             points = close_pass_points(o.min_clearance, o.speed, cfg)
+            key = (o.vehicle, o.traffic_id)
+            if points and cfg.repass_cooldown and self.time-self.last_scored.get(key, -np.inf) < cfg.repass_cooldown-EPS:
+                points = 0.0   # re-passing the same car too soon: no points, no combo
             if points:
+                self.last_scored[key] = self.time
                 team = team_pass_multiplier(o.vehicle, m.pair_distance, cfg)
                 train_pass = cfg.train_pass_gain != 1.0 and self.time-self.last_train <= cfg.draft_pass_window+EPS
                 draft_pass = self.time-self.last_draft[o.vehicle] <= cfg.draft_pass_window+EPS
@@ -111,6 +118,10 @@ class Scorer:
             inc['collision'][c.vehicle] -= cfg.collision_penalty
             if c.kind == 'team':
                 inc['collision'][c.other] -= cfg.collision_penalty
+        if cfg.collision_wipe and m.collisions:
+            for i in range(TEAM):   # the whole team's run: banked points before this step's increments
+                banked = sum(self.total[t][i] for t in TERMS)
+                inc['collision'][i] -= cfg.collision_wipe*max(banked, 0.0)
         if m.collisions:
             self.combo = 0; self.pending.clear()
         else:
