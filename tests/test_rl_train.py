@@ -137,3 +137,18 @@ def test_cli_builds_fine_tune_config(monkeypatch, tmp_path):
     assert (cfg.total_timesteps, cfg.n_envs, cfg.n_steps, cfg.learning_rate, cfg.vf_warmup) == (6_000_000, 32, 256, 1e-4, 200_000)
     assert (cfg.env.score, cfg.env.collision_extra, cfg.init_from, cfg.device) == ('v7', 0.0, 'models/x/final_model.zip', 'cpu')
     assert cfg.run_dir == tmp_path/'cli'
+
+
+def test_cli_resume_of_fine_tune_drops_init_from(monkeypatch, tmp_path):
+    import nohesi.rl.train as train_module
+    from dataclasses import replace
+    run = tmp_path/'ft'
+    run.mkdir()
+    train_module.write_config(replace(TrainConfig(run_id='ft', out_root=str(tmp_path)), init_from='models/x.zip',
+                                      vf_warmup=200_000), run)
+    seen = {}
+    monkeypatch.setattr(train_module, 'train', lambda cfg: seen.setdefault('cfg', cfg))
+    train_module.main(['--run-id', 'ft', '--out-root', str(tmp_path), '--timesteps', '6000000',
+                       '--resume', str(run/'checkpoints'/'model_3000000.zip')])
+    cfg = seen['cfg']
+    assert cfg.init_from is None and cfg.resume.endswith('model_3000000.zip') and cfg.total_timesteps == 6_000_000

@@ -452,7 +452,8 @@ def main(argv=None):
     if a.resume:
         root = Path(a.out_root)
         saved = load_train_config((root if root.is_absolute() else ROOT/root)/a.run_id)
-        cfg = replace(saved, resume=a.resume, total_timesteps=a.timesteps)
+        # A fine-tune's saved config names its starting model; resuming continues from the checkpoint instead.
+        cfg = replace(saved, resume=a.resume, total_timesteps=a.timesteps, init_from=None)
     else:
         from .config import EnvConfig
         env = replace(EnvConfig(), **{k: v for k, v in (('scenario', a.scenario), ('score', a.score), ('mpc', a.mpc),
