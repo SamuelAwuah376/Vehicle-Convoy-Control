@@ -9,12 +9,12 @@ from nohesi.evaluation.io import append_index, next_run_dir, save
 from nohesi.evaluation.runner import run
 from nohesi.evaluation.viz import animate, plot
 
-SCENARIO = 'v4'          # 'v0' 60 s 8 cars, 'v1' 120 s 10 cars, 'v2' 20 cars; 'v3'/'v4' = v1/v2 with lane-changing traffic
+SCENARIO = 'v5'          # 'v0'-'v2' early worlds; 'v3'/'v4' lane-changing traffic; 'v5' = v4 with BMW M3s, 45-60 mph traffic, no walls, up to 134 mph
 POLICY = 'ppo'           # 'overtaker' (lane changes + MPC), 'lane_keeping', or 'ppo' (trained MaskablePPO team policy)
-PPO_RUN = 'models/ppo_v6_e4_5m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version)
+PPO_RUN = 'models/ppo_v7_e4_6m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version)
 PPO_MODEL = 'final'      # POLICY = 'ppo' only: 'best' or 'final' model of PPO_RUN
 SEED = 2                 # different traffic layout per seed
-SCORE = 'v4'             # 'v0' original; 'v1' team combo, 20 m proximity, low speed points; 'v2' graded proximity; 'v3' = v2 + lane-change maneuvers; 'v4' = v3 with drafting for proximity + team close passes
+SCORE = 'v8'             # 'v4' drafting + team passes; 'v5'/'v6' more drafting / draft passes; 'v7' team play (trains, spread penalty, crash wipe); 'v8' = v7 fast (trains > 80 mph, bonus > 120 mph)
 TRAFFIC = None             # number of traffic cars; None keeps the scenario's (v0: 8, v1: 10, v2: 20)
 PLANT = 'kinematic'      # simulated vehicle physics: 'kinematic' or 'dynamic' (tyre slip)
 MPC = 'linear'           # 'linear' (kinematic OSQP MPC) or 'nonlinear' (acados NMPC on the dynamic bicycle; pair with PLANT = 'dynamic')

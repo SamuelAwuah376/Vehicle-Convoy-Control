@@ -80,7 +80,7 @@ class NoHesiEnv(gymnasium.Env):
         self.cfg, self.seed_pool, self.pool_index = cfg, list(seed_pool) if seed_pool is not None else None, 0
         s = SCENARIOS[cfg.scenario]()
         self.scenario = replace(s, score=SCORES[cfg.score](), vehicle=replace(s.vehicle, model=cfg.vehicle_model))
-        self.planner = Planner(mpc=cfg.mpc)
+        self.planner = Planner(mpc=cfg.mpc, speed_max=self.scenario.team_speed_max)
         self.lanes = self.scenario.road.lanes
         self.action_space = spaces.MultiDiscrete([N_ACTIONS]*TEAM)
         self.observation_space = spaces.Box(-np.inf, np.inf, (obs_dim(cfg, self.lanes),), np.float32)

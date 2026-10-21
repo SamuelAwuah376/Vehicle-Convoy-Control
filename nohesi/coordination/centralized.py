@@ -45,6 +45,7 @@ class CentralizedTeam:
     name = 'centralized'
 
     def __init__(self, scenario, world, policy, cfg):
+        cfg = replace(cfg, speed_max=scenario.team_speed_max)   # the scenario owns the team speed cap
         dt = scenario.timing.dt
         self.decide_every = int(round(cfg.decision_interval/dt))
         self.plan_every = int(round(cfg.step/dt))

@@ -106,7 +106,7 @@ def test_v3_episode_unchanged():
                 'proximity': [0.336337730622279, 0.7283486357173736, 0.3920109050950946],
                 'speed': [21.629356174065794, 27.007946816801706, 32.79250335165954],
                 'collision': [0., 0., 0.], 'maneuver': [25., 0., 0.], 'draft': [0., 0., 0.],
-                'spread': [0., 0., 0.]}
+                'spread': [0., 0., 0.], 'top_speed': [0., 0., 0.]}
     assert set(ep.score) == set(TERMS) == set(recorded)
     for t, v in recorded.items():
         assert ep.score[t].sum(axis=0).tolist() == pytest.approx(v, rel=1e-12, abs=1e-12)

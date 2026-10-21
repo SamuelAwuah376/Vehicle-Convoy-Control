@@ -124,7 +124,14 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **The v6 fine-tune** drafts about 75 % more and scores 13 % more, but crashes on 3 of 20 seeds.
 - **Seed 1050, unseen by all policies:** the v6 model scored 98,400, the 5M model 54,100, and the overtaker crashed at 29.5 s (`results/run_021_...`). Both PPO policies spread out to a median 105–110 m between the first and last car. The team close-pass bonus therefore averaged only about 1.06×, which is what v7 targets.
 
-**Next:** fine-tune the v6 model on v7. CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
+**v8 world (scenario v5, score v8), set up for the next fine-tune:**
+- **Cars are BMW M3 Competitions** (`config.bmw_m3()`): 4.79 m long, 1,780 kg, 52.5/47.5 weight, launch-limited at 8 m/s² and power-limited above 26 m/s (375 kW), brakes at 11 m/s², corners at about 1 g.
+- **Traffic drives at 45–60 mph** and never forms a wall: three cars, one per lane, within two car lengths. Spawns and lane changes avoid walls, and the rear car of a forming wall drops back. On 5 seeds, walls are present 0.7 % of the time, against 33 % in v4.
+- **The team may command up to 134 mph** (`Scenario.team_speed_max`, which sets the planner's cap), starts at 70 mph about 0.6 s apart, and the scripted overtaker cruises at 90 mph.
+- **Score v8:** draft-train points and train passes only above 80 mph, +10 pts/s per car above 120 mph (times the combo), the spread penalty doubled (capped at 400 pts/s per pair), and the team close-pass bonus within 50 m.
+- `train_rl.py` fine-tunes `models/ppo_v7_e4_6m` on it for 10M decisions (learning rate 3e-4, 200k-decision value warm-up).
+
+**Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
 
 ## Training (milestone 3)
 

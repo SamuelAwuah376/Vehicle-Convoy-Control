@@ -75,7 +75,7 @@ class World:
         self.road = Road(scenario.road)
         self.plant = make_plant(scenario.vehicle, scenario.timing.dt)
         v = scenario.vehicle
-        spacing = v.length+v.standstill_gap+v.headway*scenario.team_speed
+        spacing = v.length+v.standstill_gap+(scenario.team_start_headway or v.headway)*scenario.team_speed
         s = scenario.team_start_s+spacing*np.arange(TEAM)[::-1]
         d = self.road.lane_center(scenario.team_lane)
         self.team = np.column_stack((self.road.to_xy(s, np.full(TEAM, d)), self.road.heading(s),

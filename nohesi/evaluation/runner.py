@@ -50,7 +50,8 @@ def make_controller(name, scenario, world, planner):
     if name == 'lane_keeping':
         return LaneKeeping(scenario, world.road, world.plant)
     if name == 'overtaker':
-        return CentralizedTeam(scenario, world, Overtaker(world.road, world.plant.params), planner)
+        return CentralizedTeam(scenario, world, Overtaker(world.road, world.plant.params, desired=scenario.overtaker_speed,
+                                                          look=scenario.overtaker_look), planner)
     raise ValueError(f'unknown policy {name!r}')
 
 
@@ -58,6 +59,7 @@ class EpisodeRun:
     """run() one sim step at a time: step() advances one dt, episode() builds the Episode so far."""
     def __init__(self, scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):
         scenario, planner = scenario or Scenario(), planner or Planner()
+        planner = replace(planner, speed_max=scenario.team_speed_max)   # the scenario owns the team speed cap
         if score is not None:
             scenario = replace(scenario, score=score)
         self.scenario, self.seed, self.planner = scenario, seed, planner

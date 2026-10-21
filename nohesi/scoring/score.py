@@ -3,7 +3,7 @@ import numpy as np
 from ..world import TEAM
 from .events import PAIRS
 
-TERMS = ('close_pass', 'proximity', 'speed', 'collision', 'maneuver', 'draft', 'spread')
+TERMS = ('close_pass', 'proximity', 'speed', 'collision', 'maneuver', 'draft', 'spread', 'top_speed')
 EPS = 1e-9
 
 
@@ -79,7 +79,7 @@ class Scorer:
         self.last_draft[drafting] = self.time
         train = bool(cfg.train_rate or cfg.train_pass_gain != 1.0) and m.train_gap is not None and \
             all(g <= cfg.train_headway*v for g, v in zip(m.train_gap, m.speeds) if np.isfinite(g)) and \
-            min(m.speeds) > cfg.draft_min_speed
+            min(m.speeds) > (cfg.train_min_speed or cfg.draft_min_speed)
         if train:
             self.last_train, self.train_time = self.time, self.train_time+m.dt
         for o in m.overtakes:
@@ -114,6 +114,8 @@ class Scorer:
                 excess = max(0.0, distance-cfg.spread_free_distance)/cfg.spread_scale
                 inc['spread'][[i, j]] -= 0.5*min(cfg.spread_penalty_rate*excess**2, cfg.spread_penalty_cap)*m.dt
         inc['speed'] += cfg.speed_rate*np.maximum(m.speeds-cfg.speed_floor, 0)*m.dt
+        if cfg.top_speed_rate:
+            inc['top_speed'] += cfg.top_speed_rate*(np.asarray(m.speeds) > cfg.top_speed_threshold)*m.dt*self.multiplier
         for c in m.collisions:
             inc['collision'][c.vehicle] -= cfg.collision_penalty
             if c.kind == 'team':

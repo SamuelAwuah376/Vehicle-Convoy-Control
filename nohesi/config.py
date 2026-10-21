@@ -56,6 +56,15 @@ class Vehicle:
             raise ValueError('dynamic_blend_high must exceed dynamic_blend_low')
 
 
+def bmw_m3(model='kinematic'):
+    """BMW M3 Competition (G80), approximate published figures: 4.79 x 1.90 m, 2.857 m wheelbase, 52.5/47.5 weight
+    (l_r = 0.525 L), 1,780 kg; 375 kW (503 hp) -> 211 W/kg, launch-limited at 8 m/s^2 (0-60 mph ~3.4 s) up to
+    26.3 m/s, power-limited above; 60-0 mph in ~100 ft -> 11 m/s^2; ~1.0 g skidpad -> 9.5 m/s^2; performance tyres."""
+    return Vehicle(wheelbase=2.857, cg_to_rear_axle=1.50, length=4.79, width=1.90, accel_max=8.0, brake_max=11.0,
+                   power_speed=26.3, lateral_accel_max=9.5, model=model, mass=1780.0, yaw_inertia=2800.0,
+                   cornering_stiffness_front=110000.0, cornering_stiffness_rear=125000.0, friction=1.05)
+
+
 @dataclass(frozen=True)
 class Traffic:
     count: int = 8
@@ -81,12 +90,18 @@ class Traffic:
     lane_change_time: float = 3.0     # s, lane centre to lane centre (quintic profile)
     lane_change_interval: float = 1.0 # s between MOBIL evaluations per car (seeded phase)
     lane_change_gap: float = 0.5      # car lengths: no lane change with a target-lane car alongside or within this bumper gap
+    # No walls: never one traffic car per lane within wall_window (CG spread along the road) of each other. Spawns and
+    # lane changes avoid it; once one car per lane comes within twice that, the rearmost drops wall_slowdown below its
+    # current speed until they spread out.
+    no_walls: bool = False
+    wall_window: float = 9.0          # m (two car lengths)
+    wall_slowdown: float = 3.0        # m/s off the rearmost wall car's desired speed
     lane_change_cooldown: float = 8.0 # s after finishing a lane change before the same car may start another
     keep_right_bias: float = 0.0      # m/s^2 added to the incentive for moving right, subtracted for left
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('lane_changes', 'mobil_politeness', 'mobil_threshold',
-                                                             'keep_right_bias')))
+                                                             'keep_right_bias', 'no_walls')))
         if any(not isfinite(getattr(self, k)) or getattr(self, k) < 0 for k in ('mobil_politeness', 'mobil_threshold')):
             raise ValueError('mobil_politeness and mobil_threshold must be non-negative')
         if not isfinite(self.keep_right_bias):
@@ -151,6 +166,10 @@ class Score:
     train_rate: float = 0.0           # 0 disables
     train_headway: float = 0.5        # s
     train_pass_gain: float = 1.0      # 1 disables
+    train_min_speed: float = 0.0      # m/s every train car must exceed for train points/passes (0: draft_min_speed)
+    # Top speed bonus: top_speed_rate pts/s per car above top_speed_threshold, times the combo multiplier.
+    top_speed_rate: float = 0.0       # 0 disables
+    top_speed_threshold: float = 53.64  # m/s (120 mph)
     # Team spread penalty: each teammate pair loses spread_penalty_rate*((distance - spread_free_distance)/spread_scale)^2
     # pts/s beyond spread_free_distance (body-centre distance), split between the pair; not multiplied by the combo.
     spread_penalty_rate: float = 0.0  # 0 disables
@@ -159,7 +178,7 @@ class Score:
     spread_penalty_cap: float = float('inf')  # pts/s: most a pair can lose per second
 
     NON_NEGATIVE = ('combo_step', 'proximity_rate', 'team_pass_gain', 'draft_rate', 'spread_penalty_rate', 'train_rate',
-                    'collision_wipe', 'repass_cooldown')
+                    'collision_wipe', 'repass_cooldown', 'train_min_speed', 'top_speed_rate')
 
     def __post_init__(self):
         if not self.spread_penalty_cap > 0:   # inf allowed (no cap)
@@ -183,7 +202,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm3.6'
+    version: str = 'm3.7'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -216,7 +235,7 @@ class Planner:
     pending_max_time: float = 4.0       # cancel a pending change not committed within this (s)
     retry_cooldown: float = 3.0         # after a stalled/timed-out/forced cancel, the same car can't re-request that lane (s)
     check_margin: float = 0.1       # post-cycle footprint check clearance (QP margins are 0.25 m per axis)
-    emergency_decel: float = 6.0    # braking of the emergency escape's braking candidates (= brake_max)
+    emergency_decel: float = 12.0   # braking of the emergency escape's braking candidates (the plant clips to brake_max)
     check_substeps: int = 5         # footprint checks per plan step (0.1 s): plans are interpolated between nodes
     escape_accel: float = 5.0       # m/s: speed-up candidates of the emergency escape aim this far above current speed
     slot_check: bool = True         # back out of a lane change whose target slot is closing (see slot_margin)
@@ -274,9 +293,15 @@ class Scenario:
     team_speed: float = 28.0
     team_lane: int = 1
     team_start_s: float = 100.0
+    team_speed_max: float = 35.0      # m/s: highest target speed the team may command (sets Planner.speed_max)
+    team_start_headway: float = 0.0   # s: start formation spacing headway (0: vehicle.headway)
+    overtaker_speed: float = 32.0     # scripted overtaker cruise speed (m/s)
+    overtaker_look: float = 60.0      # scripted overtaker look-ahead for slow cars (m)
 
     def __post_init__(self):
-        _positive(self, 'team_speed', 'team_start_s')
+        _positive(self, 'team_speed', 'team_start_s', 'team_speed_max', 'overtaker_speed', 'overtaker_look')
+        if self.team_start_headway < 0:
+            raise ValueError('team_start_headway must be non-negative')
         if not 0 <= self.team_lane < self.road.lanes:
             raise ValueError('team_lane outside road')
         if self.vehicle.width >= self.road.lane_width:
@@ -306,7 +331,19 @@ def scenario_v4():
     return replace(s, version='v4', traffic=replace(s.traffic, lane_changes=True))
 
 
-SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4}
+def scenario_v5():
+    """v4 with BMW M3 cars (bmw_m3), traffic at 45-60 mph (20.1-26.8 m/s), no traffic walls across all lanes
+    (two car lengths); the team starts at 70 mph (31.3 m/s) 0.6 s apart and may command up to 134 mph (60 m/s);
+    the scripted overtaker cruises at 90 mph (40 m/s) looking 80 m (2 s) ahead."""
+    s = scenario_v4()
+    car = bmw_m3()
+    return replace(s, version='v5', team_speed=31.3, vehicle=car, team_speed_max=60.0, team_start_headway=0.6,
+                   overtaker_speed=40.0, overtaker_look=80.0,
+                   traffic=replace(s.traffic, speed_min=20.1, speed_max=26.8, no_walls=True, wall_window=2*car.length))
+
+
+SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4,
+             'v5': scenario_v5}
 
 
 def score_v1():
@@ -357,5 +394,13 @@ def score_v7():
                    collision_wipe=0.5, repass_cooldown=10.0)
 
 
+def score_v8():
+    """v7 made fast: draft-train points and train passes only above 80 mph (35.8 m/s); +10 pts/s per car above
+    120 mph (53.6 m/s), times the combo; spread penalty doubled (4*((d - 50 m)/10 m)^2, capped at 400 pts/s per pair);
+    team close-pass bonus with all three cars within 50 m (a 0.5 s train at 80 mph is about 45 m long)."""
+    return replace(score_v7(), version='v8', train_min_speed=35.76, top_speed_rate=10.0, top_speed_threshold=53.64,
+                   spread_penalty_rate=4.0, spread_penalty_cap=400.0, team_pass_distance=50.0)
+
+
 SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,
-          'v7': score_v7}
+          'v7': score_v7, 'v8': score_v8}

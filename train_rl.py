@@ -9,21 +9,21 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v7_e4_6m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
-SCENARIO = 'v4'              # SCENARIOS key (v4: 20 lane-changing traffic cars, 120 s)
-SCORE = 'v7'                 # SCORES key (v7: v6 + team spread penalty; v6: v5 + draft passes worth 3x; v5: 5x drafting)
+RUN_ID = 'ppo_v8_e4_10m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+SCENARIO = 'v5'              # SCENARIOS key (v5: BMW M3s, 45-60 mph traffic, no traffic walls, team starts at 70 mph)
+SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
 PLANT = 'kinematic'          # 'kinematic' or 'dynamic'
 MPC = 'linear'               # 'linear' or 'nonlinear'
 N_ENVS = 16                  # parallel SubprocVecEnv workers (one CPU thread each)
-TOTAL_TIMESTEPS = 6_000_000  # policy decisions summed over envs (240 per 120 s episode)
+TOTAL_TIMESTEPS = 10_000_000  # policy decisions summed over envs (240 per 120 s episode)
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 1_000_000
 SEED = 0
 COLLISION_EXTRA = 0.0        # training-only extra multiple of the game's collision term (v7's 50 % wipe replaces the old 4.0)
-LEARNING_RATE = 1e-4         # initial LR, decayed linearly to 0 (3e-4 from scratch; lower when fine-tuning)
+LEARNING_RATE = 3e-4         # initial LR, decayed linearly to 0 (3e-4 from scratch; lower when fine-tuning)
 VF_WARMUP = 200_000          # fine-tuning: first decisions train only the value network (policy frozen); 0 from scratch
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'models/ppo_v6_e4_5m/final_model.zip'   # new run from this model's weights (None: from scratch)
+INIT_FROM = 'models/ppo_v7_e4_6m/final_model.zip'   # new run from this model's weights (None: from scratch)
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows

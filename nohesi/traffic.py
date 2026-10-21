@@ -77,7 +77,63 @@ class Traffic:
         same = self._occupies(lane)
         if skip is not None:
             same[skip] = False
-        return not np.any(np.abs(self.s[same]-s) < self.cfg.min_gap)
+        if np.any(np.abs(self.s[same]-s) < self.cfg.min_gap):
+            return False
+        return not (self.cfg.no_walls and self._forms_wall(s, lane, skip))
+
+    def _lane_sets(self, skip=None):
+        """Lanes each traffic car occupies (its lane, plus its target while changing)."""
+        changing = self.changing
+        return [set() if k == skip else ({int(self.lane[k]), int(self.target[k])} if changing[k] else {int(self.lane[k])})
+                for k in range(len(self.s))]
+
+    def _wall_in(self, cars, lanes_of, window=None):
+        """A wall among `cars` (indices): distinct cars covering every lane within `window` (default wall_window).
+        Returns one or None."""
+        n_lanes, window = self.road.cfg.lanes, window or self.cfg.wall_window
+
+        def cover(lane, chosen):
+            if lane == n_lanes:
+                return chosen
+            for k in cars:
+                if k in chosen or lane not in lanes_of(k):
+                    continue
+                pos = [self._pos(c) for c in chosen]+[self._pos(k)]
+                if max(pos)-min(pos) < window:
+                    found = cover(lane+1, chosen+[k])
+                    if found:
+                        return found
+            return None
+        return cover(0, [])
+
+    def _forms_wall(self, s, lane, skip=None):
+        """Would a car at (s, lane) complete a wall with the other traffic (car `skip` left out)?"""
+        sets = self._lane_sets(skip)
+        near = [k for k in range(len(self.s)) if sets[k] and abs(self.s[k]-s) < self.cfg.wall_window]
+        self._probe = s
+        lanes_of = lambda k: {lane} if k == -1 else sets[k]
+        found = self._wall_in([-1]+near, lanes_of)
+        self._probe = None
+        return found is not None
+
+    def _pos(self, k):
+        return self._probe if k == -1 else self.s[k]
+
+    def walls(self, window=None):
+        """Current walls: lists of car indices (one per lane, within `window`, default wall_window)."""
+        window = window or self.cfg.wall_window
+        if len(self.s) < self.road.cfg.lanes:
+            return []
+        sets, out, used = self._lane_sets(), [], set()
+        order = np.argsort(self.s)
+        for a in order:
+            if a in used:
+                continue
+            near = [k for k in order if k not in used and 0 <= self.s[k]-self.s[a] < window]
+            found = self._wall_in(near, lambda k: sets[k], window)
+            if found:
+                out.append(found); used.update(found)
+        return out
 
     def _add(self, s, lane):
         v0 = self.rng.uniform(self.cfg.speed_min, self.cfg.speed_max)
@@ -106,7 +162,13 @@ class Traffic:
         # All cars at once: row i masks the vehicles leading car i (either of its lanes, ahead of it).
         mine, theirs = np.c_[self.lane, tgt], np.c_[all_lane, all_lane2]
         ahead = (mine[:, :, None, None] == theirs[None, None, :, :]).any(axis=(1, 3)) & (all_s[None, :] > self.s[:, None])
-        free = 1-(self.v/self.v0)**4
+        v0 = self.v0
+        if self.cfg.no_walls:   # break walls before they close: the rearmost car of a forming wall drops back
+            v0 = self.v0.copy()
+            for wall in self.walls(2*self.cfg.wall_window):
+                rear = min(wall, key=lambda k: self.s[k])
+                v0[rear] = max(min(v0[rear], self.v[rear]-self.cfg.wall_slowdown), 1.0)
+        free = 1-(self.v/v0)**4
         has = ahead.any(axis=1)
         j = np.argmin(np.where(ahead, all_s[None, :], np.inf), axis=1)
         gap = np.maximum(all_s[j]-self.s-length, 0.1)
@@ -162,6 +224,8 @@ class Traffic:
                 # No car alongside, or within lane_change_gap car lengths bumper to bumper, in the new lane.
                 beside = occupants(new) & (np.abs(all_s-s) < length*(1+c.lane_change_gap)) & (idx != i)
                 if np.any(beside):
+                    continue
+                if c.no_walls and self._forms_wall(s, new, skip=i):   # never close the last open lane
                     continue
                 at_c = acc(i, ln)
                 gain = at_c-a_c
