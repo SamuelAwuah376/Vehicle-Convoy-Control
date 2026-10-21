@@ -276,12 +276,12 @@ def test_conflict_makes_lower_priority_vehicle_yield(monkeypatch):
     calls = {'n': 0}
     real = C.first_conflict
 
-    def fake(z, others, params, margin):
+    def fake(z, others, params, margin, **kw):
         keys = [o[0] for o in others]
         if ('team', 0) in keys and calls['n'] == 0:    # first check that involves teammate 0
             calls['n'] += 1
             return ('team', 0), 3
-        return real(z, others, params, margin)
+        return real(z, others, params, margin, **kw)
     monkeypatch.setattr(C, 'first_conflict', fake)
     ep = run(replace(SC, timing=Timing(duration=1)), 0, 'overtaker')
     (time, vehicle, other, step, resolution), = ep.planner_log.conflicts
