@@ -183,7 +183,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm3.4'
+    version: str = 'm3.5'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -218,9 +218,6 @@ class Planner:
     check_margin: float = 0.1       # post-cycle footprint check clearance (QP margins are 0.25 m per axis)
     emergency_decel: float = 6.0    # braking of the emergency escape's braking candidates (= brake_max)
     check_substeps: int = 5         # footprint checks per plan step (0.1 s): plans are interpolated between nodes
-    escape_check: bool = True       # a car mid lane change must keep a braking escape; else it abandons the change
-    escape_delay: float = 0.5       # s: the escape is tested from where the car's plan puts it this far ahead
-    escape_horizon: float = 1.5     # s: the escape must stay clear this long (later conflicts are replanned anyway)
     escape_accel: float = 5.0       # m/s: speed-up candidates of the emergency escape aim this far above current speed
     w_lateral: float = 1.0
     w_speed: float = 0.5

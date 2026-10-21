@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field, replace
 import numpy as np
 from ..intentions import IntentionManager
-from ..planning.base import Obstacles, Plan, constant_speed_plan
+from ..planning.base import Obstacles, constant_speed_plan
 from ..planning.fallback import first_conflict, lane_keep_plan, shifted_fallback
 from ..planning.single import LaneChangeMPC
 from ..prediction import traffic_prediction
@@ -37,8 +37,6 @@ class CentralizedTeam:
     teammates' final plans; on a conflict the lower-priority vehicle yields (abandon any lane change
     for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape:
     full braking, holding or gaining speed in the nearby lane with the gentlest predicted impact).
-    A car mid lane change must keep a way out: if, after following its plan for escape_delay s, neither
-    braking nor holding speed in its origin lane or the lane it is in would stay clear, it abandons the change.
     Plans are checked check_substeps times per step. The checks use predictions: not a guarantee.
     """
     name = 'centralized'
@@ -194,41 +192,6 @@ class CentralizedTeam:
                 break
         return best[1], best[2]
 
-    def _followers(self, snap, i, lane):
-        """Vehicles more than a car length behind car i in `lane`: they react to it (teammates replan around it, traffic
-        brakes harder than the escape), so the way-out test does not count them."""
-        behind = snap.team_s[i]-self.params.length
-        out = {('team', j) for j in range(TEAM)
-               if j != i and snap.team_s[j] < behind and int(self.road.lane_of(snap.team_d[j])) == lane}
-        lanes = self.road.lane_of(snap.traffic_d)
-        out |= {('traffic', int(k)) for k, s, l in zip(snap.traffic_id, snap.traffic_s, lanes) if s < behind and l == lane}
-        return out
-
-    def _keep_way_out(self, snap, i, plans):
-        """Abandon car i's lane change if, after following its plan for escape_delay s, neither braking nor holding
-        speed in its origin lane or the lane it is in would stay clear (holding covers a car close behind)."""
-        cfg, it = self.cfg, self.intentions.intentions[i]
-        if not cfg.escape_check or it.phase == 'keep' or self.plans[i] is None:
-            return
-        k0 = max(1, min(int(round(cfg.escape_delay/cfg.step)), cfg.horizon-1))
-        plan = self.plans[i].shifted(1)
-        check = [j for j in range(TEAM) if j != i]
-        mates = self._mates(snap, plans, check)
-        lanes = list(dict.fromkeys(l for l in (it.origin, int(self.road.lane_of(snap.team_d[i]))) if l is not None))
-        hold = float(plan.z[k0, 3])
-        for lane, speed, cap in [(l, it.speed, -cfg.emergency_decel) for l in lanes]+[(l, hold, np.inf) for l in lanes]:
-            tail = lane_keep_plan(snap, self.road, self.plant, i, lane, speed, cfg, cap, 'escape',
-                                  start=(plan.z[k0], plan.u[k0-1, 1], k0))
-            escape = Plan(snap.time, cfg.step, np.vstack((plan.z[:k0+1], tail.z[1:])), np.vstack((plan.u[:k0], tail.u)),
-                          'escape')
-            hit = self._conflict(snap, i, {**mates, i: escape}, check, self._followers(snap, i, lane))
-            if hit is None or hit[1]*cfg.step > cfg.escape_horizon+1e-9:
-                return   # a way out remains
-        v = float(snap.team[i, 3])
-        candidates = [(l, it.speed, -cfg.emergency_decel) for l in lanes]+[(l, v, np.inf) for l in lanes]
-        (lane, _, _), _ = self._rollout(snap, i, candidates, plans, check, 'lane_keep')
-        self.intentions.cancel(i, snap.time, 'no_escape', lane)
-
     def _lane_keep(self, snap, i, mode, plans, check):
         """Lane-keep fallback in the clearest nearby lane. 'emergency' also tries full braking first, then
         holding the current speed, in each lane."""
@@ -276,20 +239,17 @@ class CentralizedTeam:
         others = [j for j in range(TEAM) if j != i]
         return self._lane_keep(snap, i, 'lane_keep', fresh, others)
 
-    def _conflict(self, snap, i, plans, higher, skip=()):
-        """First conflict of vehicle i's plan with predicted traffic or higher-priority teammates (keys in `skip` ignored)."""
+    def _conflict(self, snap, i, plans, higher):
+        """First conflict of vehicle i's plan with predicted traffic or higher-priority teammates."""
         cfg, N = self.cfg, self.cfg.horizon
         s, d, _, psi = traffic_prediction(snap, self.road, np.arange(N+1)*cfg.step)
-        others = [(('traffic', int(k)), s[:, j], d[:, j], psi[:, j]) for j, k in enumerate(snap.traffic_id)
-                  if ('traffic', int(k)) not in skip]
-        others += [(('team', j), plans[j].z[:, 0], plans[j].z[:, 1], plans[j].z[:, 2]) for j in higher
-                   if ('team', j) not in skip]
+        others = [(('traffic', int(k)), s[:, j], d[:, j], psi[:, j]) for j, k in enumerate(snap.traffic_id)]
+        others += [(('team', j), plans[j].z[:, 0], plans[j].z[:, 1], plans[j].z[:, 2]) for j in higher]
         return first_conflict(plans[i].z, others, self.params, cfg.check_margin, substeps=cfg.check_substeps)
 
     def _replan(self, snap):
         fresh, order = {}, self.order(snap)
         for i in order:
-            self._keep_way_out(snap, i, fresh)
             fresh[i] = self._plan_vehicle(snap, i, fresh)
         for n, i in enumerate(order):
             hit = self._conflict(snap, i, fresh, order[:n])

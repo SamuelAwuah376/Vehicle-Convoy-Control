@@ -45,37 +45,30 @@ def shifted_fallback(previous, obstacles, cfg, params):
     return replace(candidate, source='shifted')
 
 
-def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, source='lane_keep', start=None):
+def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, source='lane_keep'):
     """Roll the lane-keeping law forward on the plant (lead car, including traffic merging into the lane, at
-    constant speed) so teammates see where a fallback vehicle will actually go.
-
-    start = (z, steer, k0): begin at plan step k0 (k0*step after the snapshot) from road-frame state z = [s, d,
-    heading error, v] instead of the car's current state; the plan then covers steps k0..horizon."""
+    constant speed) so teammates see where a fallback vehicle will actually go."""
     p, dt = plant.params, plant.params.dt
     sub = int(round(cfg.step/dt))
     route = road.lane_route(lane)
-    if start is None:
-        state, steer, k0 = snap.team[i].copy(), snap.team_steer[i], 0
-    else:
-        (zs, zd, zpsi, zv), steer, k0 = start
-        state, k0 = np.array([*road.to_xy(zs, zd), zpsi+float(road.heading(zs)), zv], float), int(k0)
-    s0 = road.to_frenet(state[:2])[0]
-    lead = vehicle_ahead_incl_merging(snap, road, s0, lane, skip=i)
+    state, steer = snap.team[i].copy(), snap.team_steer[i]
+    lead = vehicle_ahead_incl_merging(snap, road, snap.team_s[i], lane, skip=i)
+    s0 = snap.team_s[i]
     z, u = [], []
-    for k in range(cfg.horizon+1-k0):
+    for k in range(cfg.horizon+1):
         s = road.to_frenet(state[:2])[0]
         z.append([s, road.to_frenet(state[:2])[1], state[2]-road.heading(s), state[3]])
-        if k == cfg.horizon-k0:
+        if k == cfg.horizon:
             break
         for n in range(sub):
-            t = ((k0+k)*sub+n)*dt
+            t = (k*sub+n)*dt
             ahead = None if lead is None else (lead[0]+lead[1]*t-(s-s0), lead[1])
             s = road.to_frenet(state[:2])[0]
             a, delta = lane_keep_law(state, s, route, p, speed, ahead, max_accel)
             state, a, steer = plant.predict_step(state, a, delta, steer)   # kinematic, whatever the plant
             if n == 0:
                 u.append([a, steer])
-    return Plan(snap.time+k0*cfg.step, cfg.step, np.array(z, float), np.array(u, float).reshape(-1, 2), source)
+    return Plan(snap.time, cfg.step, np.array(z, float), np.array(u, float), source)
 
 
 def first_conflict(z, others, params, margin, start=1, substeps=1):
