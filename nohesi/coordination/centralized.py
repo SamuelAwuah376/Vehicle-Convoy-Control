@@ -3,7 +3,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 from ..intentions import IntentionManager
 from ..planning.base import Obstacles, constant_speed_plan
-from ..planning.fallback import first_conflict, lane_keep_plan, shifted_fallback
+from ..planning.fallback import dense, first_conflict, lane_keep_plan, shifted_fallback
 from ..planning.single import LaneChangeMPC
 from ..prediction import traffic_prediction
 from ..rl.scripted import lane_keep_control
@@ -37,6 +37,9 @@ class CentralizedTeam:
     teammates' final plans; on a conflict the lower-priority vehicle yields (abandon any lane change
     for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape:
     full braking, holding or gaining speed in the nearby lane with the gentlest predicted impact).
+    A car mid lane change backs out when its target slot closes: if, on its plan, the time to contact with a gap
+    car or a vehicle merging into a lane it enters (at constant speed) drops below slot_margin wherever they would
+    share the lane, it abandons the change for the clearest nearby lane.
     Plans are checked check_substeps times per step. The checks use predictions: not a guarantee.
     """
     name = 'centralized'
@@ -192,6 +195,62 @@ class CentralizedTeam:
                 break
         return best[1], best[2]
 
+    def _slot_vehicles(self, snap, i):
+        """Gap cars of car i's lane change plus vehicles merging into a lane it enters: keys."""
+        it, ints = self.intentions.intentions[i], self.intentions.intentions
+        lanes = set(self.intentions.entered(it.origin, it.lane))
+        keys = {k for k in (it.front, it.rear) if k is not None}
+        current = self.road.lane_of(snap.traffic_d)
+        target = snap.traffic_target_lane if snap.traffic_target_lane is not None else current
+        keys |= {('traffic', int(k)) for k, c, g in zip(snap.traffic_id, current, target) if c != g and int(g) in lanes}
+        keys |= {('team', j) for j, jt in enumerate(ints)
+                 if j != i and jt.phase != 'keep' and lanes & set(self.intentions.entered(jt.origin, jt.lane))}
+        return keys
+
+    def _slot_closing(self, snap, i, plan, plans):
+        """Least time to contact (s) between car i's plan and the slot vehicles while the lane change executes (from
+        the footprint first reaching a lane it enters until it is fully inside the target lane), where the two would
+        overlap sideways (gap below slot_lateral); each slot vehicle at constant speed. inf when nothing closes."""
+        cfg, it = self.cfg, self.intentions.intentions[i]
+        if not cfg.slot_check or it.phase == 'keep':
+            return np.inf
+        keys = self._slot_vehicles(snap, i)
+        if not keys:
+            return np.inf
+        sub, N = cfg.check_substeps, cfg.horizon
+        t = dense(np.arange(N+1)*cfg.step, sub)
+        es, ed, ev = (dense(plan.z[:, c], sub) for c in (0, 1, 3))
+        lw, W = self.road.cfg.lane_width, self.params.width
+        entering = np.zeros(len(t), bool)
+        for lane in self.intentions.entered(it.origin, it.lane):
+            entering |= np.abs(ed-self.road.lane_center(lane)) < (lw+W)/2
+        inside = np.abs(ed-self.road.lane_center(it.lane)) < (lw-W)/2
+        executing = entering & (np.cumsum(inside) == 0)   # until first fully inside the target lane
+        if not executing.any():
+            return np.inf
+        _, d_pred, _, _ = traffic_prediction(snap, self.road, np.arange(N+1)*cfg.step)
+        L = self.params.length
+        worst = np.inf
+        for kind, j in keys:
+            if kind == 'traffic':
+                k = np.flatnonzero(snap.traffic_id == j)
+                if not k.size:
+                    continue
+                s0, v0, do = snap.traffic_s[k[0]], snap.traffic_v[k[0]], dense(d_pred[:, k[0]], sub)
+            else:
+                mate = plans.get(j) or (self.plans[j].shifted(1) if self.plans[j] is not None else None)
+                s0, v0 = snap.team_s[j], snap.team[j, 3]
+                do = dense(mate.z[:, 1], sub) if mate is not None else np.full_like(t, snap.team_d[j])
+            shared = executing & (np.abs(ed-do) < W+cfg.slot_lateral)
+            if not shared.any():
+                continue
+            ds = s0+v0*t-es
+            gap = np.abs(ds)-L
+            closing = np.where(ds > 0, ev-v0, v0-ev)
+            margin = np.where(gap <= 0, 0.0, np.where(closing > 1e-6, gap/np.maximum(closing, 1e-6), np.inf))
+            worst = min(worst, float(margin[shared].min()))
+        return worst
+
     def _lane_keep(self, snap, i, mode, plans, check):
         """Lane-keep fallback in the clearest nearby lane. 'emergency' also tries full braking first, then
         holding the current speed, in each lane."""
@@ -249,8 +308,17 @@ class CentralizedTeam:
 
     def _replan(self, snap):
         fresh, order = {}, self.order(snap)
-        for i in order:
+        for n, i in enumerate(order):
             fresh[i] = self._plan_vehicle(snap, i, fresh)
+            it = self.intentions.intentions[i]
+            if it.phase != 'keep' and self._slot_closing(snap, i, fresh[i], fresh) < self.cfg.slot_margin:
+                # The target slot is closing: back out now for the clearest of the CG lane and the origin lane.
+                lanes = list(dict.fromkeys((int(self.road.lane_of(snap.team_d[i])), it.origin)))
+                (lane, _, _), _ = self._rollout(snap, i, [(l, it.speed, np.inf) for l in lanes], fresh, order[:n],
+                                                'lane_keep')
+                self.intentions.cancel(i, snap.time, 'slot_margin', lane)
+                self.plans[i] = None   # no shifted fallback onto the abandoned lane change
+                fresh[i] = self._plan_vehicle(snap, i, fresh)
         for n, i in enumerate(order):
             hit = self._conflict(snap, i, fresh, order[:n])
             if hit is None:

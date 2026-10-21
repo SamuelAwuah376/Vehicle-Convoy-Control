@@ -183,7 +183,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm3.5'
+    version: str = 'm3.6'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -219,6 +219,9 @@ class Planner:
     emergency_decel: float = 6.0    # braking of the emergency escape's braking candidates (= brake_max)
     check_substeps: int = 5         # footprint checks per plan step (0.1 s): plans are interpolated between nodes
     escape_accel: float = 5.0       # m/s: speed-up candidates of the emergency escape aim this far above current speed
+    slot_check: bool = True         # back out of a lane change whose target slot is closing (see slot_margin)
+    slot_margin: float = 0.5        # s: least time to contact with the gap cars or vehicles merging into the lane
+    slot_lateral: float = 0.1       # m: lateral clearance beyond the car widths that still counts as sharing the slot
     w_lateral: float = 1.0
     w_speed: float = 0.5
     w_heading: float = 5.0
@@ -246,7 +249,8 @@ class Planner:
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time', 'mpc', 'nmpc_steer_cap',
-                                                             'qp_reuse', 'nmpc_levenberg_marquardt')))
+                                                             'qp_reuse', 'nmpc_levenberg_marquardt')
+                          and not isinstance(getattr(self, k), bool)))   # on/off switches may be False
         if not isfinite(self.nmpc_levenberg_marquardt) or self.nmpc_levenberg_marquardt < 0:
             raise ValueError('nmpc_levenberg_marquardt must be non-negative')
         if self.mpc not in ('linear', 'nonlinear'):

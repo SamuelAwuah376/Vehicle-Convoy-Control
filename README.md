@@ -93,9 +93,11 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
   - The emergency escape tries full braking and holding speed in every nearby lane, and picks the option that stays clear longest.
   - An abandoned lane change keeps the clearest nearby lane instead of always returning to the start lane.
   - The gap rule counts a teammate leaning over a lane line as being in both lanes.
-- **Safety layer m3.5** (after replaying all 11 crashes of the v7 model, 10 of which were checker gaps):
+- **Safety layer m3.6** (after replaying all 11 crashes of the v7 model, 10 of which were checker gaps):
+  - **Slot margin:** while a car changes lanes, its plan is compared with the gap's front and rear cars and with any vehicle merging into a lane it enters, each assumed to keep its speed. Wherever they would overlap sideways during the lane change, the time to contact is the bumper gap divided by the closing speed. If it falls below 0.5 s, the car backs out of the change.
   - **Smarter emergency escape:** it picks the option with the gentlest predicted impact (smallest speed difference), and can also speed up, not only brake or hold.
   - **Denser checks:** plans are checked 5 times per 0.1 s, so a fast pass between plan points is caught.
+  - **Result:** with the v7 model unchanged, crashes on 80 seeds fell from 20 to 10, with the mean score 8 % lower (42.8k against 46.6k); the model was trained without these checks.
 
 **Results (first 3M-decision PPO run, before the fallback changes):** on seeds 1000–1019 PPO scored about 47,800 points, against 18,200 for the overtaker. It crashed in 5 of 20 episodes. Replaying the same policy with the new fallbacks gave 2 crashes in 20 against traffic that looked before merging. With traffic merging blind it was back to 5. The policy was then retrained (part 2).
 

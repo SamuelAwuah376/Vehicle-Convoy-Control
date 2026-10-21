@@ -1,4 +1,4 @@
-"""Planner m3.5 safety layer: sub-sampled footprint checks."""
+"""Planner m3.6 safety layer: sub-sampled footprint checks, slot-margin back-outs, on/off switches."""
 import numpy as np
 from nohesi.config import SCENARIOS
 from nohesi.planning.fallback import dense, first_conflict
@@ -19,3 +19,22 @@ def test_substeps_catch_a_fast_pass_between_plan_nodes():
     assert first_conflict(ego, other, VEH, 0.1, substeps=1) is None
     assert first_conflict(ego, other, VEH, 0.1, substeps=5) == (('team', 1), 2)
 
+
+
+def test_planner_switches_can_be_off():
+    from dataclasses import replace
+    from nohesi.config import Planner
+    assert replace(Planner(), slot_check=False).slot_check is False
+    assert replace(Planner(), qp_reuse=False).qp_reuse is False
+
+
+def test_slot_check_backs_out_only_when_on():
+    from collections import Counter
+    from dataclasses import replace
+    from nohesi.config import Planner, SCORES, Timing
+    from nohesi.evaluation.runner import run
+    sc = replace(SCENARIOS['v4'](), timing=Timing(duration=40.0))
+    count = lambda planner: Counter(r.reason for r in run(sc, 2, 'overtaker', planner, score=SCORES['v3']()).intention_records
+                                    if r.kind == 'cancelled')['slot_margin']
+    assert count(replace(Planner(), slot_check=False)) == 0
+    assert count(Planner()) >= 1    # this episode has at least one closing slot at the default 0.5 s margin
