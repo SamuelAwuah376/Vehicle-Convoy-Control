@@ -11,7 +11,7 @@ from nohesi.evaluation.viz import animate, plot
 
 SCENARIO = 'v5'          # 'v0'-'v2' early worlds; 'v3'/'v4' lane-changing traffic; 'v5' = v4 with BMW M3s, 45-60 mph traffic, no walls, up to 134 mph
 POLICY = 'ppo'           # 'overtaker' (lane changes + MPC), 'lane_keeping', or 'ppo' (trained MaskablePPO team policy)
-PPO_RUN = 'models/ppo_v7_e4_6m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version)
+PPO_RUN = 'models/ppo_v8_e4_10m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version)
 PPO_MODEL = 'final'      # POLICY = 'ppo' only: 'best' or 'final' model of PPO_RUN
 SEED = 2                 # different traffic layout per seed
 SCORE = 'v8'             # 'v4' drafting + team passes; 'v5'/'v6' more drafting / draft passes; 'v7' team play (trains, spread penalty, crash wipe); 'v8' = v7 fast (trains > 80 mph, bonus > 120 mph)

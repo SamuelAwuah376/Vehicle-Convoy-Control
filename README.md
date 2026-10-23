@@ -43,7 +43,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M2, part 2 | Lane-changing traffic, plus robustness fixes for crowded situations. |
 | No Hesi M2, part 3 | CG reference, dynamic bicycle simulator and a nonlinear MPC (acados). |
 | No Hesi M3 | PPO policy (MaskablePPO), score v4 with drafting, and stronger safety fallbacks. |
-| **No Hesi M3, part 2** | Trained PPO models, drafting-focused fine-tuning (scores v5–v6), faster simulator, team spread penalty (v7). |
+| No Hesi M3, part 2 | Trained PPO models, drafting-focused fine-tuning (scores v5–v6), faster simulator. |
+| **No Hesi M4** | Safety layer m3.7, team-play scores v7–v8, the v8 world (BMW M3s, faster traffic without walls), and a new 10M-decision model trained on all of it. |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -93,11 +94,6 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
   - The emergency escape tries full braking and holding speed in every nearby lane, and picks the option that stays clear longest.
   - An abandoned lane change keeps the clearest nearby lane instead of always returning to the start lane.
   - The gap rule counts a teammate leaning over a lane line as being in both lanes.
-- **Safety layer m3.6** (after replaying all 11 crashes of the v7 model, 10 of which were checker gaps):
-  - **Slot margin:** while a car changes lanes, its plan is compared with the gap's front and rear cars and with any vehicle merging into a lane it enters, each assumed to keep its speed. Wherever they would overlap sideways during the lane change, the time to contact is the bumper gap divided by the closing speed. If it falls below 0.5 s, the car backs out of the change.
-  - **Smarter emergency escape:** it picks the option with the gentlest predicted impact (smallest speed difference), and can also speed up, not only brake or hold.
-  - **Denser checks:** plans are checked 5 times per 0.1 s, so a fast pass between plan points is caught.
-  - **Result:** with the v7 model unchanged, crashes on 80 seeds fell from 20 to 10, with the mean score 8 % lower (42.8k against 46.6k); the model was trained without these checks.
 
 **Results (first 3M-decision PPO run, before the fallback changes):** on seeds 1000–1019 PPO scored about 47,800 points, against 18,200 for the overtaker. It crashed in 5 of 20 episodes. Replaying the same policy with the new fallbacks gave 2 crashes in 20 against traffic that looked before merging. With traffic merging blind it was back to 5. The policy was then retrained (part 2).
 
@@ -106,7 +102,6 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Fine-tuning** (`--init-from` / `INIT_FROM` in `train_rl.py`): a new run starts from another run's policy weights and observation scaling. The optimiser, learning-rate schedule and reward scaling start fresh.
 - **Score v5:** drafting 5× more rewarding (25 points per second).
 - **Score v6:** v5 plus **draft passes**. A close pass by a car that is drafting, or left the draft within the last 1 s (a slingshot), is worth 3×. The v6 model (`models/ppo_v6_e4_5m`) is the 5M model fine-tuned on v6 for 5M decisions at a learning rate of 1e-4.
-- **Score v7 (ready, not trained yet):** rewards the whole team together. A three-car **draft train** (any lanes, within 0.5 s of each other) pays 25 pts/s per car and 3× passes; a two-car draft 5 pts/s and 1.5×. The team close-pass bonus needs all three cars within 40 m, and a capped quadratic **team spread penalty** applies beyond 50 m. A crash wipes 50 % of the team's banked points (so training no longer needs the extra 5× crash penalty), and a car can re-score the same traffic car only after 10 s. `train_rl.py` is set up to fine-tune the v6 model on it for 6M decisions: LR 1e-4, with a 200k-decision value-network warm-up.
 - **Faster simulator:** about 15 % more decisions per second, with the same episodes. Traffic car-following and polygon distance checks are computed for all cars at once.
 - **GPU learner:** the PPO network trains on the GPU; the simulator workers stay on the CPU.
 
@@ -124,12 +119,41 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **The v6 fine-tune** drafts about 75 % more and scores 13 % more, but crashes on 3 of 20 seeds.
 - **Seed 1050, unseen by all policies:** the v6 model scored 98,400, the 5M model 54,100, and the overtaker crashed at 29.5 s (`results/run_021_...`). Both PPO policies spread out to a median 105–110 m between the first and last car. The team close-pass bonus therefore averaged only about 1.06×, which is what v7 targets.
 
-**v8 world (scenario v5, score v8), set up for the next fine-tune:**
-- **Cars are BMW M3 Competitions** (`config.bmw_m3()`): 4.79 m long, 1,780 kg, 52.5/47.5 weight, launch-limited at 8 m/s² and power-limited above 26 m/s (375 kW), brakes at 11 m/s², corners at about 1 g.
-- **Traffic drives at 45–60 mph** and never forms a wall: three cars, one per lane, within two car lengths. Spawns and lane changes avoid walls, and the rear car of a forming wall drops back. On 5 seeds, walls are present 0.7 % of the time, against 33 % in v4.
-- **The team may command up to 134 mph** (`Scenario.team_speed_max`, which sets the planner's cap), starts at 70 mph about 0.6 s apart, and the scripted overtaker cruises at 90 mph.
-- **Score v8:** draft-train points and train passes only above 80 mph, +10 pts/s per car above 120 mph (times the combo), the spread penalty doubled (capped at 400 pts/s per pair), and the team close-pass bonus within 50 m.
-- `train_rl.py` fine-tunes `models/ppo_v7_e4_6m` on it for 10M decisions (learning rate 3e-4, 200k-decision value warm-up).
+**Milestone 4** trains a new model on a new safety layer and on scores that reward the team moving together:
+- **Safety layer m3.7** (after replaying all 11 crashes of the v7 model, 10 of which were checker gaps):
+  - **Slot margin:** while a car changes lanes, its plan is compared with the gap's front and rear cars and with any vehicle merging into a lane it enters, each assumed to keep its speed. Wherever they would overlap sideways during the lane change, the time to contact is the bumper gap divided by the closing speed. If it falls below 0.5 s, the car backs out of the change.
+  - **Smarter emergency escape:** it picks the option with the gentlest predicted impact (smallest speed difference), and can also speed up, not only brake or hold.
+  - **Denser checks:** plans are checked 5 times per 0.1 s, so a fast pass between plan points is caught.
+  - **Limits from the car and the scenario:** emergency braking uses the vehicle's full braking, and the planner's speed cap comes from the scenario.
+  - **Result:** with the v7 model unchanged (it was trained without these checks), crashes on 80 seeds fell from 20 to 10, with the mean score 8 % lower (42.8k against 46.6k).
+- **Score v7 (team play):** rewards the whole team together.
+  - A three-car **draft train** (any lanes, within 0.5 s of each other) pays 25 pts/s per car and 3× passes; a two-car draft pays 5 pts/s and 1.5×.
+  - The team close-pass bonus needs all three cars within 40 m, and a capped quadratic **team spread penalty** applies beyond 50 m.
+  - A crash wipes 50 % of the team's banked points, and a car can re-score the same traffic car only after 10 s.
+  - `models/ppo_v7_e4_6m` is the v6 model fine-tuned on v7 for 6M decisions (LR 1e-4, 200k-decision value-network warm-up).
+- **v8 world (scenario v5):**
+  - **Cars are BMW M3 Competitions** (`config.bmw_m3()`): 4.79 m long, 1,780 kg, 52.5/47.5 weight, launch-limited at 8 m/s² and power-limited above 26 m/s (375 kW), brakes at 11 m/s², corners at about 1 g.
+  - **Traffic drives at 45–60 mph** and never forms a wall (three cars, one per lane, within two car lengths). Spawns and lane changes avoid walls, and the rear car of a forming wall drops back. On 5 seeds, walls are present 0.7 % of the time, against 33 % in v4.
+  - **The team may command up to 134 mph** (`Scenario.team_speed_max`), starts at 70 mph about 0.6 s apart, and the scripted overtaker cruises at 90 mph.
+- **Score v8 (fast team play):** v7 with draft-train points and train passes only above 80 mph, +10 pts/s per car above 120 mph (times the combo), the spread penalty doubled (capped at 400 pts/s per pair), and the team close-pass bonus within 50 m.
+- **New model** (`models/ppo_v8_e4_10m`): trained from scratch for 10M decisions on scenario v5, score v8 and safety layer m3.7 (`train_rl.py`: LR 3e-4 decaying to 0, no warm-up). It took about 38 hours on the laptop (GPU learner, 16 CPU workers).
+
+**Results (milestone 4):** 70 seeds that no model trained on or was selected on (1010–1019, 1100–1119, 1200–1239), scenario v5, every model scored on v8 (`models/ppo_v8_e4_10m/eval_compare_v8.json`):
+
+| | Overtaker | v7 model (final) | v8 model (best, 9.5M) | v8 model (final) |
+|---|---|---|---|---|
+| Team score | −12,187 | 46,427 | 78,510 | **83,365** |
+| Crash rate | **0.03** | 0.17 | 0.20 | 0.16 |
+| Close passes | 49.6 | 59.3 | 58.2 | **60.8** |
+| Draft passes | 10.0 | 14.3 | 24.0 | **24.7** |
+| Train passes | 0.3 | 0.6 | 7.7 | **8.3** |
+| Train time (s) | 0.3 | 0.2 | 4.0 | **4.4** |
+| Mean speed (m/s) | 30.2 | 29.3 | 28.3 | 28.1 |
+
+- **The v8 model (final) beats the v7 model** by 36.9k ± 5.1k per seed, and scores higher on 56 of 70 seeds. The gain holds on the 30 seeds used before (+42.8k) and the 40 fresh ones (+32.6k).
+- **The gain comes from team motion:** the cars close-pass about as often as v7, but make 1.7× as many draft passes and 14× as many train passes.
+- **Best against final:** the 9.5M checkpoint was selected on 10 seeds (99.5k there), but on 70 seeds it scores 4.9k below the final model and crashes more. `run_sim.py` therefore uses the final model.
+- **Open issues:** about 1 episode in 6 still ends in a crash, the same rate as the v7 model. Mean speed stays near 28 m/s, with no time above 120 mph: in this traffic the team rarely reaches the 80 mph needed for train points.
 
 **Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
 
@@ -174,20 +198,21 @@ Key ideas, in the order things happen:
 
 ## Scoring
 
-Scores are versioned, and each result records which version it used. v4 is the default. v5 is v4 with drafting 5× more rewarding; v6 is v5 plus draft passes. v6 is used for PPO fine-tuning.
+Scores are versioned, and each result records which version it used. v4 is the default. v5 is v4 with drafting 5× more rewarding; v6 is v5 plus draft passes. v7 rewards the whole team moving together, and v8 (used to train the current model) makes that fast.
 
 | Points for | How |
 |---|---|
 | **Close pass** | Overtaking a traffic car with less than 1.5 m clearance: about 100–200 points, more when closer and faster. |
-| **Team close pass** (v4+) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. In v7 it only counts when the whole team is together: all three cars within 40 m of each other (graded over 40 m). |
+| **Team close pass** (v4+) | A close pass with teammates nearby earns up to 2× (both teammates at contact), falling linearly to no bonus at 20 m. In v7 it only counts when the whole team is together: all three cars within 40 m of each other (graded over 40 m); in v8, within 50 m. |
 | **Team combo** (v1+) | Every close pass raises a team multiplier, up to 5×. It resets after 5 s without a close pass. |
 | **Teammate proximity** (v1–v3) | Points per second while teammates drive within 20 m of each other. Closer earns more (v2+). |
 | **Drafting** (v4+, replaces proximity) | 5 points per second (v4) or 25 (v5) for each car directly behind a teammate (same lane, no traffic between) within 1 s, both above 20 m/s. Multiplied by the team combo. |
 | **Draft pass** (v6+) | A close pass by a car that is drafting a teammate, or left the draft within the last 1 s (a slingshot), is worth 3× more, on top of the team pass bonus and the combo. In v7 a two-car draft pass is worth 1.5×, and a pass by any car of a draft train 3×. |
-| **Draft train** (v7) | All three cars in a row along the road, in any lanes, each within 0.5 s bumper to bumper of the car ahead, all above 20 m/s. Every car earns 25 points per second (times the combo) while it holds; a two-car draft earns 5. |
+| **Draft train** (v7) | All three cars in a row along the road, in any lanes, each within 0.5 s bumper to bumper of the car ahead, all above 20 m/s. Every car earns 25 points per second (times the combo) while it holds; a two-car draft earns 5. In v8 train points and train passes need every car above 80 mph (35.8 m/s). |
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
-| **Team spread penalty** (v7) | For each pair of teammates more than 50 m apart: −2 × ((distance − 50 m) / 10 m)² points per second, at most 200 (reached at 150 m), split between the pair (−18 pts/s at 80 m, −50 at 100 m). Not multiplied by the combo. |
+| **Top speed** (v8) | +10 points per second for each car above 120 mph (53.6 m/s), times the combo. |
+| **Team spread penalty** (v7) | For each pair of teammates more than 50 m apart: −2 × ((distance − 50 m) / 10 m)² points per second, at most 200 (reached at 150 m), split between the pair (−18 pts/s at 80 m, −50 at 100 m). Not multiplied by the combo. v8 doubles it: −4 × ((distance − 50 m) / 10 m)², at most 400. |
 | **Collision** | −500 to each car involved, and the episode ends. In v7 a collision also wipes 50 % of the whole team's banked points (No Hesi-style run reset). |
 | **Re-pass cooldown** (v7) | A team car scores the same traffic car again only after 10 s (no farming one slow car). |
 
