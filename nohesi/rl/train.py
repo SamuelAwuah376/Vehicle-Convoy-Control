@@ -345,6 +345,8 @@ def train(cfg):
 
     run_dir = cfg.run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
+    from .watchdog import ENV_DIR
+    os.environ[ENV_DIR] = str(run_dir/'hangs')   # inherited by the workers: their step watchdog dumps a hang there
     if cfg.resume and (run_dir/'config.json').exists():   # keep the original config.json; note the resume
         note = {'resumed_from': str(cfg.resume), 'total_timesteps': cfg.total_timesteps, 'git': git_commit(),
                 'versions': versions(), 'time': time.strftime('%Y-%m-%dT%H:%M:%S')}

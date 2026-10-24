@@ -185,3 +185,28 @@ def test_merge_possible_flags():
     assert m[0].tolist() == [0.0, 1.0]     # lane 0 blocked alongside, lane 2 clear
     assert m[1].tolist() == [0.0, 0.0]     # no lane -1; lane 1 occupied alongside by traffic 0
     assert m[2].tolist() == [0.0, 0.0]     # team car in lane 1 within the room rule; no lane 3
+
+
+def test_step_watchdog_dumps_and_exits(tmp_path):
+    """A step running past the timeout: the watchdog writes the stack and episode info, then exits (stubbed here)."""
+    import json
+    import time
+    from types import SimpleNamespace
+    from nohesi.rl import watchdog
+    env = SimpleNamespace(step_started=time.monotonic()-10, episode_seed=2024, run=None, team=None)
+    exits = []
+    watchdog.run(env, tmp_path, timeout=5, poll=0.01, exit=exits.append)
+    assert exits == [3]
+    info = json.loads(next(tmp_path.glob('hang_*[0-9].json')).read_text(encoding='utf-8'))
+    assert info['episode_seed'] == 2024 and 'qp_error' in info   # no MPC here: the QP dump is skipped
+    assert 'test_step_watchdog_dumps_and_exits' in next(tmp_path.glob('hang_*_stack.txt')).read_text(encoding='utf-8')
+    env.step_started = None   # a step not running: nothing happens
+    assert watchdog.run(env, tmp_path, timeout=5, poll=0.01, exit=exits.append, once=True) is None and exits == [3]
+
+
+def test_env_step_marks_its_start():
+    env = NoHesiEnv(EnvConfig())
+    env.reset(seed=1)
+    assert env.step_started is None
+    env.step(env.action_space.sample())
+    assert env.step_started is None

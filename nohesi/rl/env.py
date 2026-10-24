@@ -17,6 +17,7 @@ Observation (float32, D = 3*(20+7K+14)+3 = 273 at K=8 on a 3-lane road), car blo
   team (3): combo multiplier/5, min(time since last scored pass/combo_window, 1), time/duration
 """
 from dataclasses import replace
+import time
 import numpy as np
 import gymnasium
 from gymnasium import spaces
@@ -85,6 +86,7 @@ class NoHesiEnv(gymnasium.Env):
         self.action_space = spaces.MultiDiscrete([N_ACTIONS]*TEAM)
         self.observation_space = spaces.Box(-np.inf, np.inf, (obs_dim(cfg, self.lanes),), np.float32)
         self.run = None
+        self.step_started = None
         if rng_seed is not None:
             self.np_random, _ = gymnasium.utils.seeding.np_random(rng_seed)
 
@@ -128,6 +130,13 @@ class NoHesiEnv(gymnasium.Env):
         return self._obs(), {'seed': self.episode_seed, 'team_score': 0.0}
 
     def step(self, action):
+        self.step_started = time.monotonic()   # read by the step watchdog (rl/watchdog.py) in training workers
+        try:
+            return self._step(action)
+        finally:
+            self.step_started = None
+
+    def _step(self, action):
         run, team, cfg = self.run, self.team, self.cfg
         if run is None or run.done:
             raise RuntimeError('call reset() first')
@@ -222,11 +231,17 @@ class NoHesiEnv(gymnasium.Env):
 def make_env(cfg=EnvConfig(), rank=0, base_seed=0, seed_pool=None):
     """Thunk for SubprocVecEnv: env RNG seeded with base_seed + rank (episode seeds drawn >= 2000). In a worker process
     with the nonlinear MPC, the C-level stdout goes to os.devnull: acados prints a line per failed QP, which would
-    flood the training log (the main process keeps its stdout)."""
+    flood the training log (the main process keeps its stdout). Worker processes also run the step watchdog
+    (rl/watchdog.py) when the trainer has set NOHESI_HANG_DIR."""
     def thunk():
         import multiprocessing
         import os
-        if cfg.mpc == 'nonlinear' and multiprocessing.current_process().name != 'MainProcess':
+        from .watchdog import watch
+        worker = multiprocessing.current_process().name != 'MainProcess'
+        if cfg.mpc == 'nonlinear' and worker:
             os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
-        return NoHesiEnv(cfg, seed_pool, rng_seed=base_seed+rank)
+        env = NoHesiEnv(cfg, seed_pool, rng_seed=base_seed+rank)
+        if worker:
+            watch(env)
+        return env
     return thunk
