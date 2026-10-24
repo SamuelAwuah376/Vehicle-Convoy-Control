@@ -220,7 +220,13 @@ class NoHesiEnv(gymnasium.Env):
 
 
 def make_env(cfg=EnvConfig(), rank=0, base_seed=0, seed_pool=None):
-    """Thunk for SubprocVecEnv: env RNG seeded with base_seed + rank (episode seeds drawn >= 2000)."""
+    """Thunk for SubprocVecEnv: env RNG seeded with base_seed + rank (episode seeds drawn >= 2000). In a worker process
+    with the nonlinear MPC, the C-level stdout goes to os.devnull: acados prints a line per failed QP, which would
+    flood the training log (the main process keeps its stdout)."""
     def thunk():
+        import multiprocessing
+        import os
+        if cfg.mpc == 'nonlinear' and multiprocessing.current_process().name != 'MainProcess':
+            os.dup2(os.open(os.devnull, os.O_WRONLY), 1)
         return NoHesiEnv(cfg, seed_pool, rng_seed=base_seed+rank)
     return thunk

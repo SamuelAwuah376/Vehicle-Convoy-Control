@@ -9,13 +9,13 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v8_e4_10m_fresh_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v8_e4_dyn_20m_001'       # folder under runs_rl/; reuse with RESUME to continue a run
 SCENARIO = 'v5'              # SCENARIOS key (v5: BMW M3s, 45-60 mph traffic, no traffic walls, team starts at 70 mph)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
-PLANT = 'kinematic'          # 'kinematic' or 'dynamic'
-MPC = 'linear'               # 'linear' or 'nonlinear'
+PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
+MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)
 N_ENVS = 16                  # parallel SubprocVecEnv workers (one CPU thread each)
-TOTAL_TIMESTEPS = 10_000_000  # policy decisions summed over envs (240 per 120 s episode)
+TOTAL_TIMESTEPS = 20_000_000  # policy decisions summed over envs (240 per 120 s episode); dynamic: ~27/s, ~8.4 days
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 1_000_000
 SEED = 0
