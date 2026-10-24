@@ -42,12 +42,19 @@ class Vehicle:
     cornering_stiffness_front: float = 80000.0    # N/rad per axle
     cornering_stiffness_rear: float = 80000.0
     friction: float = 1.0                         # tyre-road mu
+    cg_height: float = 0.0                        # m: CG height for longitudinal load transfer (0: static axle loads)
+    brake_bias_front: float = 0.5                 # share of the braking force on the front axle
+    drive_bias_front: float = 0.5                 # share of the drive force on the front axle (0: rear-wheel drive)
     dynamic_blend_low: float = 3.0                # m/s: pure kinematic below, pure dynamic above high
     dynamic_blend_high: float = 6.0
     dynamic_substep: float = 0.01                 # s, integration step inside each sim step
 
     def __post_init__(self):
-        _positive(self, *(k for k in vars(self) if k != 'model'))
+        _positive(self, *(k for k in vars(self) if k not in ('model', 'cg_height', 'brake_bias_front', 'drive_bias_front')))
+        if not isfinite(self.cg_height) or self.cg_height < 0:
+            raise ValueError('cg_height must be non-negative')
+        if not all(0 <= getattr(self, k) <= 1 for k in ('brake_bias_front', 'drive_bias_front')):
+            raise ValueError('brake_bias_front and drive_bias_front must lie in [0, 1]')
         if self.cg_to_rear_axle >= self.wheelbase:
             raise ValueError('cg_to_rear_axle must lie within the wheelbase')
         if self.model not in ('kinematic', 'dynamic'):
@@ -59,10 +66,14 @@ class Vehicle:
 def bmw_m3(model='kinematic'):
     """BMW M3 Competition (G80), approximate published figures: 4.79 x 1.90 m, 2.857 m wheelbase, 52.5/47.5 weight
     (l_r = 0.525 L), 1,780 kg; 375 kW (503 hp) -> 211 W/kg, launch-limited at 8 m/s^2 (0-60 mph ~3.4 s) up to
-    26.3 m/s, power-limited above; 60-0 mph in ~100 ft -> 11 m/s^2; ~1.0 g skidpad -> 9.5 m/s^2; performance tyres."""
+    26.3 m/s, power-limited above; 60-0 mph in ~100 ft -> 11 m/s^2; ~1.0 g skidpad -> 9.5 m/s^2; performance tyres.
+    Dynamic plant: CG height 0.5 m (assumed; not published), brakes 72/28 front/rear so the front axle reaches its
+    grip limit first under hard braking (with load transfer, the rear would lock first below ~70 % front), and
+    rear-biased all-wheel drive (xDrive) at 30/70. With mu = 1.05 the tyres cap braking at mu g = 10.3 m/s^2."""
     return Vehicle(wheelbase=2.857, cg_to_rear_axle=1.50, length=4.79, width=1.90, accel_max=8.0, brake_max=11.0,
                    power_speed=26.3, lateral_accel_max=9.5, model=model, mass=1780.0, yaw_inertia=2800.0,
-                   cornering_stiffness_front=110000.0, cornering_stiffness_rear=125000.0, friction=1.05)
+                   cornering_stiffness_front=110000.0, cornering_stiffness_rear=125000.0, friction=1.05,
+                   cg_height=0.5, brake_bias_front=0.72, drive_bias_front=0.3)
 
 
 @dataclass(frozen=True)
@@ -202,7 +213,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm3.7'
+    version: str = 'm4.2'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -241,6 +252,17 @@ class Planner:
     slot_check: bool = True         # back out of a lane change whose target slot is closing (see slot_margin)
     slot_margin: float = 0.5        # s: least time to contact with the gap cars or vehicles merging into the lane
     slot_lateral: float = 0.1       # m: lateral clearance beyond the car widths that still counts as sharing the slot
+    grip_brake: float = 0.8         # dynamic plant: commanded braking at most this fraction of mu g (MPC, fallbacks, emergency)
+    # Stability layer (stability.py), dynamic plant only: 100 Hz inner loop under every command source.
+    stability: bool = True
+    stab_grip: float = 0.95         # friction-circle share it allows per axle (the lateral force comes first)
+    stab_min_brake: float = 0.3     # braking authority kept at the cornering limit (share of the axle's grip)
+    stab_steer_cap: float = 1.2     # steer at most this multiple of the grip-limited steady-state turn's steer
+    stab_k_yaw: float = 0.08        # steer (rad) per rad/s of over-rotation past the reference yaw rate
+    stab_k_slip: float = 0.6        # countersteer (rad) per rad of sideslip beyond stab_slip_free of the reference
+    stab_slip_free: float = 0.035   # rad (2 deg): sideslip deviation tolerated without correction
+    stab_max_correction: float = 0.1  # rad: largest feedback steering correction (minor corrections)
+    stab_steer_margin: float = 0.9  # front slip capped at this share of its saturation slip
     w_lateral: float = 1.0
     w_speed: float = 0.5
     w_heading: float = 5.0
@@ -262,14 +284,29 @@ class Planner:
     nmpc_steer_cap: bool = False    # also apply the kinematic grip-proxy steer cap (plant.steer_limit)
     nmpc_slip_limit: float = 0.8    # soft bound on |tan slip| as a fraction of the Fiala saturation slip (99 % of peak)
     nmpc_w_slip: float = 1000.0     # its slack weight
+    nmpc_grip_limit: float = 0.9    # hard bound on each axle's friction-circle use: sqrt(Fx^2 + Fy^2) <= limit*mu Fz
+    nmpc_w_obstacle: float = 1e5    # NMPC: obstacle rows and road edges are soft with this slack weight (exact penalty)
+    nmpc_emergency: bool = True     # NMPC: the emergency escape is planned by the MPC (candidate manoeuvres, see
+                                    # CentralizedTeam._emergency); off: the lane-keep law escape
+    nmpc_emergency_sqp_iter: int = 3      # SQP-RTI iterations of an emergency solve (its guess is far off)
+    nmpc_emergency_comfort: float = 0.2   # emergency solves: scale on the steer/accel weights and their rate weights
+    # Plan verification: one SQP-RTI iteration only enforces the grip limit to first order, so every solved plan's true
+    # (nonlinear) grip use is checked; while it breaks the limit, more iterations run, within these limits:
+    nmpc_verify: bool = True
+    nmpc_verify_iter: int = 4       # extra SQP iterations at most (deterministic: the main limit)
+    nmpc_verify_budget: float = 0.0  # s of wall-clock for them; 0: off (simulation stays reproducible); real time: on
+    nmpc_grip_tol: float = 0.01     # grip use above nmpc_grip_limit + this counts as breaking it
+    nmpc_recover_steps: int = 3     # car already past the limit: these first steps only must not exceed its start
     nmpc_w_vy: float = 10.0         # weight on body lateral speed vy: without it RTI/SQP diverges (GN misses r*vy coupling)
     nmpc_w_yaw_rate: float = 10.0   # weight on yaw rate r
     nmpc_levenberg_marquardt: float = 0.0   # acados LM regularisation of the Gauss-Newton Hessian
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time', 'mpc', 'nmpc_steer_cap',
-                                                             'qp_reuse', 'nmpc_levenberg_marquardt')
+                                                             'qp_reuse', 'nmpc_levenberg_marquardt', 'nmpc_verify_budget')
                           and not isinstance(getattr(self, k), bool)))   # on/off switches may be False
+        if not isfinite(self.nmpc_verify_budget) or self.nmpc_verify_budget < 0:
+            raise ValueError('nmpc_verify_budget must be non-negative (0 disables the wall-clock budget)')
         if not isfinite(self.nmpc_levenberg_marquardt) or self.nmpc_levenberg_marquardt < 0:
             raise ValueError('nmpc_levenberg_marquardt must be non-negative')
         if self.mpc not in ('linear', 'nonlinear'):

@@ -14,15 +14,17 @@ class Plan:
     iterations: int = 0
     solve_time: float = 0.0
     age: int = 0        # steps shifted since it was solved
+    lateral: np.ndarray = None   # (N+1, 2) planned body [vy, yaw rate] (nonlinear MPC); the stability layer tracks it
 
     def shifted(self, steps=1):
         """Drop the first `steps`, extend the tail at constant speed and heading."""
-        z, u = self.z, self.u
+        z, u, lat = self.z, self.u, self.lateral
         for _ in range(steps):
             s, d, psi, v = z[-1]
             z = np.vstack((z[1:], [s+v*np.cos(psi)*self.step, d+v*np.sin(psi)*self.step, psi, v]))
             u = np.vstack((u[1:], [0.0, u[-1, 1]]))
-        return replace(self, time=self.time+steps*self.step, z=z, u=u, age=self.age+steps)
+            lat = None if lat is None else np.vstack((lat[1:], lat[-1:]))
+        return replace(self, time=self.time+steps*self.step, z=z, u=u, age=self.age+steps, lateral=lat)
 
     def at(self, k):
         """State at step k; beyond the horizon, continued at constant speed and heading."""

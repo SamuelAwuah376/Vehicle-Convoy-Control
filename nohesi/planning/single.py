@@ -29,6 +29,7 @@ import osqp
 import scipy.sparse as sp
 from .base import Obstacles, Plan
 from .constraints import obstacle_constraints, state_bounds
+from ..dynamics import brake_limit
 
 STATUS = {1: 'solved', 7: 'timeout', 3: 'infeasible', 4: 'infeasible'}
 
@@ -56,6 +57,7 @@ class LaneChangeMPC:
         self.nz, self.nu = 4*(cfg.horizon+1), 2*cfg.horizon
         self.base_hessian = self._hessian()
         self.state_bounds = state_bounds(cfg, plant.params, road)
+        self.brake = brake_limit(plant, getattr(cfg, 'grip_brake', 1.0))   # brake_max on the kinematic plant
         self._solver, self._fixed, self.fallbacks = None, None, 0   # qp_reuse: persistent OSQP, pattern, setups
 
     def zi(self, k, j):
@@ -111,7 +113,7 @@ class LaneChangeMPC:
         # Inputs: acceleration, steering cap, steering rate (first step relative to the current steer).
         k = np.arange(N)
         accel, cap = self._input_bounds(zr)
-        rows.block(N, [(k, ui(k, 0), 1.0)], -p.brake_max, accel)
+        rows.block(N, [(k, ui(k, 0), 1.0)], -self.brake, accel)
         rows.block(N, [(k, ui(k, 1), 1.0)], -cap, cap)
         rate = p.steer_rate*h
         rows.block(1, [(0, ui(0, 1), 1.0)], steer_prev-rate, steer_prev+rate)

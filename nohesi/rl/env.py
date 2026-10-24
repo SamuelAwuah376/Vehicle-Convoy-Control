@@ -147,7 +147,7 @@ class NoHesiEnv(gymnasium.Env):
         aux = {'rejected': cfg.aux_rejected*sum(r.kind == 'rejected' for r in records[marks[0]:]),
                'fallback': cfg.aux_fallback*sum(f in ('shifted', 'lane_keep') for f in fallbacks),
                'conflict': cfg.aux_conflict*sum(c[4] == 'unresolved' for c in log.conflicts[marks[2]:]),
-               'emergency': cfg.aux_emergency*fallbacks.count('emergency'),
+               'emergency': cfg.aux_emergency*(fallbacks.count('emergency')+fallbacks.count('escape')),
                'collision': cfg.collision_extra*terms.get('collision', 0.0)/cfg.reward_scale}
         reward = sum(terms.values())/cfg.reward_scale+sum(aux.values())
         terminated = bool(run.snap.done)

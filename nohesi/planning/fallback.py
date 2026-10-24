@@ -1,6 +1,7 @@
 """Fallbacks and plan checks: shifted previous plan, lane-keep rollout, and sampled footprint checks."""
 from dataclasses import replace
 import numpy as np
+from ..dynamics import brake_limit
 from ..geometry import clearance, footprint, overlap
 from ..rl.scripted import lane_keep_law
 from ..prediction import vehicle_ahead_incl_merging
@@ -47,8 +48,10 @@ def shifted_fallback(previous, obstacles, cfg, params):
 
 def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, source='lane_keep'):
     """Roll the lane-keeping law forward on the plant (lead car, including traffic merging into the lane, at
-    constant speed) so teammates see where a fallback vehicle will actually go."""
+    constant speed) so teammates see where a fallback vehicle will actually go. Braking is capped as when it
+    runs (dynamics.brake_limit)."""
     p, dt = plant.params, plant.params.dt
+    brake = brake_limit(plant, cfg.grip_brake)
     sub = int(round(cfg.step/dt))
     route = road.lane_route(lane)
     state, steer = snap.team[i].copy(), snap.team_steer[i]
@@ -64,7 +67,7 @@ def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, sou
             t = (k*sub+n)*dt
             ahead = None if lead is None else (lead[0]+lead[1]*t-(s-s0), lead[1])
             s = road.to_frenet(state[:2])[0]
-            a, delta = lane_keep_law(state, s, route, p, speed, ahead, max_accel)
+            a, delta = lane_keep_law(state, s, route, p, speed, ahead, max_accel, brake)
             state, a, steer = plant.predict_step(state, a, delta, steer)   # kinematic, whatever the plant
             if n == 0:
                 u.append([a, steer])

@@ -1,11 +1,13 @@
 """Centralized team policy with one MPC per vehicle, solved sequentially in priority order."""
 from dataclasses import dataclass, field, replace
 import numpy as np
+from ..dynamics import DynamicPlant, brake_limit
 from ..intentions import IntentionManager
-from ..planning.base import Obstacles, constant_speed_plan
+from ..planning.base import Obstacles, Target, constant_speed_plan
 from ..planning.fallback import dense, first_conflict, lane_keep_plan, shifted_fallback
 from ..planning.single import LaneChangeMPC
 from ..prediction import traffic_prediction
+from ..stability import StabilityLayer
 from ..rl.scripted import lane_keep_control
 from ..world import TEAM
 
@@ -21,7 +23,7 @@ def make_mpc(cfg, plant, road):
 @dataclass
 class PlannerLog:
     solves: list = field(default_factory=list)       # (time, vehicle, status, iterations, solve_time_s, attempt)
-    fallbacks: list = field(default_factory=list)    # (time, vehicle, 'shifted' | 'lane_keep' | 'emergency')
+    fallbacks: list = field(default_factory=list)    # (time, vehicle, 'shifted' | 'lane_keep' | 'emergency' | 'escape')
     conflicts: list = field(default_factory=list)    # (time, vehicle, other key, step, resolution)
     plans: list = field(default_factory=list)        # (time, vehicle, source, z) executed plan per replan
     predictions: list = field(default_factory=list)  # (due_time, vehicle, s, d) planned one MPC step ahead
@@ -35,12 +37,21 @@ class CentralizedTeam:
     computed this cycle and the shifted previous-cycle plans of teammates not yet planned. After
     the cycle, every plan is footprint-checked against predicted traffic and higher-priority
     teammates' final plans; on a conflict the lower-priority vehicle yields (abandon any lane change
-    for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape:
-    full braking, holding or gaining speed in the nearby lane with the gentlest predicted impact).
+    for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape). With the
+    nonlinear MPC (Planner.nmpc_emergency) the escape is an MPC plan in emergency mode (_emergency): candidate
+    manoeuvres (brake, hold or gain speed, in the car's lane or one either side), each solved with the contact rows
+    only, the clear one (else the one with the least contact) executed like any plan; the car plans first next cycle.
+    Otherwise, and as the last resort when no emergency solve succeeds ('escape'), the lane-keep law escape: full
+    braking, holding or gaining speed in the nearby lane with the gentlest predicted impact.
     A car mid lane change backs out when its target slot closes: if, on its plan, the time to contact with a gap
     car or a vehicle merging into a lane it enters (at constant speed) drops below slot_margin wherever they would
     share the lane, it abandons the change for the clearest nearby lane.
     Plans are checked check_substeps times per step. The checks use predictions: not a guarantee.
+    On the dynamic plant every braking command (MPC, lane-keep fallback, emergency escape) is capped at grip_brake mu g,
+    so braking leaves grip to steer with, and the MPC starts from the acceleration last commanded (on any mode), not
+    from its own last plan's. There the stability layer (Planner.stability) carries out every command at 100 Hz within
+    grip: the MPC's with its planned motion, the fallbacks' with the car's steady-state response; the MPC replans
+    from the state the layer last posted.
     """
     name = 'centralized'
 
@@ -59,6 +70,12 @@ class CentralizedTeam:
         self.mode = ['qp']*TEAM
         self.escape = [None]*TEAM   # (lane, target speed, accel cap) of the lane_keep/emergency control law
         self.held = np.zeros((TEAM, 2))
+        self.brake = brake_limit(world.plant, cfg.grip_brake)   # brake_max on the kinematic plant
+        self.dynamic = isinstance(world.plant, DynamicPlant)
+        self.emergency_mpc = cfg.mpc == 'nonlinear' and cfg.nmpc_emergency
+        self.stability = StabilityLayer(world.plant, cfg) if self.dynamic and cfg.stability else None
+        world.stability = self.stability
+        self.last_accel = np.zeros(TEAM)   # acceleration last commanded, whatever the mode
         self.log = PlannerLog()
         self.k = 0
         self.prepared = None   # step whose phase update already ran (prepare)
@@ -83,14 +100,24 @@ class CentralizedTeam:
             self._replan(snap)
         controls = self.held.copy()
         for i in range(TEAM):
-            if self.mode[i] in ('lane_keep', 'emergency'):
-                controls[i] = lane_keep_control(snap, self.road, self.params, i, *self.escape[i])
+            if not self._plan_driven(i):
+                controls[i] = lane_keep_control(snap, self.road, self.params, i, *self.escape[i], self.brake)
+        self.last_accel = controls[:, 0].copy()
+        if self.stability is not None:
+            for i in range(TEAM):   # the MPC's plan (planned motion) or None: steady-state reference of the command
+                self.stability.post(i, self.plans[i] if self._plan_driven(i) else None)
         self.k += 1
         return controls
 
+    def _plan_driven(self, i):
+        """Car i follows its plan's commands (else a control law: lane keeping or the law escape)."""
+        return self.mode[i] in ('qp', 'shifted') or (self.mode[i] == 'emergency' and self.emergency_mpc)
+
     def order(self, snap):
+        """Planning order: cars in an MPC emergency escape first, then cars mid lane change, then front to back."""
         busy = [it.phase != 'keep' for it in self.intentions.intentions]
-        return sorted(range(TEAM), key=lambda i: (not busy[i], -snap.team_s[i]))
+        escaping = [self.mode[i] == 'emergency' and self.emergency_mpc for i in range(TEAM)]
+        return sorted(range(TEAM), key=lambda i: (not escaping[i], not busy[i], -snap.team_s[i]))
 
     def _decide(self, snap):
         intents = self.intentions.intentions
@@ -122,12 +149,25 @@ class CentralizedTeam:
             mates.append(Obstacles((('team', j),), plan.z[:, :1], plan.z[:, 1:2], plan.z[:, 3:4]))
         return Obstacles.stack([traffic, *mates], N+1)
 
-    def _solve(self, snap, i, obstacles, reference, attempt):
-        z0 = np.array([snap.team_s[i], snap.team_d[i], snap.team[i, 2]-self.road.heading(snap.team_s[i]), snap.team[i, 3]])
-        target = replace(self.intentions.target(i), yield_to=self._yield_to(snap, i))
-        lateral = tuple(0.0 if x is None else float(x[i]) for x in (snap.team_vy, snap.team_r))   # dynamic plant (vy, r)
+    def _solve(self, snap, i, obstacles, reference, attempt, target=None, emergency=False):
+        latest = self.stability.buffer.latest.get(i) if self.stability is not None else None
+        if latest is not None:   # the state the stability layer last posted (end of the last sim step)
+            _, (x, y, yaw, v, vy, r), _, _ = latest
+            s, d = self.road.to_frenet(np.array([x, y]))
+            z0, lateral = np.array([s, d, yaw-self.road.heading(s), v]), (float(vy), float(r))
+        else:
+            z0 = np.array([snap.team_s[i], snap.team_d[i], snap.team[i, 2]-self.road.heading(snap.team_s[i]), snap.team[i, 3]])
+            lateral = tuple(0.0 if x is None else float(x[i]) for x in (snap.team_vy, snap.team_r))   # dynamic plant (vy, r)
+        if target is None:
+            target = replace(self.intentions.target(i), yield_to=self._yield_to(snap, i))
         # lateral passed positionally (solve(..., reference, lateral=None)) so positional solve wrappers keep working.
-        plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], self.held[i, 0], target, obstacles, reference, lateral)
+        # Dynamic plant: start from what the car was last given (a fallback may have braked since the last plan).
+        accel = self.last_accel[i] if self.dynamic else self.held[i, 0]
+        if emergency:
+            plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], accel, target, obstacles, reference, lateral,
+                                  emergency=True)
+        else:
+            plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], accel, target, obstacles, reference, lateral)
         self.log.solves.append((snap.time, i, plan.status, plan.iterations, plan.solve_time, attempt))
         return plan
 
@@ -257,8 +297,9 @@ class CentralizedTeam:
         holding the current speed, in each lane."""
         it, v = self.intentions.intentions[i], float(snap.team[i, 3])
         lanes = self._lanes(snap, i)
-        if mode == 'emergency':
-            candidates = [(l, it.speed, -self.cfg.emergency_decel) for l in lanes]+[(l, v, np.inf) for l in lanes] + \
+        if mode in ('emergency', 'escape'):
+            brake = -min(self.cfg.emergency_decel, self.brake)
+            candidates = [(l, it.speed, brake) for l in lanes]+[(l, v, np.inf) for l in lanes] + \
                 [(l, v+self.cfg.escape_accel, np.inf) for l in lanes]
         else:
             candidates = [(l, it.speed, np.inf) for l in lanes]
@@ -266,6 +307,41 @@ class CentralizedTeam:
         self._keep_lane(snap, i, lane, mode)
         self.mode[i], self.escape[i] = mode, (lane, speed, cap)
         self.log.fallbacks.append((snap.time, i, mode))
+        return plan
+
+    def _emergency(self, snap, i, plans, check):
+        """MPC emergency escape for car i: candidate manoeuvres (brake / hold / gain speed in its lane or one either
+        side), each the reference of an emergency solve; the first whose plan passes the footprint check, else the
+        one with the least contact (largest obstacle slack), then the latest first conflict. No solve succeeds: the
+        lane-keep law escape ('escape')."""
+        it, v = self.intentions.intentions[i], float(snap.team[i, 3])
+        here = int(self.road.lane_of(snap.team_d[i]))
+        lanes = [l for l in (here, here-1, here+1) if 0 <= l < self.road.cfg.lanes]
+        brake = -min(self.cfg.emergency_decel, self.brake)
+        # (lane, MPC target speed, law speed, law accel cap): brake hard, hold the speed, gain speed (threat behind).
+        candidates = [(l, 0.0, it.speed, brake) for l in lanes]+[(l, v, v, np.inf) for l in lanes] + \
+            [(here, v+self.cfg.escape_accel, v+self.cfg.escape_accel, np.inf)]
+        obstacles = self._obstacles(snap, i, plans)
+        mates, best = self._mates(snap, plans, check), None
+        for n, (lane, speed, law_speed, cap) in enumerate(candidates):
+            reference = lane_keep_plan(snap, self.road, self.plant, i, lane, law_speed, self.cfg, cap, 'emergency')
+            plan = self._solve(snap, i, obstacles, reference, 'emergency', Target(self.road.lane_center(lane), speed),
+                               emergency=True)
+            if plan.status != 'solved':
+                continue
+            plan = replace(plan, source='emergency')
+            hit = self._conflict(snap, i, {**mates, i: plan}, list(check))
+            key = (hit is None, -round(self.mpc.last_slack, 2), 0 if hit is None else hit[1], -n)
+            if best is None or key > best[0]:
+                best = (key, (lane, law_speed, cap), plan)
+            if hit is None:
+                break
+        if best is None:
+            return self._lane_keep(snap, i, 'escape', plans, check)
+        (lane, law_speed, cap), plan = best[1], best[2]
+        self._keep_lane(snap, i, lane, 'emergency')
+        self.mode[i], self.escape[i] = 'emergency', (lane, law_speed, cap)
+        self.log.fallbacks.append((snap.time, i, 'emergency'))
         return plan
 
     def _keep_lane(self, snap, i, lane, reason):
@@ -291,6 +367,8 @@ class CentralizedTeam:
         if plan.status == 'solved':
             self.mode[i] = 'qp'
             return plan
+        if plan.status == 'grip' and self.emergency_mpc:   # no plan within grip: plan the escape (verified too)
+            return self._emergency(snap, i, fresh, [j for j in range(TEAM) if j != i])
         plan = shifted_fallback(previous, obstacles, cfg, self.params)
         if plan is not None:
             self.mode[i] = 'shifted'
@@ -336,11 +414,12 @@ class CentralizedTeam:
             fresh[i] = self._plan_vehicle(snap, i, fresh)
             resolution = 'replanned'
             if self._conflict(snap, i, fresh, order[:n]) is not None:
-                fresh[i] = self._lane_keep(snap, i, 'emergency', fresh, order[:n])
+                fresh[i] = self._emergency(snap, i, fresh, order[:n]) if self.emergency_mpc else \
+                    self._lane_keep(snap, i, 'emergency', fresh, order[:n])
                 resolution = 'emergency' if self._conflict(snap, i, fresh, order[:n]) is None else 'unresolved'
             self.log.conflicts.append((snap.time, i, hit[0], hit[1], resolution))
         for i in order:
-            if self.mode[i] in ('qp', 'shifted'):
+            if self._plan_driven(i):
                 self.held[i] = fresh[i].u[0]
                 self.log.predictions.append((snap.time+self.cfg.step, i, *fresh[i].z[1, :2]))
         self.plans = [fresh[i] for i in range(TEAM)]

@@ -44,7 +44,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M2, part 3 | CG reference, dynamic bicycle simulator and a nonlinear MPC (acados). |
 | No Hesi M3 | PPO policy (MaskablePPO), score v4 with drafting, and stronger safety fallbacks. |
 | No Hesi M3, part 2 | Trained PPO models, drafting-focused fine-tuning (scores v5–v6), faster simulator. |
-| **No Hesi M4** | Safety layer m3.7, team-play scores v7–v8, the v8 world (BMW M3s, faster traffic without walls), and a new 10M-decision model trained on all of it. |
+| No Hesi M4 | Safety layer m3.7, team-play scores v7–v8, the v8 world (BMW M3s, faster traffic without walls), and a new 10M-decision model trained on all of it. |
+| **No Hesi M4, part 2** | The stack on the dynamic car: realistic M3 braking physics, a grip budget, an MPC with grip hard and contact soft, a 100 Hz stability layer, an MPC emergency mode and plan verification (planner m4.2). |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -155,7 +156,71 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Best against final:** the 9.5M checkpoint was selected on 10 seeds (99.5k there), but on 70 seeds it scores 4.9k below the final model and crashes more. `run_sim.py` therefore uses the final model.
 - **Open issues:** about 1 episode in 6 still ends in a crash, the same rate as the v7 model. Mean speed stays near 28 m/s, with no time above 120 mph: in this traffic the team rarely reaches the 80 mph needed for train points.
 
-**Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only.
+**Milestone 4, part 2** makes the stack work on the dynamic car, the step before CARLA, whose physics are dynamic too. Each change came from replaying crashes and asking why they happened; in the order they were made:
+
+1. **Transfer test.** The v8 model on the dynamic M3 with the nonlinear MPC crashed in 25 of 30 episodes (the overtaker in 7), against 5 on the kinematic car. A trace of the last 5 s of all 32 crashes found the cause: 27 had braking of 10 m/s² or more within a second before the car began to slide. Every layer could command 11 m/s², more than the tyres' μg = 10.3 m/s², and with the brakes split 50/50 the rear tyres were asked for 112 % of their grip. That leaves no cornering force, so the car could not steer, and slid or spun.
+2. **Realistic M3 braking, in the plant and in the nonlinear MPC's model.**
+   - Longitudinal load transfer (CG height 0.5 m, assumed).
+   - Brakes split 72/28 front/rear, so the front reaches its limit first. With load transfer, a 65/35 split still locks the rear first, at about 9.2 m/s².
+   - Rear-biased all-wheel drive at 30/70, like the M3's xDrive.
+   - Each axle's force capped at what friction allows, so μg = 10.3 m/s² is now the M3's real braking limit.
+
+   On its own this did not help (24 of 30): the planner still braked to the tyre limit.
+3. **Grip budget.**
+   - Braking is capped at 0.8 μg (8.2 m/s²) in both MPCs, the lane-keep fallback and the emergency escape. That leaves about 60 % of the grip for steering.
+   - The nonlinear MPC got a friction-circle limit at 90 % of each axle's grip.
+   - It also starts from the acceleration the car was last given, since a fallback may have braked after its last plan.
+
+   Result: 16 of 30. A jerk limit and a stronger penalty on changes of acceleration were also tried. Neither helped (the stiffer penalty made braking late), so both were dropped.
+4. **Grip hard, contact soft.** A probe of what the MPC planned showed it planning the slides itself. Obstacle avoidance was a hard constraint and grip only a penalty, so in a tight spot the solver paid the grip penalty to swerve. A plan beyond grip can't be executed anyway, so the priorities were swapped:
+   - the friction-circle limit is now hard;
+   - obstacles and road edges are soft, with a very large penalty. This is an exact penalty: whenever a plan exists that avoids everything within grip, that plan is the one returned.
+
+   Result: 11 of 30, and the overtaker 1 of 30. MPC solve failures fell from 1.6 % to 0.01 %, and open-loop replays of the previous plan fell from 23 per episode to none.
+5. **Stability layer** (`stability.py`). An inner loop at 100 Hz (every plant substep) between every command source and the car. It makes minor corrections only, using steering, throttle and overall braking; no per-wheel braking.
+   - It tracks the MPC's planned yaw rate and sideslip; for fallbacks, the car's steady-state response to their steering.
+   - It corrects over-rotation and excess sideslip, by at most 0.1 rad of steering.
+   - It keeps the front tyre within its saturation slip.
+   - Braking and throttle get only the grip the axle has left after cornering, like ABS and traction control.
+   - It posts the car's state to a buffer that the MPC replans from.
+
+   A steady-state steering cap first applied to every command blocked the MPC's own transient steering and caused edge crashes. It now applies to fallback commands only. Result: 9 of 30, score 48.2k.
+6. **MPC emergency mode.** The emergency escape, the lane-keep law with kinematic rollouts, had become the weakest part. It is now an MPC plan:
+   - A few candidate manoeuvres: brake, hold or gain speed, in the car's lane or one lane to either side.
+   - Each candidate is the reference of an emergency solve, which keeps only the contact rows, runs more solver iterations and uses lighter smoothing weights. Contact has one large, flat penalty.
+   - The first clear plan (else the one with the least contact) is driven like any plan.
+   - The escaping car plans first in the next cycle.
+
+   The lane-keep law is now only the last resort. Result: 4 of 30, score 56.9k.
+7. **Plan verification.** Plotting one MPC step against the stability layer's 100 Hz substeps (`results/run_034_mpc_step_stability_layer_seed1010_car0_t84.6/`) showed why the MPC still planned slides with grip hard:
+   - each replan runs one solver iteration, which enforces nonlinear constraints only to first order (here, a plan at 99 % grip from a car at 62 %);
+   - and the plans asked for about 1.4× the yaw rate that grip can hold.
+
+   Every solved plan's true grip use is now checked. While it breaks the limit, up to 4 more iterations run: a deterministic cap, plus an optional wall-clock budget for real-time runs that is off in simulation. A plan that still fails, or whose extra iterations fail, goes to the emergency mode. A car that starts a replan past the limit gets 0.3 s to come back, as long as it doesn't get worse. Result: 2 of 30, overtaker 0 of 30, and the time spent sliding fell from 0.47 to 0.07 s per episode.
+
+**Results (milestone 4, part 2):** dynamic M3 with the nonlinear MPC, seeds 1010–1019 and 1100–1119, scored on v8, v8 model (final):
+
+| Step | v8 model: crashes | Team score | Time sliding (>3°) per episode | Overtaker: crashes |
+|---|---|---|---|---|
+| Start (planner m3.7) | 25 of 30 | 20,197 | – | 7 of 30 |
+| + realistic braking, grip budget | 16 of 30 | 32,400 | 0.80 s | 6 of 30 |
+| + grip hard, contact soft | 11 of 30 | 41,700 | 0.55 s | 1 of 30 |
+| + stability layer | 9 of 30 | 48,200 | 0.76 s | 4 of 30 |
+| + MPC emergency mode | 4 of 30 | 56,900 | 0.47 s | 2 of 30 |
+| **+ plan verification (planner m4.2)** | **2 of 30** | **56,000** | **0.07 s** | **0 of 30** |
+| *Kinematic car, same seeds* | *5 of 30* | *89,800* | – | *1 of 30* |
+
+- **On these seeds, the dynamic car now crashes less often than the kinematic car** (2 against 5 of 30), but it scores lower (56k against 90k). The v8 model was trained on the kinematic car and plans moves the real car can't make as tightly, so fine-tuning it on the dynamic car is next.
+- **A few crashes in 30 is within run-to-run noise**, because tiny numerical differences change how an episode unfolds. The trend from 25 to 2 is not.
+- **The kinematic, linear-MPC path is unchanged** (bit-identical results), so the v8 model's training environment is too.
+- **Compute:** per 120 s episode, the v8 model's cars need about 230 extra solver iterations and 16 emergency plans, about half a second of solver time.
+- **Proposed next:**
+  - a yaw-rate and sideslip envelope in the MPC (no turn faster than grip can hold);
+  - relaxing the first step's grip limit when the car starts past it;
+  - clipping the stability layer's reference to the same envelope;
+  - then fine-tuning the policy on the dynamic car.
+
+**Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only. A curved, Town04-like road was started and is paused until the dynamic stack is settled.
 
 ## Training (milestone 3)
 
@@ -173,9 +238,10 @@ Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE 
 
 ```
 traffic + team state ──► policy (every 0.5 s) ──► intention layer ──► MPC per car (every 0.1 s) ──► vehicles (every 0.05 s)
-                         chooses an action        locks a gap          plans 3 s of steering            kinematic bicycle
-                                                  or rejects           and throttle                     model
-                                                                                   │
+                         chooses an action        locks a gap          plans 3 s of steering            kinematic or dynamic
+                                                  or rejects           and throttle                     bicycle model
+                                                                                   │      ▲ dynamic car: stability layer
+                                                                                   │      │ (100 Hz) under every command
                                      scoring ◄── only what actually happened ◄─────┘
 ```
 
@@ -187,6 +253,7 @@ Key ideas, in the order things happen:
    The team predicts traffic (`prediction.py`) at constant speed, and a car that is moving over is predicted to keep moving to its target lane.
 4. **MPC** (`planning/single.py`): model predictive control. Every 0.1 s it solves a small optimisation: "which steering and throttle over the next 3 s best reach the target lane and speed, without breaking the vehicle's limits or getting within 0.25 m of anyone?" Only the first command is applied, and then it re-plans. The three cars plan one after another, each avoiding the plans already made.
 5. **Safety net** (`planning/fallback.py`, `coordination/centralized.py`): if a solve fails, the car follows its previous plan for up to 0.5 s, and otherwise returns to its original lane and follows the car ahead. After each planning cycle, every plan is checked against traffic and teammates. If two plans conflict, the lower-priority car aborts its lane change or brakes. These checks use *predicted* traffic, so they reduce risk but are not a guarantee.
+   With the dynamic car and the nonlinear MPC (milestone 4, part 2), braking stays within a grip budget, every plan's grip use is verified, an emergency is planned by the MPC itself, and the stability layer (`stability.py`) carries out every command at 100 Hz within grip.
 6. **Scoring** (`scoring/`): measured only from the motion that actually happened, kept separate from the planner so the rules can change freely.
 
 ### Nonlinear MPC (optional, `Planner(mpc='nonlinear')`)
@@ -194,6 +261,12 @@ Key ideas, in the order things happen:
 `planning/nonlinear.py` plans with the same dynamic bicycle as the `dynamic` plant (Fiala tyres, friction ellipse), solved by acados (SQP-RTI, HPIPM) in about 3–6 ms. It uses the same targets, costs and collision constraints as the linear MPC, so everything around it is unchanged. Set `MPC = 'nonlinear'` with `PLANT = 'dynamic'` in `run_sim.py`.
 - **Setup (Windows):** acados built in `C:/acados`, `pip install -e C:/acados/interfaces/acados_template`, MSYS2 UCRT64 gcc in `C:/msys64/ucrt64/bin` (see the `nmpc` extra in `pyproject.toml`). Generated C code goes to `C:/dev/acados_build/<config hash>` (it must be a path without spaces; override with `NOHESI_ACADOS_BUILD`). It compiles once (about 10–30 s), then every process just loads it. Parallel sweeps are safe because a file lock lets only one process compile.
 - **Differences from the linear MPC:** steering and throttle are states and their rates are the inputs. The speed cost is on progress along the road. Small costs on sideslip and yaw rate are needed for the solver to converge. A soft slip-angle limit keeps plans off the tyres' grip limit. There is no grip-proxy steering cap (`nmpc_steer_cap` turns it back on).
+- **Since milestone 4, part 2 (planner m4.2):**
+  - the model has load transfer and the M3's brake and drive split;
+  - braking is capped at `grip_brake` μg;
+  - the friction-circle limit (`nmpc_grip_limit`) is hard, while obstacles and road edges are soft (`nmpc_w_obstacle`);
+  - every plan's true grip use is verified, with up to `nmpc_verify_iter` extra iterations;
+  - emergencies are solved as candidate manoeuvres (`nmpc_emergency`).
 - **Results** (seeds 0–4, overtaker, score v3, dynamic plant): 0 collisions on v1 and v4, where the linear MPC on the same dynamic plant crashes in all 10 episodes (9 off the road edge, 1 into traffic). Mean scores are 13,500 (v1) and 13,000 (v4), against 16,600 and 16,900 for the linear MPC on the kinematic plant. The next-step plan error is under 0.03 m.
 
 ## Scoring
@@ -236,7 +309,8 @@ Each run folder contains:
 | `controllers.py`, `prediction.py` | Pure pursuit and gap control for lane keeping; traffic prediction |
 | `intentions.py` | Action space, gap rule, lane-change phases |
 | `planning/single.py`, `planning/constraints.py` | Per-car linear MPC; the collision constraints both MPCs share |
-| `planning/nonlinear.py` | Optional per-car nonlinear MPC (acados, dynamic bicycle) |
+| `planning/nonlinear.py` | Optional per-car nonlinear MPC (acados, dynamic bicycle): grip hard, contact soft, plan verification, emergency solves |
+| `stability.py` | Stability layer: 100 Hz inner loop under every command on the dynamic car (grip governor, yaw/sideslip corrections, state buffer) |
 | `planning/fallback.py` | Fallback plans and plan conflict checks |
 | `coordination/centralized.py` | Runs the policy, intentions and the three MPCs together |
 | `rl/scripted.py` | Lane-keeping and overtaker policies |
@@ -245,13 +319,17 @@ Each run folder contains:
 
 **Vehicle models:** all positions (`s`, `d`) are centre-of-gravity (CG) positions. The CG is 60/40 front-biased by default (`Vehicle.cg_to_rear_axle = 1.62 m`). There are two models:
 - **Kinematic bicycle:** slip angle β = atan((l_r/L)·tan δ). The default for the simulator, and the linear MPC's model.
-- **Dynamic bicycle:** Fiala tyres with a friction ellipse. Used by `PLANT = 'dynamic'` and by the nonlinear MPC.
+- **Dynamic bicycle:** Fiala tyres with a friction ellipse, longitudinal load transfer (`Vehicle.cg_height`), brake and drive split (`brake_bias_front`, `drive_bias_front`) and axle forces capped at μFz. Used by `PLANT = 'dynamic'` and by the nonlinear MPC.
 
 **Limitations:**
 - The road is straight.
-- The dynamic model has no load transfer: axle loads are static, and the bicycle model has no left/right tyres.
+- The dynamic model has longitudinal load transfer only (quasi-static), no left/right tyres and no wheel-speed (ABS) dynamics; the stability layer's grip governor stands in for ABS and traction control.
 - The nonlinear MPC needs a local acados build.
 - Traffic changes lanes only in v3/v4.
 - Safety checks are sampled every 0.05 s rather than continuous.
 
-**Planned next steps:** an RL policy, curved roads, and CARLA/Assetto Corsa evaluation.
+**Planned next steps:**
+- fine-tuning the policy on the dynamic car;
+- a yaw-rate and sideslip envelope in the MPC;
+- curved roads (a Town04-like road is drafted);
+- CARLA/Assetto Corsa evaluation.

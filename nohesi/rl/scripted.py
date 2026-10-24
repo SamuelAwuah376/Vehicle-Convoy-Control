@@ -5,8 +5,9 @@ from ..intentions import encode
 from ..world import TEAM, vehicle_ahead, vehicle_behind
 
 
-def lane_keep_law(state, s, route, params, target_speed, lead=None, max_accel=np.inf):
+def lane_keep_law(state, s, route, params, target_speed, lead=None, max_accel=np.inf, brake=np.inf):
     """Pure pursuit on a lane centre with gap control; state and s at the CG, lead is (CG gap, speed) or None.
+    The acceleration is capped at max_accel and braking at `brake` (m/s^2, positive).
 
     pursuit is rear-axle pure pursuit, so it gets the rear-axle pose and progress derived from the CG."""
     a = 1.2*(target_speed-state[3])
@@ -15,14 +16,15 @@ def lane_keep_law(state, s, route, params, target_speed, lead=None, max_accel=np
         a = min(a, follower_acceleration(state, [0, 0, 0, speed], gap-params.length, params))
     l_r = getattr(params, 'cg_to_rear_axle', params.wheelbase/2)
     rear = np.array([state[0]-l_r*np.cos(state[2]), state[1]-l_r*np.sin(state[2]), state[2], state[3]])
-    return np.array([min(a, max_accel), pursuit(rear, s-l_r, route, params)])
+    return np.array([max(min(a, max_accel), -brake), pursuit(rear, s-l_r, route, params)])
 
 
-def lane_keep_control(snap, road, params, i, lane, target_speed, max_accel=np.inf):
+def lane_keep_control(snap, road, params, i, lane, target_speed, max_accel=np.inf, brake=np.inf):
     """Lane keeping for teammate i; the lead includes traffic merging into `lane`."""
     from ..prediction import vehicle_ahead_incl_merging
     lead = vehicle_ahead_incl_merging(snap, road, snap.team_s[i], lane, skip=i)
-    return lane_keep_law(snap.team[i], snap.team_s[i], road.lane_route(lane), params, target_speed, lead, max_accel)
+    return lane_keep_law(snap.team[i], snap.team_s[i], road.lane_route(lane), params, target_speed, lead, max_accel,
+                         brake)
 
 
 class LaneKeeping:

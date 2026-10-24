@@ -82,6 +82,7 @@ class World:
                                      np.full(TEAM, scenario.team_speed)))
         self.steer = np.zeros(TEAM)
         self.team_lat = np.zeros((TEAM, 2))   # body [vy, r]; DynamicPlant state, kinematic relations otherwise
+        self.stability = None   # stability.StabilityLayer, installed by the planner (dynamic plant): inner loop
         self.traffic = Traffic(scenario.traffic, self.road, np.random.default_rng(seed), s, scenario.team_lane)
         self.steps = 0
         self.time = 0.0
@@ -97,9 +98,12 @@ class World:
         applied = np.empty((TEAM, 2))
         for i in range(TEAM):
             if isinstance(self.plant, DynamicPlant):
+                inner = None if self.stability is None else self.stability.inner(i, self.time)
                 out, a, self.steer[i] = self.plant.step(np.r_[self.team[i], self.team_lat[i]], controls[i][0],
-                                                        controls[i][1], self.steer[i])
+                                                        controls[i][1], self.steer[i], inner)
                 self.team[i], self.team_lat[i] = out[:4], out[4:]
+                if self.stability is not None:
+                    self.stability.buffer.post(i, self.time+dt, out, self.steer[i], a)
             else:
                 self.team[i], a, self.steer[i] = self.plant.step(self.team[i], controls[i][0], controls[i][1],
                                                                  self.steer[i])

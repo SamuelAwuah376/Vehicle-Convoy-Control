@@ -3,7 +3,8 @@
 Same solve() interface and Plan output as LaneChangeMPC (single.py), so the coordinator, fallbacks and viz are
 unchanged. States x = [s, d, psi, vx, vy, r, steer, a] (s relative to s0), inputs u = [steer rate, accel rate].
 Straight road: s' = vx cos psi - vy sin psi, d' = vx sin psi + vy cos psi, psi' = r; vx', vy', r' are
-DynamicPlant.derivatives (Fiala brush tyres, friction ellipse with Fx = m a split 50/50 over static axle loads).
+DynamicPlant.derivatives (Fiala brush tyres, friction ellipse; axle loads with longitudinal load transfer, Fx = m a
+split by the brake or drive bias and capped at mu Fz per axle, as DynamicPlant.axle_forces).
 Deviations from the plant: slip angles use max(vx, 1) (plant 0.5; team speeds are >= 18 m/s), the axle peak floors
 the ellipse at 5 % of mu Fz (never reached: |Fx| <= 4.5 kN vs mu Fz ~ 5.9 kN), no low-speed kinematic blend and no
 vx >= 0 clamp, and the plant holds the commanded steer (rate limited) over each 0.1 s while the model ramps it.
@@ -17,14 +18,33 @@ the speed term is on the progress rate s' (as its s' = v), since one on body vx 
 gain vx while a "behind" row holds s; and small weights on vy and r (Planner.nmpc_w_vy/_yaw_rate): Gauss-Newton
 ignores the bilinear r*vy coupling, and without them the full-step SQP diverges (plans drift sideways to "gain"
 speed through the linearisation). A soft bound |tan slip| <= nmpc_slip_limit*tan(saturation slip) per axle (stages
-1..N) keeps plans off the Fiala plateau, where the force has no gradient.
-Box bounds: road edges on d and vx >= 0 (constraints.state_bounds), |steer| <= steer_max (optional grip cap:
-Planner.nmpc_steer_cap), -brake_max <= a <= accel_limit(reference speed), |steer rate| <= steer_rate. Obstacle rows
+1..N) keeps plans off the Fiala plateau, where the force has no gradient, and a HARD friction-circle bound
+sqrt(Fx^2 + Fy^2) <= nmpc_grip_limit mu Fz per axle (stages 1..N) keeps every plan within what the tyres can do, with
+grip in reserve when braking (or accelerating) and turning.
+Physics is hard, avoidance soft: obstacle rows and the road edges are soft with weight nmpc_w_obstacle (linear and
+quadratic slack cost, large enough to act as an exact penalty: a plan that avoids everything within grip is returned
+as with hard constraints; only when none exists is the least violation taken), so a solve fails only when the grip
+bound can't be met (e.g. the car is already sliding past it). `stats['violations']` counts solved plans that use an
+obstacle or edge slack (> 1 cm).
+Box bounds: road edges on d (soft, as above) and vx >= 0 (constraints.state_bounds), |steer| <= steer_max (optional grip cap:
+Planner.nmpc_steer_cap), -brake_limit <= a <= accel_limit(reference speed) (dynamics.brake_limit: grip_brake mu g on
+the dynamic plant), |steer rate| <= steer_rate. Obstacle rows
 (constraints.obstacle_constraints from the reference, v -> vx) fill fixed slots of general linear constraints at
-stages 1..N (C at 1..N-1, C_e at N; none at stage 0): hard slots then soft slots (idxsg, Z = 2w, z = w; the other
-side of a one-sided soft row is masked by its infinite bound); unused slots have zero rows and +-ACADOS_INFTY
-bounds. Excess rows keep the nearest obstacles per stage and are counted in `overflow`.
+stages 1..N (C at 1..N-1, C_e at N; none at stage 0): the hard rows' slots (weight nmpc_w_obstacle) then the soft
+rows' (headway, yield: their own weights), all soft (idxsg, Z = 2w, z = w; the other side of a one-sided row is
+masked by its infinite bound); unused slots have zero rows and +-ACADOS_INFTY bounds. Excess rows keep the nearest
+obstacles per stage and are counted in `overflow`. Slack order per stage 1..N: road edge, obstacle slots, slip.
 
+Emergency solves (solve(..., emergency=True), CentralizedTeam._emergency): only the contact rows (soft headway and
+yield rows dropped), nmpc_emergency_sqp_iter iterations, and the smoothness weights (steer, accel, their rates) scaled
+by nmpc_emergency_comfort; `last_slack` is the largest obstacle/edge slack of the last solved plan (m).
+Plan verification (Planner.nmpc_verify): one SQP-RTI iteration satisfies the grip limit only to first order, so a
+solved plan's true grip use (the model's nonlinear value at its states, stages 1..N) is checked; while it breaks
+nmpc_grip_limit + nmpc_grip_tol, up to nmpc_verify_iter more iterations run (and, when nmpc_verify_budget > 0, only
+within that much wall-clock time). If the car starts past the limit, the first nmpc_recover_steps stages need only
+not exceed its starting use. A plan that still breaks it, or whose extra iterations fail, has status 'grip' (not verified): the next guess is tried, and
+the coordinator hands a car with no plan to the emergency mode. `stats['verify_iter']` counts the extra iterations,
+`stats['grip_rejected']` the guesses rejected.
 Planner.nmpc_sqp_iter SQP-RTI iterations per call, linearised at the previous solution shifted by the steps between
 its time and the reference's (matched on the reference trajectory, so one instance serves all three vehicles). If
 there is none or the QP fails, retried from a model rollout of the reference commands, then from the kinematic
@@ -56,9 +76,9 @@ from acados_template import (ACADOS_INFTY, AcadosModel, AcadosOcp, AcadosOcpSolv
 from .base import Plan   # noqa: E402
 from .constraints import obstacle_constraints, state_bounds   # noqa: E402
 from .single import LaneChangeMPC   # noqa: E402
-from ..dynamics import kinematic_body   # noqa: E402
+from ..dynamics import brake_limit, kinematic_body   # noqa: E402
 
-CODE_VERSION = 'nmpc-4'   # bump when the generated OCP structure changes
+CODE_VERSION = 'nmpc-7'   # bump when the generated OCP structure changes
 NX, NU, G = 8, 2, 9.81
 S, D, PSI, VX, VY, R, STEER, ACCEL = range(NX)
 NE = 7                          # terminal cost outputs [d, psi, s', steer, a, vy, r]
@@ -81,30 +101,41 @@ def fiala(alpha, stiffness, peak):
 
 
 def model_dynamics(p):
-    """(x, u, xdot, slip) CasADi symbols/expressions of the road-frame dynamic bicycle for vehicle params p;
-    slip = tan(slip angle)/tan(saturation slip angle) per axle (front, rear): |slip| >= 1 is the Fiala plateau."""
+    """(x, u, xdot, slip, grip) CasADi symbols/expressions of the road-frame dynamic bicycle for vehicle params p;
+    slip = tan(slip angle)/tan(saturation slip angle) per axle (front, rear): |slip| >= 1 is the Fiala plateau;
+    grip = sqrt(Fx^2 + Fy^2)/(mu Fz) per axle (friction-circle use)."""
     x, u = ca.SX.sym('x', NX), ca.SX.sym('u', NU)
     psi, vx, vy, r, delta, a = x[PSI], x[VX], x[VY], x[R], x[STEER], x[ACCEL]
     l_r = p.cg_to_rear_axle
     l_f = p.wheelbase-l_r
     loads = (p.mass*G*l_r/p.wheelbase, p.mass*G*l_f/p.wheelbase)
-    fx = 0.5*p.mass*a
-    peak_f, peak_r = (ca.sqrt(ca.fmax((p.friction*fz)**2-fx**2, (0.05*p.friction*fz)**2)) for fz in loads)
+    # As DynamicPlant.axle_forces: load transfer, brake/drive split, Fx capped at mu Fz per axle.
+    mu_g = p.friction*G
+    shift = p.mass*ca.fmin(ca.fmax(a, -mu_g), mu_g)*p.cg_height/p.wheelbase
+    fz_f, fz_r = loads[0]-shift, loads[1]+shift
+    share = ca.if_else(a < 0, p.brake_bias_front, p.drive_bias_front)
+    raw_f, raw_r = share*p.mass*a, (1-share)*p.mass*a
+    fx_f = ca.fmin(ca.fmax(raw_f, -p.friction*fz_f), p.friction*fz_f)
+    fx_r = ca.fmin(ca.fmax(raw_r, -p.friction*fz_r), p.friction*fz_r)
+    ax = a-(raw_f-fx_f+raw_r-fx_r)/p.mass
+    peak_f, peak_r = (ca.sqrt(ca.fmax((p.friction*fz)**2-fx**2, (0.05*p.friction*fz)**2))
+                      for fz, fx in ((fz_f, fx_f), (fz_r, fx_r)))
     vxs = ca.fmax(vx, 1.0)
     alpha_f, alpha_r = delta-ca.atan((vy+l_f*r)/vxs), -ca.atan((vy-l_r*r)/vxs)
     fyf = fiala(alpha_f, p.cornering_stiffness_front, peak_f)
     fyr = fiala(alpha_r, p.cornering_stiffness_rear, peak_r)
     slip = ca.vertcat(ca.tan(alpha_f)*p.cornering_stiffness_front/(3*peak_f),
                       ca.tan(alpha_r)*p.cornering_stiffness_rear/(3*peak_r))
+    grip = ca.vertcat(ca.sqrt(fx_f**2+fyf**2+1e-6)/(p.friction*fz_f), ca.sqrt(fx_r**2+fyr**2+1e-6)/(p.friction*fz_r))
     xdot = ca.vertcat(vx*ca.cos(psi)-vy*ca.sin(psi), vx*ca.sin(psi)+vy*ca.cos(psi), r,
-                      a+r*vy-fyf*ca.sin(delta)/p.mass, (fyf*ca.cos(delta)+fyr)/p.mass-r*vx,
+                      ax+r*vy-fyf*ca.sin(delta)/p.mass, (fyf*ca.cos(delta)+fyr)/p.mass-r*vx,
                       (l_f*fyf*ca.cos(delta)-l_r*fyr)/p.yaw_inertia, u[0], u[1])
-    return x, u, xdot, slip
+    return x, u, xdot, slip, grip
 
 
 def rk4(p, step, substeps):
     """CasADi Function (x, u) -> x after `step` s: the same RK4 the ERK integrator uses."""
-    x, u, xdot, _ = model_dynamics(p)
+    x, u, xdot, _, _ = model_dynamics(p)
     f = ca.Function('f', [x, u], [xdot])
     h, xk = step/substeps, x
     for _ in range(substeps):
@@ -139,10 +170,10 @@ def _file_lock(path):
 def config_hash(cfg, p):
     key = {'code': CODE_VERSION, 'cond_n': COND_N,
            'planner': [cfg.horizon, cfg.step, cfg.nmpc_hard_slots, cfg.nmpc_soft_slots, cfg.nmpc_integrator_steps,
-                       cfg.nmpc_slip_limit],
+                       cfg.nmpc_slip_limit, cfg.nmpc_grip_limit],
            'vehicle': [float(getattr(p, k)) for k in ('wheelbase', 'cg_to_rear_axle', 'mass', 'yaw_inertia',
                                                       'cornering_stiffness_front', 'cornering_stiffness_rear',
-                                                      'friction')]}
+                                                      'friction', 'cg_height', 'brake_bias_front', 'drive_bias_front')]}
     return hashlib.sha1(json.dumps(key, sort_keys=True).encode()).hexdigest()[:12]
 
 
@@ -161,9 +192,13 @@ class NonlinearMPC:
         self.dir = build_root()/self.hash
         self.overflow = {'hard': 0, 'soft': 0}   # obstacle rows dropped for lack of slots
         self.cache = []                          # recent solutions for warm starts: (time, z, X_abs, U)
-        self.stats = dict.fromkeys(('warm', 'rollout', 'linear', 'retry', 'retry_solved'), 0)   # guesses tried
+        self.stats = dict.fromkeys(('warm', 'rollout', 'linear', 'retry', 'retry_solved', 'violations', 'verify_iter',
+                                    'grip_rejected'), 0)
+        self.last_slack = np.inf                 # largest obstacle/edge slack of the last solve (inf: not solved)
+        self.weights = None                      # 'normal' or 'emergency': the cost weights now set
         self.linear = None                       # LaneChangeMPC for the last-resort initial guess
         self.compiled = False                    # True when this construction generated and compiled the code
+        self.brake = brake_limit(plant, cfg.grip_brake)
         ocp = self._ocp()
         builder = ocp_get_default_cmake_builder()
         builder.generator = 'MinGW Makefiles'
@@ -185,19 +220,31 @@ class NonlinearMPC:
         self.solver = AcadosOcpSolver(ocp, generate=False, build=False, check_reuse_possible=False, verbose=False)
         # Values fixed per configuration but not compiled in (the shared library may come from other weights).
         c = cfg
-        W = 2*np.diag([c.w_lateral, c.w_heading, c.w_speed, c.w_steer, c.w_accel, c.nmpc_w_vy, c.nmpc_w_yaw_rate,
-                       c.w_steer_rate*h*h, c.w_accel_rate*h*h])
         for k in range(N):
-            self.solver.cost_set(k, 'W', W)
             self.solver.constraints_set(k, 'lbu', np.array([-p.steer_rate]))
             self.solver.constraints_set(k, 'ubu', np.array([p.steer_rate]))
-        self.solver.cost_set(N, 'W', W[:NE, :NE])
+        self._set_weights('normal')
         self.solver.options_set('levenberg_marquardt', float(c.nmpc_levenberg_marquardt))
         self.rk4 = rk4(p, h, cfg.nmpc_integrator_steps)
+        x, u, _, _, grip = model_dynamics(p)
+        self.grip = ca.Function('grip', [x, u], [grip]).map(N+1)   # (NX, N+1), (NU, N+1) -> (2, N+1)
+
+    def _set_weights(self, kind):
+        """Cost weights for normal or emergency solves (smoothness terms scaled by nmpc_emergency_comfort)."""
+        if self.weights == kind:
+            return
+        c, N, h = self.cfg, self.cfg.horizon, self.cfg.step
+        f = c.nmpc_emergency_comfort if kind == 'emergency' else 1.0
+        W = 2*np.diag([c.w_lateral, c.w_heading, c.w_speed, f*c.w_steer, f*c.w_accel, c.nmpc_w_vy, c.nmpc_w_yaw_rate,
+                       f*c.w_steer_rate*h*h, f*c.w_accel_rate*h*h])
+        for k in range(N):
+            self.solver.cost_set(k, 'W', W)
+        self.solver.cost_set(N, 'W', W[:NE, :NE])
+        self.weights = kind
 
     def _ocp(self):
         c, p, N = self.cfg, self.plant.params, self.cfg.horizon
-        x, u, xdot, slip = model_dynamics(p)
+        x, u, xdot, slip, grip = model_dynamics(p)
         model = AcadosModel()
         model.name = f'nohesi_nmpc_{self.hash}'
         model.x, model.u, model.f_expl_expr = x, u, xdot
@@ -224,29 +271,35 @@ class NonlinearMPC:
         con.x0 = np.zeros(NX)
         con.idxbu, con.lbu, con.ubu = np.array([0]), np.array([-p.steer_rate]), np.array([p.steer_rate])
         con.idxbx = con.idxbx_e = np.array(BOXES)
-        con.lbx = con.lbx_e = np.array([-INF, 0.0, -p.steer_max, -p.brake_max])
+        con.lbx = con.lbx_e = np.array([-INF, 0.0, -p.steer_max, -self.brake])
         con.ubx = con.ubx_e = np.array([INF, INF, p.steer_max, p.accel_max])
-        ng, soft = self.ng, np.arange(self.H, self.ng)
+        ng = self.ng
+        soft = np.arange(ng)   # every obstacle slot is soft (the hard rows' slots weighted nmpc_w_obstacle)
+        con.idxsbx = con.idxsbx_e = np.array([0])   # BOXES[0] = d: road edges soft too
+        con.lsbx = con.usbx = con.lsbx_e = con.usbx_e = np.zeros(1)
         con.C, con.D, con.lg, con.ug = np.zeros((ng, NX)), np.zeros((ng, NU)), -INF*np.ones(ng), INF*np.ones(ng)
         con.C_e, con.lg_e, con.ug_e = np.zeros((ng, NX)), -INF*np.ones(ng), INF*np.ones(ng)
         con.idxsg, con.lsg, con.usg = soft, np.zeros(len(soft)), np.zeros(len(soft))
         con.idxsg_e, con.lsg_e, con.usg_e = soft, np.zeros(len(soft)), np.zeros(len(soft))
         # Soft slip limit |slip| <= nmpc_slip_limit at stages 1..N (none at stage 0): keeps plans off the tyre
-        # plateau, where the force has no gradient and RTI loses steering authority.
-        model.con_h_expr, model.con_h_expr_e = slip, slip
-        lim = c.nmpc_slip_limit*np.ones(2)
-        con.lh, con.uh, con.lh_e, con.uh_e = -lim, lim, -lim, lim
-        con.idxsh = con.idxsh_e = np.arange(2)
+        # plateau, where the force has no gradient and RTI loses steering authority. Hard friction-circle limit
+        # grip <= nmpc_grip_limit per axle: braking or accelerating hard leaves less grip for turning.
+        hx = ca.vertcat(slip, grip)
+        model.con_h_expr, model.con_h_expr_e = hx, hx
+        lo = np.r_[-c.nmpc_slip_limit*np.ones(2), np.zeros(2)]
+        hi = np.r_[c.nmpc_slip_limit*np.ones(2), np.full(2, c.nmpc_grip_limit)]
+        con.lh, con.uh, con.lh_e, con.uh_e = lo, hi, lo, hi
+        con.idxsh = con.idxsh_e = np.arange(2)   # slip soft; grip (rows 2, 3) hard
         con.lsh = con.ush = con.lsh_e = con.ush_e = np.zeros(2)
-        ones, ones_h = np.ones(len(soft)), np.r_[np.ones(len(soft)), np.full(2, c.nmpc_w_slip)]
+        ones, ones_h = np.ones(ng), self._slack_weights(np.ones(self.Ssoft))   # stage 0: obstacle slots only
         cost.zl_0 = cost.zu_0 = ones
         cost.Zl_0 = cost.Zu_0 = 2*ones
         cost.zl = cost.zu = cost.zl_e = cost.zu_e = ones_h
         cost.Zl = cost.Zu = cost.Zl_e = cost.Zu_e = 2*ones_h
         return ocp
 
-    def solve(self, time, z0, steer_prev, accel_prev, target, obstacles, reference, lateral=None):
-        """lateral: (vy, r) of the plant (zeros if None)."""
+    def solve(self, time, z0, steer_prev, accel_prev, target, obstacles, reference, lateral=None, emergency=False):
+        """lateral: (vy, r) of the plant (zeros if None); emergency: an emergency solve (module docstring)."""
         start = perf_counter()
         c, p, N, h, sv = self.cfg, self.plant.params, self.cfg.horizon, self.cfg.step, self.solver
         s0 = float(z0[0])
@@ -263,13 +316,15 @@ class NonlinearMPC:
         bounds = state_bounds(c, p, self.road)
         edge = bounds.hi[bounds.kind == 'edge']
         for k in range(1, N+1):
-            sv.constraints_set(k, 'lbx', np.array([-edge[k-1], 0.0, -cap[k-1], -p.brake_max]))
+            sv.constraints_set(k, 'lbx', np.array([-edge[k-1], 0.0, -cap[k-1], -self.brake]))
             sv.constraints_set(k, 'ubx', np.array([edge[k-1], INF, cap[k-1], a_hi[k-1]]))
         yref = np.r_[target.d, 0.0, target.speed, np.zeros(NE-1)]
         for k in range(N):
             sv.cost_set(k, 'yref', yref)
         sv.cost_set(N, 'yref', yref[:NE])
-        self._obstacle_slots(zr, obstacles, target, s0)
+        self._obstacle_slots(zr, obstacles, target, s0, contact_only=emergency)
+        self._set_weights('emergency' if emergency else 'normal')
+        self.last_slack = np.inf
 
         # Linearisation points tried in turn (RTI: the QP is only as good as its linearisation): the previous
         # solution shifted if the reference is that plan, a model rollout of the reference commands, then the
@@ -284,7 +339,7 @@ class NonlinearMPC:
             sv.set_flat('x', X.ravel())
             sv.set_flat('u', U.ravel())
             status = 'solved'
-            for _ in range(c.nmpc_sqp_iter):
+            for _ in range(c.nmpc_emergency_sqp_iter if emergency else c.nmpc_sqp_iter):
                 code = sv.solve()
                 iters += int(np.sum(sv.get_stats('qp_iter')))
                 if code != 0:
@@ -295,8 +350,13 @@ class NonlinearMPC:
             U = sv.get_flat('u').reshape(N, NU)
             if status == 'solved' and not (np.all(np.isfinite(X)) and np.all(np.isfinite(U))):
                 status = 'failed'
+            if status == 'solved' and c.nmpc_verify:
+                status, X, U, extra = self._verify(X, U)
+                iters += extra
             if status == 'solved':
                 self.stats['retry_solved'] += n > 0
+                self.last_slack = self._max_slack()
+                self.stats['violations'] += self.last_slack > 0.01
                 break
             sv.reset()
         elapsed = perf_counter()-start
@@ -305,9 +365,46 @@ class NonlinearMPC:
         z = np.column_stack((X[:, S]+s0, X[:, D], X[:, PSI], np.hypot(X[:, VX], X[:, VY])))
         z[0] = [s0, z0[1], z0[2], z0[3]]
         u = X[1:, [ACCEL, STEER]].copy()
+        lat = X[:, [VY, R]].copy()
+        lat[0] = vy0, r0
         Xa = X.copy(); Xa[:, S] += s0
         self.cache = [(time, z, Xa, U)]+self.cache[:7]
-        return Plan(time, h, z, u, 'qp', status, iters, elapsed)
+        return Plan(time, h, z, u, 'qp', status, iters, elapsed, lateral=lat)
+
+    def _grip_ok(self, X, U):
+        """The plan's true grip use is within the limit at stages 1..N (if the car starts past it, the first
+        nmpc_recover_steps stages need only not exceed its starting use)."""
+        c = self.cfg
+        use = np.asarray(self.grip(X.T, np.vstack((U, U[-1:])).T)).max(axis=0)
+        limit = np.full(len(use), c.nmpc_grip_limit+c.nmpc_grip_tol)
+        if use[0] > limit[0]:
+            limit[1:c.nmpc_recover_steps+1] = max(use[0], limit[0])
+        return bool(np.all(use[1:] <= limit[1:]))
+
+    def _verify(self, X, U):
+        """More SQP iterations while the plan breaks the grip limit, within nmpc_verify_iter (and the wall-clock
+        budget when set): (status, X, U, QP iterations)."""
+        c, sv, N = self.cfg, self.solver, self.cfg.horizon
+        start, n, iters = perf_counter(), 0, 0
+        while not self._grip_ok(X, U):
+            if n >= c.nmpc_verify_iter or (c.nmpc_verify_budget > 0 and perf_counter()-start > c.nmpc_verify_budget):
+                self.stats['grip_rejected'] += 1
+                return 'grip', X, U, iters
+            code = sv.solve()
+            n += 1
+            self.stats['verify_iter'] += 1
+            iters += int(np.sum(sv.get_stats('qp_iter')))
+            X, U = sv.get_flat('x').reshape(N+1, NX), sv.get_flat('u').reshape(N, NU)
+            if code != 0 or not (np.all(np.isfinite(X)) and np.all(np.isfinite(U))):   # couldn't be verified
+                self.stats['grip_rejected'] += 1
+                return 'grip', X, U, iters
+        return 'solved', X, U, iters
+
+    def _max_slack(self):
+        """Largest obstacle or road-edge slack (m) of the current solution over stages 1..N."""
+        sv, n = self.solver, 1+self.H
+        return float(max(max(np.max(sv.get(k, 'sl')[:n]), np.max(sv.get(k, 'su')[:n]))
+                         for k in range(1, self.cfg.horizon+1)))
 
     def _warm_guess(self, x0, s0, reference):
         """Previous solution shifted to the reference's time when the reference is that plan shifted, else None."""
@@ -350,15 +447,24 @@ class NonlinearMPC:
             X[k+1] = np.asarray(self.rk4(X[k], U[k])).ravel()
         return X, U
 
-    def _obstacle_slots(self, zr, obstacles, target, s0):
-        """Map obstacle_constraints rows onto the fixed hard/soft slots of stages 1..N."""
+    def _slack_weights(self, soft):
+        """Linear slack weights of one stage 1..N: road edge, the hard rows' obstacle slots, the soft rows' slots
+        (`soft`), then the slip rows."""
+        c = self.cfg
+        return np.r_[c.nmpc_w_obstacle, np.full(self.H, c.nmpc_w_obstacle), soft, np.full(2, c.nmpc_w_slip)]
+
+    def _obstacle_slots(self, zr, obstacles, target, s0, contact_only=False):
+        """Map obstacle_constraints rows onto the fixed hard/soft slots of stages 1..N; contact_only drops the soft
+        (headway, yield) rows."""
         N, H, ns, sv = self.cfg.horizon, self.H, self.Ssoft, self.solver
         C = np.zeros((N+1, self.ng, NX))
         lg, ug = np.full((N+1, self.ng), -INF), np.full((N+1, self.ng), INF)
-        zl = np.tile(np.r_[np.ones(ns), np.full(2, self.cfg.nmpc_w_slip)], (N+1, 1))   # soft slots, then slip
+        zl = np.tile(self._slack_weights(np.ones(ns)), (N+1, 1))   # edge, obstacle slots, slip
         Zl = 2*zl
         if obstacles.keys:
             spec = obstacle_constraints(self.cfg, self.plant.params, self.road, zr, obstacles, target, s0)
+            if contact_only:
+                spec = spec.select(~spec.soft)
             # Relevance for overflow: distance along the road (plus lateral) from the reference to obstacle j.
             jj = np.maximum(spec.j, 0)
             dist = np.abs(zr[spec.k, 0]-obstacles.s[spec.k, jj])+np.abs(zr[spec.k, 1]-obstacles.d[spec.k, jj])
@@ -375,7 +481,7 @@ class NonlinearMPC:
                 lg[k, slot] = np.maximum(spec.lo[idx], -INF)
                 ug[k, slot] = np.minimum(spec.hi[idx], INF)
                 if soft:
-                    zl[k, slot-H], Zl[k, slot-H] = spec.slack_weight[idx], 2*spec.slack_weight[idx]
+                    zl[k, 1+slot], Zl[k, 1+slot] = spec.slack_weight[idx], 2*spec.slack_weight[idx]
         for k in range(1, N+1):
             sv.constraints_set(k, 'C', C[k], api='new')
             sv.constraints_set(k, 'lg', lg[k])
