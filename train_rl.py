@@ -9,13 +9,15 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v8_e4_dyn_20m_001'       # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v8_e4_dyn_b1_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+# Dynamic-car training in four 5M batches (the user's plan): batch 1 from scratch; batches 2-4 each set INIT_FROM to
+# the previous batch's final model, with a fresh LR cycle.
 SCENARIO = 'v5'              # SCENARIOS key (v5: BMW M3s, 45-60 mph traffic, no traffic walls, team starts at 70 mph)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
 PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
 MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)
 N_ENVS = 16                  # parallel SubprocVecEnv workers (one CPU thread each)
-TOTAL_TIMESTEPS = 20_000_000  # policy decisions summed over envs (240 per 120 s episode); dynamic: ~27/s, ~8.4 days
+TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic: ~27/s, ~2.1 days
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 250_000    # frequent: train_rl_supervised.py resumes from the latest one after a failure
 SEED = 0
