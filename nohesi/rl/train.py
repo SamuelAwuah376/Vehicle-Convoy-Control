@@ -356,7 +356,7 @@ def train(cfg):
 
     base_seed = 2000+1000*cfg.seed   # env RNG seed = base_seed + rank; episode seeds are drawn >= 2000
     venv = make_vec_env(cfg.env, cfg.n_envs, base_seed, cfg.subproc)
-    eval_env = None
+    eval_env, failed = None, True
     try:
         if cfg.resume and cfg.init_from:
             raise ValueError('use either resume or init_from')
@@ -420,11 +420,28 @@ def train(cfg):
         callback.save(run_dir, 'final_model', 'final_vecnormalize')
         if not (run_dir/'best_model.zip').exists():   # e.g. no evaluation ran
             callback.save(run_dir, 'best_model', 'best_vecnormalize')
+        failed = False
     finally:
-        venv.close()
-        if eval_env is not None:
-            eval_env.close()
+        close_vec_env(venv, failed)
+        close_vec_env(eval_env, failed)
     return model
+
+
+def close_vec_env(vec_env, failed=False):
+    """Close a (wrapped) vec env. After a failure, e.g. a worker that died mid-step (the step watchdog ending a hung
+    solver), SubprocVecEnv.close() waits forever for replies the other workers already sent: terminate the workers
+    instead, so the trainer exits and its supervisor can resume."""
+    if vec_env is None:
+        return
+    inner = vec_env
+    while not hasattr(inner, 'processes') and hasattr(inner, 'venv'):
+        inner = inner.venv
+    if failed and hasattr(inner, 'processes'):
+        for process in inner.processes:
+            process.terminate()
+        inner.closed = True
+        return
+    vec_env.close()
 
 
 def main(argv=None):

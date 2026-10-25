@@ -57,3 +57,18 @@ def test_plan_verification_rule():
     assert mpc._grip_ok(X, U)
     use[:] = [0.98]+[0.99]+[0.85]*(N-1)   # sliding start, getting worse
     assert not mpc._grip_ok(X, U)
+
+
+def test_diverged_iterates_are_never_linearised():
+    """An iterate past physical bounds (the cause of the HPIPM hangs: a QP with Jacobian entries up to 1e43) fails
+    that guess instead of being solved on."""
+    import numpy as np
+    mpc = dynamic_run(steps=1).policy.mpc
+    N = mpc.cfg.horizon
+    X, U = np.zeros((N+1, 8)), np.zeros((N, 2))
+    X[:, 3] = 30.0
+    assert mpc._sane(X, U)
+    for j, value in ((3, 1e6), (5, 50.0), (6, 2.0), (4, np.nan)):
+        bad = X.copy()
+        bad[7, j] = value
+        assert not mpc._sane(bad, U), j

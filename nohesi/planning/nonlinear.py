@@ -45,6 +45,10 @@ within that much wall-clock time). If the car starts past the limit, the first n
 not exceed its starting use. A plan that still breaks it, or whose extra iterations fail, has status 'grip' (not verified): the next guess is tried, and
 the coordinator hands a car with no plan to the emergency mode. `stats['verify_iter']` counts the extra iterations,
 `stats['grip_rejected']` the guesses rejected.
+Iterates are checked before every solver call (_sane: finite, and speed, lateral speed, yaw rate, heading, position,
+steer and acceleration within physical bounds, SANE). An iterate past them (a bad guess's first step can jump to an
+absurd trajectory) would be linearised into a QP with Jacobian entries up to 1e43, on which HPIPM never returns (seen
+twice in training): that guess fails instead (status 'failed', `stats['insane']`) and the next one is tried.
 Planner.nmpc_sqp_iter SQP-RTI iterations per call, linearised at the previous solution shifted by the steps between
 its time and the reference's (matched on the reference trajectory, so one instance serves all three vehicles). If
 there is none or the QP fails, retried from a model rollout of the reference commands, then from the kinematic
@@ -87,6 +91,9 @@ COND_N = 5                      # HPIPM partial condensing horizon
 BUILDS = 0                      # code generations + compilations in this process
 INF = ACADOS_INFTY
 QP_STATUS = {1: 'failed', 2: 'timeout', 3: 'infeasible', 4: 'infeasible'}   # acados status codes
+# Physical bounds of a plan iterate (relative s, d, heading error, vx, vy, yaw rate; steer and accel are checked against
+# the vehicle): anything past them is a diverged iterate, never linearised (see the module docstring).
+SANE = {S: (-100.0, 600.0), D: (-30.0, 30.0), PSI: (-np.pi, np.pi), VX: (-5.0, 100.0), VY: (-40.0, 40.0), R: (-4.0, 4.0)}
 
 
 def build_root():
@@ -193,7 +200,7 @@ class NonlinearMPC:
         self.overflow = {'hard': 0, 'soft': 0}   # obstacle rows dropped for lack of slots
         self.cache = []                          # recent solutions for warm starts: (time, z, X_abs, U)
         self.stats = dict.fromkeys(('warm', 'rollout', 'linear', 'retry', 'retry_solved', 'violations', 'verify_iter',
-                                    'grip_rejected'), 0)
+                                    'grip_rejected', 'insane'), 0)
         self.last_slack = np.inf                 # largest obstacle/edge slack of the last solve (inf: not solved)
         self.weights = None                      # 'normal' or 'emergency': the cost weights now set
         self.linear = None                       # LaneChangeMPC for the last-resort initial guess
@@ -340,16 +347,22 @@ class NonlinearMPC:
             sv.set_flat('u', U.ravel())
             status = 'solved'
             for _ in range(c.nmpc_emergency_sqp_iter if emergency else c.nmpc_sqp_iter):
+                if not self._sane(X, U):   # never linearise a diverged iterate
+                    status = 'failed'
+                    self.stats['insane'] += 1
+                    break
                 code = sv.solve()
                 iters += int(np.sum(sv.get_stats('qp_iter')))
                 if code != 0:
                     qp = np.atleast_1d(sv.get_stats('qp_stat'))
                     status = QP_STATUS.get(int(qp[-1]) if qp.size else code, 'failed')
                     break
+                X, U = sv.get_flat('x').reshape(N+1, NX), sv.get_flat('u').reshape(N, NU)
             X = sv.get_flat('x').reshape(N+1, NX)
             U = sv.get_flat('u').reshape(N, NU)
-            if status == 'solved' and not (np.all(np.isfinite(X)) and np.all(np.isfinite(U))):
+            if status == 'solved' and not self._sane(X, U):
                 status = 'failed'
+                self.stats['insane'] += 1
             if status == 'solved' and c.nmpc_verify:
                 status, X, U, extra = self._verify(X, U)
                 iters += extra
@@ -371,6 +384,16 @@ class NonlinearMPC:
         self.cache = [(time, z, Xa, U)]+self.cache[:7]
         return Plan(time, h, z, u, 'qp', status, iters, elapsed, lateral=lat)
 
+    def _sane(self, X, U):
+        """The iterate is finite and within physical bounds (SANE; steer within 1.5 steer_max, accel within 3x the
+        braking and drive limits): safe to linearise."""
+        if not (np.all(np.isfinite(X)) and np.all(np.isfinite(U))):
+            return False
+        p = self.plant.params
+        if np.abs(X[:, STEER]).max() > 1.5*p.steer_max or np.abs(X[:, ACCEL]).max() > 3*max(p.brake_max, p.accel_max):
+            return False
+        return all(lo <= X[:, j].min() and X[:, j].max() <= hi for j, (lo, hi) in SANE.items())
+
     def _grip_ok(self, X, U):
         """The plan's true grip use is within the limit at stages 1..N (if the car starts past it, the first
         nmpc_recover_steps stages need only not exceed its starting use)."""
@@ -390,12 +413,12 @@ class NonlinearMPC:
             if n >= c.nmpc_verify_iter or (c.nmpc_verify_budget > 0 and perf_counter()-start > c.nmpc_verify_budget):
                 self.stats['grip_rejected'] += 1
                 return 'grip', X, U, iters
-            code = sv.solve()
+            code = sv.solve()   # X was checked sane by the caller or by the previous pass
             n += 1
             self.stats['verify_iter'] += 1
             iters += int(np.sum(sv.get_stats('qp_iter')))
             X, U = sv.get_flat('x').reshape(N+1, NX), sv.get_flat('u').reshape(N, NU)
-            if code != 0 or not (np.all(np.isfinite(X)) and np.all(np.isfinite(U))):   # couldn't be verified
+            if code != 0 or not self._sane(X, U):   # couldn't be verified (and a diverged iterate isn't iterated on)
                 self.stats['grip_rejected'] += 1
                 return 'grip', X, U, iters
         return 'solved', X, U, iters

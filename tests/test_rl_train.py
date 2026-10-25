@@ -152,3 +152,16 @@ def test_cli_resume_of_fine_tune_drops_init_from(monkeypatch, tmp_path):
                        '--resume', str(run/'checkpoints'/'model_3000000.zip')])
     cfg = seen['cfg']
     assert cfg.init_from is None and cfg.resume.endswith('model_3000000.zip') and cfg.total_timesteps == 6_000_000
+
+
+def test_close_after_a_failure_terminates_workers():
+    """A worker dead mid-step: the failure path terminates the workers instead of SubprocVecEnv.close(), which would
+    wait forever for replies."""
+    from types import SimpleNamespace
+    from nohesi.rl.train import close_vec_env
+    terminated = []
+    procs = [SimpleNamespace(terminate=lambda k=k: terminated.append(k)) for k in range(3)]
+    inner = SimpleNamespace(processes=procs, closed=False, close=lambda: terminated.append('close'))
+    close_vec_env(SimpleNamespace(venv=inner), failed=True)
+    assert terminated == [0, 1, 2] and inner.closed
+    close_vec_env(None, failed=True)   # no eval env yet

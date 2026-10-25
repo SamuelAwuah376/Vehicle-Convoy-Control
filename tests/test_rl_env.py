@@ -210,3 +210,18 @@ def test_env_step_marks_its_start():
     assert env.step_started is None
     env.step(env.action_space.sample())
     assert env.step_started is None
+
+
+def test_step_watchdog_ignores_frozen_time(tmp_path, monkeypatch):
+    """A run paused (process suspended) for 1000 s mid-step: the watchdog's own poll comes back 1000 s late, and that
+    time doesn't count as step time, so it doesn't fire."""
+    import time
+    from types import SimpleNamespace
+    from nohesi.rl import watchdog
+    clock = iter([0.0, 1000.0])
+    monkeypatch.setattr(watchdog.time, 'monotonic', lambda: next(clock))
+    monkeypatch.setattr(watchdog.time, 'sleep', lambda s: None)
+    env = SimpleNamespace(step_started=-5.0, episode_seed=1, run=None, team=None)
+    exits = []
+    assert watchdog.run(env, tmp_path, timeout=300, poll=5, exit=exits.append, once=True) is None
+    assert exits == [] and not list(tmp_path.iterdir())
