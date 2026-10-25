@@ -124,12 +124,19 @@ class Traffic:
         window = window or self.cfg.wall_window
         if len(self.s) < self.road.cfg.lanes:
             return []
-        sets, out, used = self._lane_sets(), [], set()
+        n_lanes, out, used = self.road.cfg.lanes, [], set()
         order = np.argsort(self.s)
+        s_sorted = self.s[order]
+        sets = None
         for a in order:
             if a in used:
                 continue
-            near = [k for k in order if k not in used and 0 <= self.s[k]-self.s[a] < window]
+            # Cars at 0 <= s - s_a < window, in sorted order (the same list a scan of `order` gives).
+            lo, hi = np.searchsorted(s_sorted, self.s[a]), np.searchsorted(s_sorted, self.s[a]+window)
+            near = [k for k in order[lo:hi] if k not in used]
+            if len(near) < n_lanes:   # a wall needs a distinct car per lane
+                continue
+            sets = sets if sets is not None else self._lane_sets()
             found = self._wall_in(near, lambda k: sets[k], window)
             if found:
                 out.append(found); used.update(found)

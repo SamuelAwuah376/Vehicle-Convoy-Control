@@ -1,7 +1,7 @@
 """Measurements and events taken from executed snapshots only. No scoring formula lives here."""
 from dataclasses import dataclass
 import numpy as np
-from ..geometry import body_centre, footprint, clearance
+from ..geometry import body_centre, clearances, footprints
 from ..world import TEAM, traffic_states
 
 PAIRS = ((0, 1), (0, 2), (1, 2))
@@ -120,20 +120,25 @@ class EventDetector:
 
     def update(self, snap, dt):
         v = self.vehicle
-        team_polys = [footprint(st, v) for st in snap.team]
+        team_polys = footprints(snap.team, v)
         centres = body_centre(snap.team, v)
         pair_distance = np.array([np.linalg.norm(centres[i]-centres[j]) for i, j in PAIRS])
-        pair_clearance = np.array([clearance(team_polys[i], team_polys[j]) for i, j in PAIRS])
+        pi, pj = np.array(PAIRS).T
+        pair_clearance = clearances(team_polys[pi], team_polys[pj])
         states = traffic_states(snap, self.road)
         ids = set(int(k) for k in snap.traffic_id)
         traffic_clearance = np.full(TEAM, np.inf)
         overtakes = []
+        ds_all = snap.team_s[:, None]-snap.traffic_s[None, :]
+        inside_all = (np.abs(ds_all) < self.window) & (np.abs(snap.team_d[:, None]-snap.traffic_d[None, :]) < self.lateral_window)
+        ii, jj = np.nonzero(inside_all)
+        near_c = clearances(team_polys[ii], footprints(states[jj], v)) if ii.size else np.zeros(0)
+        near_c = {(int(a), int(b)): float(c) for a, b, c in zip(ii, jj, near_c)}
         for i in range(TEAM):
-            ds = snap.team_s[i]-snap.traffic_s
-            inside = (np.abs(ds) < self.window) & (np.abs(snap.team_d[i]-snap.traffic_d) < self.lateral_window)
+            ds, inside = ds_all[i], inside_all[i]
             for j in np.flatnonzero(inside):
                 key = (i, int(snap.traffic_id[j]))
-                c = clearance(team_polys[i], footprint(states[j], v))
+                c = near_c[(i, int(j))]
                 traffic_clearance[i] = min(traffic_clearance[i], c)
                 entry = self.active.setdefault(key, [ds[j] < 0, c])
                 entry[1] = min(entry[1], c)

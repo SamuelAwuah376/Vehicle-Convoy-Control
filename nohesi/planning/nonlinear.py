@@ -50,6 +50,9 @@ Iterates are checked before every solver call (_sane: finite, and speed, lateral
 steer and acceleration within physical bounds, SANE). An iterate past them (a bad guess's first step can jump to an
 absurd trajectory) would be linearised into a QP with Jacobian entries up to 1e43, on which HPIPM never returns (seen
 twice in training): that guess fails instead (status 'failed', `stats['insane']`) and the next one is tried.
+Per-solve data goes in through _Setter: the same acados C setters AcadosOcpSolver.constraints_set/cost_set call, without
+their per-call Python checks (type and shape checks, a dims query, three casts), and skipping values a stage already
+holds. About 360 such sets per solve cost as much as the solve itself (profiled); the values passed are identical.
 Planner.nmpc_sqp_iter SQP-RTI iterations per call, linearised at the previous solution shifted by the steps between
 its time and the reference's (matched on the reference trajectory, so one instance serves all three vehicles). If
 there is none or the QP fails, retried from a model rollout of the reference commands, then from the kinematic
@@ -60,6 +63,7 @@ Code is generated once per configuration hash under NOHESI_ACADOS_BUILD (default
 behind a file lock, then loaded with generate=False, build=False (safe across ProcessPoolExecutor workers).
 """
 from contextlib import contextmanager
+from ctypes import c_int, c_void_p
 import hashlib
 import json
 import os
@@ -95,6 +99,43 @@ QP_STATUS = {1: 'failed', 2: 'timeout', 3: 'infeasible', 4: 'infeasible'}   # ac
 # Physical bounds of a plan iterate (relative s, d, heading error, vx, vy, yaw rate; steer and accel are checked against
 # the vehicle): anything past them is a diverged iterate, never linearised (see the module docstring).
 SANE = {S: (-100.0, 600.0), D: (-30.0, 30.0), PSI: (-np.pi, np.pi), VX: (-5.0, 100.0), VY: (-40.0, 40.0), R: (-4.0, 4.0)}
+
+
+class _Setter:
+    """Direct acados setters for one solver: constraints and cost fields of one stage, as constraints_set/cost_set
+    (column-major matrices), skipping the Python wrapper's checks; `cached` fields skip a value equal to the last one
+    set at that stage. Callers pass arrays of the right size."""
+    def __init__(self, solver, cached=('lbx', 'ubx', 'zl', 'zu', 'Zl', 'Zu')):
+        self.lib, self.cached, self.last = solver.acados_lib, frozenset(cached), {}
+        self.c_args = (solver.nlp_config, solver.nlp_dims, solver.nlp_in, solver.nlp_out)
+        self.k_args = (solver.nlp_config, solver.nlp_dims, solver.nlp_in)
+        self.names = {}
+
+    def _skip(self, stage, field, value):
+        if field not in self.cached:
+            return False
+        key = (stage, field)
+        old = self.last.get(key)
+        if old is not None and np.array_equal(old, value):
+            return True
+        self.last[key] = value.copy()
+        return False
+
+    def constraints(self, stage, field, value):
+        value = np.ascontiguousarray(value, dtype=float)
+        if not self._skip(stage, field, value):
+            self.lib.ocp_nlp_constraints_model_set(*self.c_args, c_int(stage), self._name(field), c_void_p(value.ctypes.data))
+
+    def cost(self, stage, field, value):
+        value = np.ascontiguousarray(value, dtype=float)
+        if not self._skip(stage, field, value):
+            self.lib.ocp_nlp_cost_model_set(*self.k_args, c_int(stage), self._name(field), c_void_p(value.ctypes.data))
+
+    def _name(self, field):
+        name = self.names.get(field)
+        if name is None:
+            name = self.names[field] = field.encode('utf-8')
+        return name
 
 
 def build_root():
@@ -226,6 +267,7 @@ class NonlinearMPC:
                     BUILDS += 1
                     self.compiled = True
         self.solver = AcadosOcpSolver(ocp, generate=False, build=False, check_reuse_possible=False, verbose=False)
+        self.set = _Setter(self.solver)
         # Values fixed per configuration but not compiled in (the shared library may come from other weights).
         c = cfg
         for k in range(N):
@@ -313,8 +355,9 @@ class NonlinearMPC:
         s0 = float(z0[0])
         vy0, r0 = (0.0, 0.0) if lateral is None else (float(lateral[0]), float(lateral[1]))
         x0 = np.array([0.0, z0[1], z0[2], np.sqrt(max(z0[3]**2-vy0**2, 0.0)), vy0, r0, steer_prev, accel_prev], float)
-        sv.constraints_set(0, 'lbx', x0)
-        sv.constraints_set(0, 'ubx', x0)
+        st = self.set
+        st.constraints(0, 'lbx', x0)
+        st.constraints(0, 'ubx', x0)
 
         # Per-stage bounds and references.
         zr = reference.z
@@ -324,12 +367,12 @@ class NonlinearMPC:
         bounds = state_bounds(c, p, self.road)
         edge = bounds.hi[bounds.kind == 'edge']
         for k in range(1, N+1):
-            sv.constraints_set(k, 'lbx', np.array([-edge[k-1], 0.0, -cap[k-1], -self.brake]))
-            sv.constraints_set(k, 'ubx', np.array([edge[k-1], INF, cap[k-1], a_hi[k-1]]))
+            st.constraints(k, 'lbx', np.array([-edge[k-1], 0.0, -cap[k-1], -self.brake]))
+            st.constraints(k, 'ubx', np.array([edge[k-1], INF, cap[k-1], a_hi[k-1]]))
         yref = np.r_[target.d, 0.0, target.speed, np.zeros(NE-1)]
         for k in range(N):
-            sv.cost_set(k, 'yref', yref)
-        sv.cost_set(N, 'yref', yref[:NE])
+            st.cost(k, 'yref', yref)
+        st.cost(N, 'yref', yref[:NE])
         self._obstacle_slots(zr, obstacles, target, s0, contact_only=emergency)
         self._set_weights('emergency' if emergency else 'normal')
         self.last_slack = np.inf
@@ -425,10 +468,12 @@ class NonlinearMPC:
         return 'solved', X, U, iters
 
     def _max_slack(self):
-        """Largest obstacle or road-edge slack (m) of the current solution over stages 1..N."""
-        sv, n = self.solver, 1+self.H
-        return float(max(max(np.max(sv.get(k, 'sl')[:n]), np.max(sv.get(k, 'su')[:n]))
-                         for k in range(1, self.cfg.horizon+1)))
+        """Largest obstacle or road-edge slack (m) of the current solution over stages 1..N (one flat get each for the
+        lower and upper slacks; stage 0 holds ng slacks, stages 1..N each 1 + ng + 2, the edge and obstacle slots first)."""
+        sv, N = self.solver, self.cfg.horizon
+        per = 1+self.ng+2
+        idx = self.ng+np.arange(N)[:, None]*per+np.arange(1+self.H)[None, :]
+        return float(max(sv.get_flat('sl')[idx].max(), sv.get_flat('su')[idx].max()))
 
     def _warm_guess(self, x0, s0, reference):
         """Previous solution shifted to the reference's time when the reference is that plan shifted, else None."""
@@ -491,7 +536,7 @@ class NonlinearMPC:
     def _obstacle_slots(self, zr, obstacles, target, s0, contact_only=False):
         """Map obstacle_constraints rows onto the fixed hard/soft slots of stages 1..N; contact_only drops the soft
         (headway, yield) rows."""
-        N, H, ns, sv = self.cfg.horizon, self.H, self.Ssoft, self.solver
+        N, H, ns, st = self.cfg.horizon, self.H, self.Ssoft, self.set
         C = np.zeros((N+1, self.ng, NX))
         lg, ug = np.full((N+1, self.ng), -INF), np.full((N+1, self.ng), INF)
         zl = np.tile(self._slack_weights(np.ones(ns)), (N+1, 1))   # edge, obstacle slots, slip
@@ -518,9 +563,9 @@ class NonlinearMPC:
                 if soft:
                     zl[k, 1+slot], Zl[k, 1+slot] = spec.slack_weight[idx], 2*spec.slack_weight[idx]
         for k in range(1, N+1):
-            sv.constraints_set(k, 'C', C[k], api='new')
-            sv.constraints_set(k, 'lg', lg[k])
-            sv.constraints_set(k, 'ug', ug[k])
+            st.constraints(k, 'C', np.ravel(C[k], order='F'))   # column-major, as constraints_set(..., api='new')
+            st.constraints(k, 'lg', lg[k])
+            st.constraints(k, 'ug', ug[k])
             # One finite bound per soft row; the other side is masked (infinite), so both slacks share the weight.
             for name, val in (('zl', zl[k]), ('zu', zl[k]), ('Zl', Zl[k]), ('Zu', Zl[k])):
-                sv.cost_set(k, name, val)
+                st.cost(k, name, val)

@@ -1,11 +1,12 @@
 from dataclasses import dataclass, replace
 import numpy as np
 from .dynamics import DynamicPlant, kinematic_body, make_plant
-from .geometry import footprint, overlap
+from .geometry import footprints, overlaps
 from .road import Road
 from .traffic import Traffic
 
 TEAM = 3
+TEAM_PAIRS = np.array([(i, j) for i in range(TEAM) for j in range(i+1, TEAM)]).T   # (2, 3): rows i, j with i < j
 
 
 @dataclass(frozen=True)
@@ -130,20 +131,19 @@ class World:
     def collisions(self, snap):
         cfg = self.plant.params
         reach = cfg.length+cfg.width
-        team_polys = [footprint(st, cfg) for st in snap.team]
+        team_polys = footprints(snap.team, cfg)
         states = traffic_states(snap, self.road)
+        near = (np.abs(snap.traffic_s[None, :]-snap.team_s[:, None]) < reach) & \
+            (np.abs(snap.traffic_d[None, :]-snap.team_d[:, None]) < reach)
+        ii, jj = np.nonzero(near)
+        hits = overlaps(team_polys[ii], footprints(states[jj], cfg)) if ii.size else np.zeros(0, bool)
         found = []
         for i, poly in enumerate(team_polys):
             _, corner_d = self.road.to_frenet(poly)
             if np.max(np.abs(corner_d)) >= self.road.width/2:
                 found.append(Collision(i, 'edge', -1))
-            near = np.flatnonzero((np.abs(snap.traffic_s-snap.team_s[i]) < reach) &
-                                  (np.abs(snap.traffic_d-snap.team_d[i]) < reach))
-            for j in near:
-                if overlap(poly, footprint(states[j], cfg)):
-                    found.append(Collision(i, 'traffic', int(snap.traffic_id[j])))
-        for i in range(TEAM):
-            for j in range(i+1, TEAM):
-                if overlap(team_polys[i], team_polys[j]):
-                    found.append(Collision(i, 'team', j))
+            found += [Collision(i, 'traffic', int(snap.traffic_id[j])) for j in jj[(ii == i) & hits]]
+        pi, pj = TEAM_PAIRS
+        hit = overlaps(team_polys[pi], team_polys[pj])
+        found += [Collision(int(i), 'team', int(j)) for i, j in zip(pi[hit], pj[hit])]
         return tuple(found)

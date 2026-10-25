@@ -2,7 +2,7 @@
 from dataclasses import replace
 import numpy as np
 from ..dynamics import brake_limit
-from ..geometry import clearance, footprint, overlap
+from ..geometry import clearances, footprints, overlaps
 from ..rl.scripted import lane_keep_law
 from ..prediction import vehicle_ahead_incl_merging
 from .base import Plan
@@ -25,14 +25,14 @@ def plan_is_clear(plan, obstacles, params, start=1, substeps=1):
     reach = params.length+params.width
     zs, zd, zpsi = (dense(plan.z[:, c], substeps) for c in range(3))
     os_, od = dense(obstacles.s, substeps, axis=0), dense(obstacles.d, substeps, axis=0)
-    for k in range(start*substeps, len(zs)):
-        s, d, psi = zs[k], zd[k], zpsi[k]
-        near = np.flatnonzero((np.abs(os_[k]-s) < reach) & (np.abs(od[k]-d) < reach))
-        if near.size:
-            ego = footprint(np.array([s, d, psi, 0.0]), params)
-            if any(overlap(ego, footprint(np.array([os_[k, j], od[k, j], 0.0, 0.0]), params)) for j in near):
-                return False
-    return True
+    zs, zd, zpsi, os_, od = zs[start*substeps:], zd[start*substeps:], zpsi[start*substeps:], \
+        os_[start*substeps:], od[start*substeps:]
+    kk, jj = np.nonzero((np.abs(os_-zs[:, None]) < reach) & (np.abs(od-zd[:, None]) < reach))
+    if not kk.size:
+        return True
+    zero = np.zeros(len(kk))
+    ego = footprints(np.column_stack((zs[kk], zd[kk], zpsi[kk], zero)), params)
+    return not overlaps(ego, footprints(np.column_stack((os_[kk, jj], od[kk, jj], zero, zero)), params)).any()
 
 
 def shifted_fallback(previous, obstacles, cfg, params):
@@ -90,8 +90,16 @@ def first_conflict(z, others, params, margin, start=1, substeps=1):
     lateral = params.width+margin+params.length*(np.abs(np.sin(PSI))+np.abs(np.sin(z[:, 2])))
     near = (np.abs(S-z[:, 0]) < params.length+params.width+margin) & (np.abs(D-z[:, 1]) < lateral)
     near[:, :start] = False
-    for j, k in sorted(np.argwhere(near), key=lambda jk: (jk[1], jk[0])):
-        ego = footprint(np.array([z[k, 0], z[k, 1], z[k, 2], 0.0]), params)
-        if clearance(ego, footprint(np.array([S[j, k], D[j, k], PSI[j, k], 0.0]), params)) < margin:
-            return others[j][0], int(-(-k//substeps))
-    return None
+    jj, kk = np.nonzero(near)
+    if not jj.size:
+        return None
+    order = np.lexsort((jj, kk))   # by step, then vehicle: the first conflict in time
+    jj, kk = jj[order], kk[order]
+    zero = np.zeros(len(jj))
+    ego = footprints(np.column_stack((z[kk, 0], z[kk, 1], z[kk, 2], zero)), params)
+    hit = np.flatnonzero(clearances(ego, footprints(np.column_stack((S[jj, kk], D[jj, kk], PSI[jj, kk], zero)), params))
+                         < margin)
+    if not hit.size:
+        return None
+    j, k = jj[hit[0]], kk[hit[0]]
+    return others[j][0], int(-(-k//substeps))
