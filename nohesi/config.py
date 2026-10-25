@@ -213,7 +213,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm4.2'
+    version: str = 'm4.3'
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -285,7 +285,12 @@ class Planner:
     nmpc_slip_limit: float = 0.8    # soft bound on |tan slip| as a fraction of the Fiala saturation slip (99 % of peak)
     nmpc_w_slip: float = 1000.0     # its slack weight
     nmpc_grip_limit: float = 0.9    # hard bound on each axle's friction-circle use: sqrt(Fx^2 + Fy^2) <= limit*mu Fz
-    nmpc_w_obstacle: float = 1e5    # NMPC: obstacle rows and road edges are soft with this slack weight (exact penalty)
+    nmpc_w_obstacle: float = 1e5    # NMPC: obstacle rows and road edges are soft with this linear slack weight (exact penalty)
+    nmpc_obstacle_quad: float = 2e5  # their quadratic slack weight Z (exactness comes from the linear weight; Z keeps the
+                                     # slack subproblem strongly convex, which HPIPM needs: 2 doubled its failures)
+    nmpc_vx_floor: float = 5.0      # m/s: the model's tyre slip angles use max(vx, this). Near standstill the tyre dynamics get
+                                    # stiffer than its RK4 can integrate (rollouts and sensitivities blow up); below 3-6 m/s the
+                                    # plant itself turns kinematic
     nmpc_emergency: bool = True     # NMPC: the emergency escape is planned by the MPC (candidate manoeuvres, see
                                     # CentralizedTeam._emergency); off: the lane-keep law escape
     nmpc_emergency_sqp_iter: int = 3      # SQP-RTI iterations of an emergency solve (its guess is far off)

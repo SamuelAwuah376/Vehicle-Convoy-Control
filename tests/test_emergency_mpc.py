@@ -72,3 +72,17 @@ def test_diverged_iterates_are_never_linearised():
         bad = X.copy()
         bad[7, j] = value
         assert not mpc._sane(bad, U), j
+
+
+def test_braking_rollout_guess_stops_at_zero_speed():
+    """The emergency braking candidate's rollout guess from 10 m/s stops instead of braking on into reverse (which
+    started QPs from a guess breaking vx >= 0, in the stiff low-speed tyre region: most diverged iterates)."""
+    import numpy as np
+    from nohesi.planning.base import Plan
+    mpc = dynamic_run(steps=1).policy.mpc
+    N, h = mpc.cfg.horizon, mpc.cfg.step
+    x0 = np.array([0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, -8.0])
+    ref = Plan(0.0, h, np.zeros((N+1, 4)), np.tile([-8.24, 0.0], (N, 1)), 'emergency')
+    X, U = mpc._rollout_guess(x0, 0.0, ref)
+    assert X[:, 3].min() >= 0 and X[-1, 3] < 0.5   # stopped, never reversing
+    assert mpc._sane(X, U)

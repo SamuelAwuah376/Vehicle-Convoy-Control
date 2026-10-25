@@ -5,7 +5,8 @@ unchanged. States x = [s, d, psi, vx, vy, r, steer, a] (s relative to s0), input
 Straight road: s' = vx cos psi - vy sin psi, d' = vx sin psi + vy cos psi, psi' = r; vx', vy', r' are
 DynamicPlant.derivatives (Fiala brush tyres, friction ellipse; axle loads with longitudinal load transfer, Fx = m a
 split by the brake or drive bias and capped at mu Fz per axle, as DynamicPlant.axle_forces).
-Deviations from the plant: slip angles use max(vx, 1) (plant 0.5; team speeds are >= 18 m/s), the axle peak floors
+Deviations from the plant: slip angles use max(vx, nmpc_vx_floor) (plant 0.5, kinematic below 3-6 m/s: near standstill
+the tyre dynamics are stiffer than the RK4 can integrate, which made emergency stops diverge), the axle peak floors
 the ellipse at 5 % of mu Fz (never reached: |Fx| <= 4.5 kN vs mu Fz ~ 5.9 kN), no low-speed kinematic blend and no
 vx >= 0 clamp, and the plant holds the commanded steer (rate limited) over each 0.1 s while the model ramps it.
 The Fiala piecewise is exact (CasADi if_else): it is C1 at the saturation slip, enough for Gauss-Newton.
@@ -82,7 +83,7 @@ from .constraints import obstacle_constraints, state_bounds   # noqa: E402
 from .single import LaneChangeMPC   # noqa: E402
 from ..dynamics import brake_limit, kinematic_body   # noqa: E402
 
-CODE_VERSION = 'nmpc-7'   # bump when the generated OCP structure changes
+CODE_VERSION = 'nmpc-8'   # bump when the generated OCP structure changes
 NX, NU, G = 8, 2, 9.81
 S, D, PSI, VX, VY, R, STEER, ACCEL = range(NX)
 NE = 7                          # terminal cost outputs [d, psi, s', steer, a, vy, r]
@@ -107,7 +108,7 @@ def fiala(alpha, stiffness, peak):
     return ca.if_else(ca.fabs(z) >= 3*peak/stiffness, ca.sign(z)*peak, cubic)
 
 
-def model_dynamics(p):
+def model_dynamics(p, vx_floor=1.0):
     """(x, u, xdot, slip, grip) CasADi symbols/expressions of the road-frame dynamic bicycle for vehicle params p;
     slip = tan(slip angle)/tan(saturation slip angle) per axle (front, rear): |slip| >= 1 is the Fiala plateau;
     grip = sqrt(Fx^2 + Fy^2)/(mu Fz) per axle (friction-circle use)."""
@@ -127,7 +128,7 @@ def model_dynamics(p):
     ax = a-(raw_f-fx_f+raw_r-fx_r)/p.mass
     peak_f, peak_r = (ca.sqrt(ca.fmax((p.friction*fz)**2-fx**2, (0.05*p.friction*fz)**2))
                       for fz, fx in ((fz_f, fx_f), (fz_r, fx_r)))
-    vxs = ca.fmax(vx, 1.0)
+    vxs = ca.fmax(vx, vx_floor)   # slip angles: well conditioned near standstill (Planner.nmpc_vx_floor)
     alpha_f, alpha_r = delta-ca.atan((vy+l_f*r)/vxs), -ca.atan((vy-l_r*r)/vxs)
     fyf = fiala(alpha_f, p.cornering_stiffness_front, peak_f)
     fyr = fiala(alpha_r, p.cornering_stiffness_rear, peak_r)
@@ -140,9 +141,9 @@ def model_dynamics(p):
     return x, u, xdot, slip, grip
 
 
-def rk4(p, step, substeps):
+def rk4(p, step, substeps, vx_floor=1.0):
     """CasADi Function (x, u) -> x after `step` s: the same RK4 the ERK integrator uses."""
-    x, u, xdot, _, _ = model_dynamics(p)
+    x, u, xdot, _, _ = model_dynamics(p, vx_floor)
     f = ca.Function('f', [x, u], [xdot])
     h, xk = step/substeps, x
     for _ in range(substeps):
@@ -177,7 +178,7 @@ def _file_lock(path):
 def config_hash(cfg, p):
     key = {'code': CODE_VERSION, 'cond_n': COND_N,
            'planner': [cfg.horizon, cfg.step, cfg.nmpc_hard_slots, cfg.nmpc_soft_slots, cfg.nmpc_integrator_steps,
-                       cfg.nmpc_slip_limit, cfg.nmpc_grip_limit],
+                       cfg.nmpc_slip_limit, cfg.nmpc_grip_limit, cfg.nmpc_vx_floor],
            'vehicle': [float(getattr(p, k)) for k in ('wheelbase', 'cg_to_rear_axle', 'mass', 'yaw_inertia',
                                                       'cornering_stiffness_front', 'cornering_stiffness_rear',
                                                       'friction', 'cg_height', 'brake_bias_front', 'drive_bias_front')]}
@@ -232,8 +233,8 @@ class NonlinearMPC:
             self.solver.constraints_set(k, 'ubu', np.array([p.steer_rate]))
         self._set_weights('normal')
         self.solver.options_set('levenberg_marquardt', float(c.nmpc_levenberg_marquardt))
-        self.rk4 = rk4(p, h, cfg.nmpc_integrator_steps)
-        x, u, _, _, grip = model_dynamics(p)
+        self.rk4 = rk4(p, h, cfg.nmpc_integrator_steps, cfg.nmpc_vx_floor)
+        x, u, _, _, grip = model_dynamics(p, cfg.nmpc_vx_floor)
         self.grip = ca.Function('grip', [x, u], [grip]).map(N+1)   # (NX, N+1), (NU, N+1) -> (2, N+1)
 
     def _set_weights(self, kind):
@@ -251,7 +252,7 @@ class NonlinearMPC:
 
     def _ocp(self):
         c, p, N = self.cfg, self.plant.params, self.cfg.horizon
-        x, u, xdot, slip, grip = model_dynamics(p)
+        x, u, xdot, slip, grip = model_dynamics(p, c.nmpc_vx_floor)
         model = AcadosModel()
         model.name = f'nohesi_nmpc_{self.hash}'
         model.x, model.u, model.f_expl_expr = x, u, xdot
@@ -302,7 +303,7 @@ class NonlinearMPC:
         cost.zl_0 = cost.zu_0 = ones
         cost.Zl_0 = cost.Zu_0 = 2*ones
         cost.zl = cost.zu = cost.zl_e = cost.zu_e = ones_h
-        cost.Zl = cost.Zu = cost.Zl_e = cost.Zu_e = 2*ones_h
+        cost.Zl = cost.Zu = cost.Zl_e = cost.Zu_e = self._slack_quad(2*np.ones(self.Ssoft))
         return ocp
 
     def solve(self, time, z0, steer_prev, accel_prev, target, obstacles, reference, lateral=None, emergency=False):
@@ -460,15 +461,26 @@ class NonlinearMPC:
         return X, U
 
     def _rollout_guess(self, x0, s0, reference, args=None):
-        """Model rollout from x0 with rates that track the reference commands [a, steer] (rate-limited steer)."""
+        """Model rollout from x0 with rates that track the reference commands [a, steer] (rate-limited steer). The car
+        stops at zero speed (the model alone would brake on into reverse, a guess that breaks vx >= 0)."""
         N, h, rate = self.cfg.horizon, self.cfg.step, self.plant.params.steer_rate
         X, U = np.zeros((N+1, NX)), np.zeros((N, NU))
         X[0] = x0
         for k in range(N):
             a, delta = reference.u[k]
+            if X[k, VX] <= 0.1:   # stopped: no more braking
+                a = max(a, 0.0)
             U[k] = [np.clip((delta-X[k, STEER])/h, -rate, rate), (a-X[k, ACCEL])/h]
             X[k+1] = np.asarray(self.rk4(X[k], U[k])).ravel()
+            if X[k+1, VX] < 0:
+                X[k+1, [VX, VY, R, ACCEL]] = 0.0
         return X, U
+
+    def _slack_quad(self, soft):
+        """Quadratic slack weights (Z) of one stage 1..N, in the order of _slack_weights: nmpc_obstacle_quad for the
+        road edge and the hard rows' obstacle slots, `soft` for the soft rows' slots, 2 nmpc_w_slip for the slip rows."""
+        c = self.cfg
+        return np.r_[c.nmpc_obstacle_quad, np.full(self.H, c.nmpc_obstacle_quad), soft, np.full(2, 2*c.nmpc_w_slip)]
 
     def _slack_weights(self, soft):
         """Linear slack weights of one stage 1..N: road edge, the hard rows' obstacle slots, the soft rows' slots
@@ -483,7 +495,7 @@ class NonlinearMPC:
         C = np.zeros((N+1, self.ng, NX))
         lg, ug = np.full((N+1, self.ng), -INF), np.full((N+1, self.ng), INF)
         zl = np.tile(self._slack_weights(np.ones(ns)), (N+1, 1))   # edge, obstacle slots, slip
-        Zl = 2*zl
+        Zl = np.tile(self._slack_quad(2*np.ones(ns)), (N+1, 1))
         if obstacles.keys:
             spec = obstacle_constraints(self.cfg, self.plant.params, self.road, zr, obstacles, target, s0)
             if contact_only:
