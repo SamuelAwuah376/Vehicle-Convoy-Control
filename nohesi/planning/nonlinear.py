@@ -182,6 +182,21 @@ def model_dynamics(p, vx_floor=1.0):
     return x, u, xdot, slip, grip
 
 
+RK4_STABLE = 2.5   # bound on h |lambda| per RK4 step (its stability limit on the real axis is 2.79)
+
+
+def integrator_steps(cfg, p):
+    """RK4 steps per MPC step: cfg.nmpc_integrator_steps, raised until h |lambda| <= RK4_STABLE for the fastest mode
+    of the linear bicycle at the slip-angle speed floor, where the tyre dynamics are stiffest. A car with little yaw
+    inertia needs more (the CARLA car: 5); with too few the discrete model diverges at low speed and its QPs fail."""
+    u, l_f, l_r = cfg.nmpc_vx_floor, p.wheelbase-p.cg_to_rear_axle, p.cg_to_rear_axle
+    cf, cr, m, iz = p.cornering_stiffness_front, p.cornering_stiffness_rear, p.mass, p.yaw_inertia
+    A = np.array([[-(cf+cr)/(m*u), (cr*l_r-cf*l_f)/(m*u)-u],
+                  [(cr*l_r-cf*l_f)/(iz*u), -(cf*l_f**2+cr*l_r**2)/(iz*u)]])
+    fastest = float(np.max(np.abs(np.linalg.eigvals(A))))
+    return max(cfg.nmpc_integrator_steps, int(np.ceil(cfg.step*fastest/RK4_STABLE)))
+
+
 def rk4(p, step, substeps, vx_floor=1.0):
     """CasADi Function (x, u) -> x after `step` s: the same RK4 the ERK integrator uses."""
     x, u, xdot, _, _ = model_dynamics(p, vx_floor)
@@ -218,7 +233,7 @@ def _file_lock(path):
 
 def config_hash(cfg, p):
     key = {'code': CODE_VERSION, 'cond_n': COND_N,
-           'planner': [cfg.horizon, cfg.step, cfg.nmpc_hard_slots, cfg.nmpc_soft_slots, cfg.nmpc_integrator_steps,
+           'planner': [cfg.horizon, cfg.step, cfg.nmpc_hard_slots, cfg.nmpc_soft_slots, integrator_steps(cfg, p),
                        cfg.nmpc_slip_limit, cfg.nmpc_grip_limit, cfg.nmpc_vx_floor],
            'vehicle': [float(getattr(p, k)) for k in ('wheelbase', 'cg_to_rear_axle', 'mass', 'yaw_inertia',
                                                       'cornering_stiffness_front', 'cornering_stiffness_rear',
@@ -275,7 +290,7 @@ class NonlinearMPC:
             self.solver.constraints_set(k, 'ubu', np.array([p.steer_rate]))
         self._set_weights('normal')
         self.solver.options_set('levenberg_marquardt', float(c.nmpc_levenberg_marquardt))
-        self.rk4 = rk4(p, h, cfg.nmpc_integrator_steps, cfg.nmpc_vx_floor)
+        self.rk4 = rk4(p, h, integrator_steps(cfg, p), cfg.nmpc_vx_floor)
         x, u, _, _, grip = model_dynamics(p, cfg.nmpc_vx_floor)
         self.grip = ca.Function('grip', [x, u], [grip]).map(N+1)   # (NX, N+1), (NU, N+1) -> (2, N+1)
 
@@ -306,7 +321,7 @@ class NonlinearMPC:
         ocp.code_gen_options.json_file = 'nmpc.json'   # acados writes it into code_export_directory
         o = ocp.solver_options
         o.N_horizon, o.tf = N, N*c.step
-        o.integrator_type, o.sim_method_num_stages, o.sim_method_num_steps = 'ERK', 4, c.nmpc_integrator_steps
+        o.integrator_type, o.sim_method_num_stages, o.sim_method_num_steps = 'ERK', 4, integrator_steps(c, p)
         o.nlp_solver_type, o.qp_solver = 'SQP_RTI', 'PARTIAL_CONDENSING_HPIPM'
         o.qp_solver_cond_N, o.qp_solver_iter_max, o.hessian_approx = min(COND_N, N), 200, 'GAUSS_NEWTON'
         o.cost_scaling = np.ones(N+1)
@@ -370,8 +385,15 @@ class NonlinearMPC:
             st.constraints(k, 'lbx', np.array([-edge[k-1], 0.0, -cap[k-1], -self.brake]))
             st.constraints(k, 'ubx', np.array([edge[k-1], INF, cap[k-1], a_hi[k-1]]))
         yref = np.r_[target.d, 0.0, target.speed, np.zeros(NE-1)]
+        staged = getattr(target, 'd_stage', None)
         for k in range(N):
+            if staged is not None:
+                yref = yref.copy()
+                yref[0] = staged[k]
             st.cost(k, 'yref', yref)
+        if staged is not None:
+            yref = yref.copy()
+            yref[0] = staged[N]
         st.cost(N, 'yref', yref[:NE])
         self._obstacle_slots(zr, obstacles, target, s0, contact_only=emergency)
         self._set_weights('emergency' if emergency else 'normal')

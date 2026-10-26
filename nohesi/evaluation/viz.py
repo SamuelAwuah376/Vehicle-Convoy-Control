@@ -48,7 +48,40 @@ def _panel(ax, ep, behind, ahead, label=''):
     plan_list = [[p for p in plans if p[1] == i] for i in range(3)]
     paths = [ax.plot([], [], color=c, lw=1.2, alpha=0.45, zorder=1)[0] for c in COLORS]
     ticks = [ax.plot([], [], 'o', color=c, ms=2, alpha=0.45, zorder=1)[0] for c in COLORS]
+    # Locked gaps (Episode.gaps): a box in the target lane from the rear gap car's front bumper to the front gap car's
+    # rear bumper (open ends run to the view edge), in the car's colour; an overtake's passed car outlined and tagged.
+    gap_boxes = [ax.add_patch(plt.Rectangle((0, 0), 0, 0, facecolor=c, edgecolor=c, alpha=0.2, lw=1.2, ls='--',
+                                            zorder=0, visible=False)) for c in COLORS]
+    passed = [ax.add_patch(plt.Polygon(np.zeros((4, 2)), fill=False, edgecolor=c, lw=2.0, zorder=3, visible=False))
+              for c in COLORS]
+    tags = [ax.text(0, 0, '', color=c, fontsize=7, ha='center', va='bottom', zorder=4, visible=False) for c in COLORS]
     prefix = f'{label} | ' if label else ''
+
+    def where(key, k):
+        """(s, d) of a gap car at frame k, or None if gone."""
+        if key[0] == 'team':
+            return ep.team_s[k, key[1]], ep.team_d[k, key[1]]
+        j = np.flatnonzero(ep.traffic_id[k] == key[1])
+        return (ep.traffic_s[k, j[0]], ep.traffic_d[k, j[0]]) if len(j) else None
+
+    def draw_gaps(k, lo_view, hi_view):
+        state = ep.gaps[min(k, len(ep.gaps)-1)] if ep.gaps else [('keep', 0, None, None, None, None)]*3
+        for i, (phase, lane, front, rear, stage, car) in enumerate(state):
+            box, outline, tag = gap_boxes[i], passed[i], tags[i]
+            if phase == 'keep':
+                box.set_visible(False)
+            else:
+                r, f = (where(key, k) if key is not None else None for key in (rear, front))
+                lo = r[0]+cfg.length/2 if r is not None else lo_view
+                hi = f[0]-cfg.length/2 if f is not None else hi_view
+                box.set_xy((lo, road.lane_center(lane)-road.cfg.lane_width/2))
+                box.set_width(max(hi-lo, 0.0)); box.set_height(road.cfg.lane_width); box.set_visible(True)
+            at = where(car, k) if car is not None else None
+            outline.set_visible(at is not None); tag.set_visible(at is not None)
+            if at is not None:
+                outline.set_xy(footprint(np.array([at[0], at[1], 0.0, 0.0]), cfg))
+                tag.set_position((at[0], at[1]+cfg.width/2+0.2)); tag.set_text(f'car {i}: {stage}')
+        return gap_boxes+passed+tags
 
     def update(k):
         ended = k >= len(ep.time)
@@ -76,7 +109,8 @@ def _panel(ax, ep, behind, ahead, label=''):
         combo = f' | combo x{ep.combo_multiplier[k-1]:g}' if ep.combo_multiplier is not None and k else ''
         status = f' | ENDED ({ep.end_reason})' if ended or (k == len(ep.time)-1 and ep.end_reason != 'time') else ''
         title.set_text(f'{prefix}t={ep.time[k]:.1f} s | team {cumulative[k].sum():.0f} | cars {scores}{combo}{status}')
-        return team+traffic+[title]+lines+paths+ticks
+        overlay = draw_gaps(k, centre-behind, centre+ahead) if ep.gaps is not None else []
+        return team+traffic+[title]+lines+paths+ticks+overlay
     return update
 
 

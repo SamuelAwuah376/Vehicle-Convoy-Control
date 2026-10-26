@@ -9,27 +9,34 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v8_e4_dyn_b1_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
-# Dynamic-car training in four 5M batches (the user's plan): batch 1 from scratch; batches 2-4 each set INIT_FROM to
-# the previous batch's final model, with a fresh LR cycle.
+RUN_ID = 'ppo_v8_e5_dyn_b2_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+# Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
+# 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
+# (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
 SCENARIO = 'v5'              # SCENARIOS key (v5: BMW M3s, 45-60 mph traffic, no traffic walls, team starts at 70 mph)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
 PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
 MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)
+ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
 N_ENVS = 16                  # parallel SubprocVecEnv workers (one CPU thread each)
-TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic: ~27/s, ~2.1 days
+TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic: ~37/s, ~1.6 days
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 250_000    # frequent: train_rl_supervised.py resumes from the latest one after a failure
 SEED = 0
 COLLISION_EXTRA = 0.0        # training-only extra multiple of the game's collision term (v7's 50 % wipe replaces the old 4.0)
-LEARNING_RATE = 3e-4         # initial LR, decayed linearly to 0 (3e-4 from scratch; lower when fine-tuning)
+CRASH_PENALTY = -500.0       # training-only fixed reward on a crash (= 50,000 game points, ~2 good episodes): the game's crash
+                             # cost scales with banked points and the MPC's vehicle clearance is soft (batch 1 had none)
+LEARNING_RATE = 1e-3         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 starts high: new actions)
+LR_FINAL = 1e-5
+TARGET_KL = 0.05             # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off
 VF_WARMUP = 0                # fine-tuning: first decisions train only the value network (policy frozen); 0 from scratch
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = None             # e.g. 'models/ppo_v7_e4_6m/final_model.zip' to fine-tune (None: from scratch)
+INIT_FROM = 'runs_rl/ppo_v8_e4_dyn_b1_5m_001/final_model.zip'   # None: from scratch
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
-    env = EnvConfig(scenario=SCENARIO, score=SCORE, vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA)
+    env = EnvConfig(version=ENV_VERSION, overtakes=ENV_VERSION == 'e5', scenario=SCENARIO, score=SCORE,
+                    vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
-                      checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE, resume=RESUME, init_from=INIT_FROM, vf_warmup=VF_WARMUP,
-                      device=DEVICE))
+                      checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE, lr_final=LR_FINAL,
+                      target_kl=TARGET_KL, resume=RESUME, init_from=INIT_FROM, vf_warmup=VF_WARMUP, device=DEVICE))

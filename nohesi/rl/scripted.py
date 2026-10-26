@@ -1,7 +1,7 @@
 """Hand-written policies: sanity baselines that drive the world without RL."""
 import numpy as np
 from ..controllers import pursuit, follower_acceleration
-from ..intentions import encode
+from ..intentions import ACTIONS, encode, encode_overtake
 from ..world import TEAM, vehicle_ahead, vehicle_behind
 
 
@@ -131,3 +131,24 @@ class Overtaker:
             if room is not None and room > best_room and (middle is None or room > middle):
                 best = cmd
         return best
+
+
+class OvertakeMacro(Overtaker):
+    """The Overtaker passing with overtake actions (intentions.OVERTAKES) instead of single lane changes: stuck behind
+    a slower car, it overtakes on the side the Overtaker would move to (two-lane moves stay plain lane changes),
+    returns to its lane when there is room, else stays out. margin_cmd is the overtakes' speed command (0: pass at
+    least 2*overtake_margin = 6 m/s faster)."""
+    name = 'overtake_macro'
+
+    def __init__(self, *args, margin_cmd=0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.margin_cmd = margin_cmd
+
+    def __call__(self, snap, intentions):
+        actions = super().__call__(snap, intentions)
+        for i, it in enumerate(intentions):
+            if it.overtake is not None:
+                actions[i] = encode_overtake(it.overtake.side, self.margin_cmd)
+            elif it.phase == 'keep' and abs(ACTIONS[actions[i]][0]) == 1:
+                actions[i] = encode_overtake(ACTIONS[actions[i]][0], self.margin_cmd)
+        return actions

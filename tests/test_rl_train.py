@@ -93,6 +93,40 @@ def test_init_from_copies_policy_and_obs_norm_only(trained, tmp_path):
     assert json.loads((cfg.run_dir/'config.json').read_text(encoding='utf-8'))['train']['init_from'] == str(src)
 
 
+def test_init_from_e4_grows_into_e5(trained, tmp_path):
+    """An e4 policy starting an e5 (overtakes) run: the old actions' logits are the e4 policy's whatever the appended
+    observations hold, each overtake's logit is its equivalent lane change's, and the observation statistics carry
+    over for the e4 inputs."""
+    import pickle
+    import torch
+    from sb3_contrib import MaskablePPO
+    from dataclasses import replace
+    from nohesi.intentions import ACTIONS, OVERTAKES, encode
+    src = trained.run_dir/'final_model.zip'
+    e5 = replace(trained.env, version='e5', overtakes=True)
+    cfg = replace(trained, run_id='tiny_e5', env=e5, total_timesteps=0, out_root=str(tmp_path), init_from=str(src))
+    train(cfg)
+    old = MaskablePPO.load(str(src), device='cpu').policy
+    new = MaskablePPO.load(str(cfg.run_dir/'final_model.zip'), device='cpu').policy
+    n4, n5 = rl_env.obs_dim(trained.env), rl_env.obs_dim(e5)
+    assert new.observation_space.shape == (n5,) and n5 == n4+3*rl_env.OT_FEATURES
+    obs = torch.randn(4, n5)
+
+    def logits(policy, x):
+        return policy.action_net(policy.mlp_extractor.forward_actor(policy.extract_features(x, policy.pi_features_extractor)))
+    with torch.no_grad():
+        a, b = logits(old, obs[:, :n4]).reshape(4, 3, len(ACTIONS)), logits(new, obs).reshape(4, 3, -1)
+        values = (old.predict_values(obs[:, :n4]), new.predict_values(obs))
+    assert b.shape[-1] == len(ACTIONS)+len(OVERTAKES)
+    assert torch.allclose(a, b[..., :len(ACTIONS)], atol=1e-5)
+    for n, (side, speed) in enumerate(OVERTAKES):
+        assert torch.allclose(b[..., len(ACTIONS)+n], a[..., encode(side, speed, 0)], atol=1e-5)
+    assert torch.allclose(*values, atol=1e-5)
+    stats = pickle.load(open(cfg.run_dir/'final_vecnormalize.pkl', 'rb')).obs_rms
+    source = pickle.load(open(trained.run_dir/'final_vecnormalize.pkl', 'rb')).obs_rms
+    assert stats.mean.shape == (n5,) and np.array_equal(stats.mean[:n4], source.mean)
+
+
 def test_vf_warmup_trains_value_network_only(trained, tmp_path):
     import torch
     from sb3_contrib import MaskablePPO

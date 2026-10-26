@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+VERSIONS = ('e4', 'e5')   # env versions this code runs: e5 = e4 plus overtake actions (overtakes=True)
+
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -15,7 +17,19 @@ class EnvConfig:
     aux_conflict: float = -0.5      # per unresolved plan conflict
     aux_emergency: float = -0.5     # per emergency (yield-brake) fallback
     collision_extra: float = 4.0    # training-only: extra multiple of the game's collision penalty (4 -> 5x in total)
+    # Training-only fixed reward (reward units, x reward_scale game points) when an episode ends in a collision, on top
+    # of the game's terms: the game's crash cost scales with the banked points, so an early crash is nearly free, and
+    # under a spread penalty ending the episode can even pay; the MPC's vehicle clearance is a soft constraint.
+    crash_penalty: float = 0.0
     mask_gap_rule: bool = True      # mask lane changes the intention layer's gap rule would reject right now
     traffic_k: int = 8              # nearest traffic cars observed per car
     ahead: float = 250.0            # traffic observation window along s (m)
     behind: float = 80.0
+    # e5: overtake actions (intentions.OVERTAKES: pass the car ahead left/right at a passing margin), their masks and
+    # observations; an overtake abandoned before the pass costs aux_overtake_abort (ending in the passing lane does not).
+    overtakes: bool = False
+    aux_overtake_abort: float = -0.1
+
+    def __post_init__(self):
+        if self.overtakes != (self.version == 'e5'):
+            raise ValueError("overtakes=True is env version 'e5' (and e5 has overtakes)")

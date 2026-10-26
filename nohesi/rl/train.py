@@ -125,6 +125,53 @@ class ConstantSchedule:
         return self.value
 
 
+def load_policy_weights(model, source):
+    """Start `model`'s policy from `source`'s. Same shapes: a plain copy. A source trained on a smaller env (e4 -> e5:
+    observations appended, overtake actions appended per car) is grown: the first layers' new input columns start at
+    zero, so the new observations change nothing at first; each car's new action logits copy the logits of their
+    equivalent lane change (an overtake on `side` at speed command s: encode(side, s, 0)), so the policy starts as the
+    source does, sharing each lane change's probability with its overtake."""
+    from ..intentions import ACTIONS, OVERTAKES, encode
+    src, dst = source.policy.state_dict(), model.policy.state_dict()
+    n_old, n_new = int(source.action_space.nvec[0]), int(model.action_space.nvec[0])
+    cars = len(model.action_space.nvec)
+    rows = []   # source row of each model action logit
+    for car in range(cars):
+        for a in range(n_new):
+            old = a if a < n_old else encode(OVERTAKES[a-len(ACTIONS)][0], OVERTAKES[a-len(ACTIONS)][1], 0)
+            rows.append(car*n_old+old)
+    for key, value in src.items():
+        target = dst[key]
+        if target.shape == value.shape:
+            dst[key] = value.clone()
+        elif key.startswith('action_net.'):
+            dst[key] = value[rows].clone()
+        elif key.startswith('mlp_extractor.') and key.endswith('0.weight') and target.shape[0] == value.shape[0]:
+            grown = target.new_zeros(target.shape)
+            grown[:, :value.shape[1]] = value
+            dst[key] = grown
+        else:
+            raise ValueError(f'cannot carry {key} {tuple(value.shape)} into {tuple(target.shape)}')
+    model.policy.load_state_dict(dst)
+
+
+def load_obs_normalisation(path, venv, cfg):
+    """VecNormalize around venv with the observation statistics saved at `path`; when venv's observations are longer
+    (appended e5 features), the saved statistics cover the first ones and the rest start at mean 0, variance 1."""
+    import pickle
+    from stable_baselines3.common.vec_env import VecNormalize
+    with open(path, 'rb') as f:
+        saved = pickle.load(f)
+    n_old, n_new = saved.obs_rms.mean.shape[0], venv.observation_space.shape[0]
+    if n_old == n_new:
+        saved.set_venv(venv)
+        return saved
+    out = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma, clip_obs=cfg.clip_obs)
+    out.obs_rms.mean[:n_old], out.obs_rms.var[:n_old] = saved.obs_rms.mean, saved.obs_rms.var
+    out.obs_rms.count = saved.obs_rms.count
+    return out
+
+
 def policy_parameters(model):
     """Parameters of the action head and its MLP (not the value network); the features extractor (Flatten) has none."""
     return [*model.policy.mlp_extractor.policy_net.parameters(), *model.policy.action_net.parameters()]
@@ -371,7 +418,7 @@ def train(cfg):
         else:
             if cfg.init_from:
                 from stable_baselines3.common.running_mean_std import RunningMeanStd
-                venv = VecNormalize.load(str(_vecnorm_path(Path(cfg.init_from))), venv)
+                venv = load_obs_normalisation(_vecnorm_path(Path(cfg.init_from)), venv, cfg)
                 venv.training, venv.norm_reward = True, cfg.norm_reward
                 venv.ret_rms, venv.returns = RunningMeanStd(shape=()), np.zeros(venv.num_envs)   # new score: new return scale
             else:
@@ -388,7 +435,7 @@ def train(cfg):
                                 verbose=cfg.verbose)
             if cfg.init_from:   # policy weights only: the optimiser and LR schedule start fresh
                 source = MaskablePPO.load(str(cfg.init_from), device=cfg.device)
-                model.policy.load_state_dict(source.policy.state_dict())
+                load_policy_weights(model, source)
                 del source
             best, last_eval, wall = -np.inf, None, 0.0
         n_eval = max(1, min(cfg.eval_envs, len(cfg.eval_seeds)))

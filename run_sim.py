@@ -24,15 +24,15 @@ LABEL = f'{SCENARIO}_{POLICY}'+(f'-{Path(PPO_RUN).name}' if POLICY == 'ppo' else
 
 def run_ppo():
     """Run the trained PPO policy on this file's scenario/score/plant/MPC and save it like the scripted policies."""
-    from nohesi.rl.config import EnvConfig
+    from nohesi.rl.config import VERSIONS
     from nohesi.rl.evaluate import load_env_cfg, load_policy, resolve, store_episode
     if TRAFFIC:
         print('note: TRAFFIC is ignored for POLICY = ppo (the env uses the scenario traffic count)')
     run_dir = Path(__file__).parent/PPO_RUN
     env_cfg = load_env_cfg(run_dir)
-    if env_cfg.version != EnvConfig.version:
-        raise SystemExit(f'{PPO_RUN} was trained on env {env_cfg.version}, the current env is {EnvConfig.version}; '
-                         'its observations no longer match. Pick a run trained on the current env.')
+    if env_cfg.version not in VERSIONS:
+        raise SystemExit(f'{PPO_RUN} was trained on env {env_cfg.version}; this code runs envs {", ".join(VERSIONS)}, '
+                         'whose observations no longer match. Pick a run trained on one of those.')
     env_cfg = replace(env_cfg, scenario=SCENARIO, score=SCORE, vehicle_model=PLANT, mpc=MPC)
     model, normalize = load_policy(*resolve(run_dir, PPO_MODEL))
     out, metrics = store_episode(model, normalize, env_cfg, SEED, LABEL, root=Path(__file__).parent/'results',

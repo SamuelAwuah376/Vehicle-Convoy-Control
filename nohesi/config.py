@@ -238,6 +238,16 @@ class Planner:
     merge_window: float = 30.0      # reject entering a lane a teammate enters from the other side this close
     rear_closing_time: float = 0.3  # gap rule: extra rear room per m/s the rear gap car closes on the ego (s)
     double_gap_lookahead: float = 4.0   # two-lane change: destination gap prediction time (s)
+    # Overtakes (intentions.OVERTAKES; prototype, not in the RL action space): pass the car ahead within overtake_look
+    # at least overtake_margin*(2+speed_cmd) m/s faster, return once overtake_clear m past it (or stay after pass_max).
+    overtake_look: float = 80.0
+    overtake_margin: float = 3.0
+    overtake_clear: float = 2.0
+    overtake_pass_max: float = 8.0
+    overtake_return_lead: float = 2.0   # s: try the return only once the car would clear the passed car within this
+    overtake_merge_time: float = 2.0    # s: the return's lateral reference blends to the home lane over this once clear
+    overtake_settled: float = 0.5       # m: start an overtake only within this of the car's lane target (lean included)
+    overtake_out_min: float = 0.8       # s: shortest pull-out blend (half the time to contact when closing fast)
     middle_window_start: float = 0.8    # two-lane change: middle lane must be clear over this crossing window (s)
     middle_window_end: float = 2.5
     commit_progress_eps: float = 0.1    # committed change: lateral progress below this (m) does not count

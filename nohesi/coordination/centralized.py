@@ -160,6 +160,9 @@ class CentralizedTeam:
             lateral = tuple(0.0 if x is None else float(x[i]) for x in (snap.team_vy, snap.team_r))   # dynamic plant (vy, r)
         if target is None:
             target = replace(self.intentions.target(i), yield_to=self._yield_to(snap, i))
+            release = self.intentions.overtake_release(i)
+            if release is not None:
+                target = self._staged(target, release, obstacles, reference)
         # lateral passed positionally (solve(..., reference, lateral=None)) so positional solve wrappers keep working.
         # Dynamic plant: start from what the car was last given (a fallback may have braked since the last plan).
         accel = self.last_accel[i] if self.dynamic else self.held[i, 0]
@@ -170,6 +173,33 @@ class CentralizedTeam:
             plan = self.mpc.solve(snap.time, z0, snap.team_steer[i], accel, target, obstacles, reference, lateral)
         self.log.solves.append((snap.time, i, plan.status, plan.iterations, plan.solve_time, attempt))
         return plan
+
+    def _staged(self, target, release, obstacles, reference):
+        """An overtake's pull-out or return (IntentionManager.overtake_release): lateral target per horizon step, a
+        quintic blend from `start` to the target d over overtake_merge_time. Pull-out: the blend starts when the
+        overtake started. Return: the passing lane until the reference is overtake_clear past the passed car's
+        predicted position (bumper to bumper), the blend from then on; that start is the predicted clearing time,
+        held fixed once the car is clear now, so replanning continues the merge instead of restarting it. The gap
+        constraints keep the car beside the passed car until it is clear anyway."""
+        ot, start, end = release
+        h = self.cfg.step
+        t = reference.time+np.arange(len(reference.z))*h
+        duration = self.cfg.overtake_merge_time
+        if ot.stage == 'out':
+            begin, duration = ot.since, ot.out_time or duration
+        else:
+            o = obstacles.index(ot.car)
+            if o is None:
+                return target
+            clear = self.params.length+self.cfg.margin_long+self.cfg.overtake_clear
+            past = reference.z[:, 0]-obstacles.s[:, o] >= clear
+            if not ot.merge_fixed:
+                ot.merge_start = float(t[np.argmax(past)]) if past.any() else np.inf
+                ot.merge_fixed = bool(past[0])
+            begin = ot.merge_start
+        x = np.clip((t-begin)/duration, 0.0, 1.0)
+        blend = x*x*x*(10.0-15.0*x+6.0*x*x)
+        return replace(target, d_stage=tuple(start+(end-start)*blend))
 
     def _yield_to(self, snap, j):
         """Teammates changing into car j's lane (middle or destination) within yield_window beyond bumper overlap.

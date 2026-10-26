@@ -3,7 +3,7 @@ from time import perf_counter
 import numpy as np
 from ..config import Planner, Scenario
 from ..coordination.centralized import CentralizedTeam
-from ..rl.scripted import LaneKeeping, Overtaker
+from ..rl.scripted import LaneKeeping, OvertakeMacro, Overtaker
 from ..scoring.events import EventDetector
 from ..scoring.score import Scorer, TERMS
 from ..world import World
@@ -41,29 +41,35 @@ class Episode:
     draft_pass: list = field(default_factory=list)   # per awarded pass: was it a draft pass
     train_pass: list = field(default_factory=list)   # per awarded pass: did it get the draft-train bonus
     train_time: float = 0.0                          # s the three-car draft train held
+    gaps: list = None   # with EpisodeRun(record_gaps=True): per sim step, per car (phase, lane, front, rear,
+                        # overtake stage or None, overtaken car or None): the intention after that step's decision
 
 
-POLICIES = ('lane_keeping', 'overtaker')
+POLICIES = ('lane_keeping', 'overtaker', 'overtake_macro')
 
 
 def make_controller(name, scenario, world, planner):
     if name == 'lane_keeping':
         return LaneKeeping(scenario, world.road, world.plant)
-    if name == 'overtaker':
-        return CentralizedTeam(scenario, world, Overtaker(world.road, world.plant.params, desired=scenario.overtaker_speed,
-                                                          look=scenario.overtaker_look), planner)
+    if name in ('overtaker', 'overtake_macro'):
+        policy = (Overtaker if name == 'overtaker' else OvertakeMacro)(
+            world.road, world.plant.params, desired=scenario.overtaker_speed, look=scenario.overtaker_look)
+        return CentralizedTeam(scenario, world, policy, planner)
     raise ValueError(f'unknown policy {name!r}')
 
 
 class EpisodeRun:
-    """run() one sim step at a time: step() advances one dt, episode() builds the Episode so far."""
-    def __init__(self, scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):
+    """run() one sim step at a time: step() advances one dt, episode() builds the Episode so far.
+    world: (scenario, seed) -> world (World, or carla.world.CarlaWorld from a CarlaSession). record_gaps: keep the
+    intention layer's state per step (Episode.gaps, for drawing the locked gaps)."""
+    def __init__(self, scenario=None, seed=0, policy='lane_keeping', planner=None, score=None, world=World,
+                 record_gaps=False):
         scenario, planner = scenario or Scenario(), planner or Planner()
         planner = replace(planner, speed_max=scenario.team_speed_max)   # the scenario owns the team speed cap
         if score is not None:
             scenario = replace(scenario, score=score)
         self.scenario, self.seed, self.planner = scenario, seed, planner
-        self.world = World(scenario, seed)
+        self.world = world(scenario, seed)
         self.policy = make_controller(policy, scenario, self.world, planner) if isinstance(policy, str) else policy(self.world)
         self.detector = EventDetector(self.world.plant.params, self.world.road)
         self.scorer = Scorer(scenario.score)
@@ -72,6 +78,7 @@ class EpisodeRun:
         self.snaps, self.controls, self.increments, self.pair_c, self.traffic_c = [self.snap], [], [], [], []
         self.compute, self.overtakes, self.combo = [], [], []
         self.steps = int(round(scenario.timing.duration/scenario.timing.dt))
+        self.gaps = [] if record_gaps and hasattr(self.policy, 'intentions') else None
 
     @property
     def done(self):
@@ -82,6 +89,9 @@ class EpisodeRun:
         start = perf_counter()
         command = self.policy(self.snap)
         self.compute.append(perf_counter()-start)
+        if self.gaps is not None:
+            self.gaps.append([(it.phase, it.lane, it.front, it.rear, it.overtake.stage if it.overtake else None,
+                               it.overtake.car if it.overtake else None) for it in self.policy.intentions.intentions])
         self.snap, applied = self.world.step(command)
         m = self.detector.update(self.snap, self.scenario.timing.dt)
         inc = self.scorer.update(m)
@@ -104,13 +114,13 @@ class EpisodeRun:
                        list(policy.intentions.records) if hasattr(policy, 'intentions') else [],
                        np.array(self.combo), scorer.max_combo, list(scorer.maneuvers),
                        np.stack((stack('team_vy'), stack('team_r')), -1), list(scorer.draft_pass),
-                       list(scorer.train_pass), scorer.train_time)
+                       list(scorer.train_pass), scorer.train_time, self.gaps)
 
 
-def run(scenario=None, seed=0, policy='lane_keeping', planner=None, score=None):
+def run(scenario=None, seed=0, policy='lane_keeping', planner=None, score=None, world=World, record_gaps=False):
     """policy: a name from POLICIES, or a callable world -> controller (snapshot -> (3, 2) controls).
-    score: a Score replacing scenario.score (None keeps it)."""
-    r = EpisodeRun(scenario, seed, policy, planner, score)
+    score: a Score replacing scenario.score (None keeps it). world, record_gaps: as EpisodeRun."""
+    r = EpisodeRun(scenario, seed, policy, planner, score, world, record_gaps)
     while not r.done:
         r.step()
     return r.episode()

@@ -15,6 +15,15 @@ Observation (float32, D = 3*(20+7K+14)+3 = 273 at K=8 on a 3-lane road), car blo
   teammates (7 x 2, other cars in index order): ds/100, dd/lane_width, dv/30, phase one-hot, (target lane -
       current lane)/2
   team (3): combo multiplier/5, min(time since last scored pass/combo_window, 1), time/duration
+
+e5 (EnvConfig.overtakes): 51 actions per car, the 45 plus intentions.OVERTAKES (pass the traffic car ahead on the
+right/left, at least 3/6/9 m/s faster). Masks: an overtake starts only if IntentionManager.overtake_check accepts it
+now (entry gap and passing corridor, per passing margin); once started it runs to completion (returns when there is
+room, else stays in the passing lane; the intention layer may still cancel it for safety), so during one only the
+same-side overtakes are allowed, the speed command setting the passing margin; a plain lane change is how the policy
+moves over and stays. Observation: the e4 vector, then 11 per car (appended so e4 inputs keep their places): overtake stage
+one-hot (none/out/pass/return), side, passed car ds/100 and dv/30, time in the overtake/5 s, overtake left / right
+possible now (margin +6), return possible now. Reward: aux_overtake_abort per overtake cancelled before the pass.
 """
 from dataclasses import replace
 import time
@@ -25,15 +34,23 @@ from ..config import SCENARIOS, SCORES, Planner
 from ..coordination.centralized import CentralizedTeam
 from ..evaluation.metrics import metrics
 from ..evaluation.runner import EpisodeRun
-from ..intentions import ACTIONS, encode
-from ..world import TEAM
+from ..intentions import ACTIONS, OVERTAKES, encode
+from ..world import TEAM, World
 from .config import EnvConfig
 
 N_ACTIONS = len(ACTIONS)
 LANE_CMD = np.array([a[0] for a in ACTIONS])
 SPEED_CMD = np.array([a[1] for a in ACTIONS])
+OT_SIDE = np.array([o[0] for o in OVERTAKES])
+OT_SPEED = np.array([o[1] for o in OVERTAKES])
 PHASES = ('keep', 'pending', 'committed')
-EGO, TRAFFIC, MATE, TEAM_FEATURES = 17, 7, 7, 3
+OT_STAGES = (None, 'out', 'pass', 'return')
+EGO, TRAFFIC, MATE, TEAM_FEATURES, OT_FEATURES = 17, 7, 7, 3, 11
+
+
+def n_actions(cfg):
+    """Actions per car: 45 (e4), plus the overtakes with cfg.overtakes (e5)."""
+    return N_ACTIONS+(len(OVERTAKES) if cfg.overtakes else 0)
 
 
 def merge_possible(snap, road, params, traffic_cfg):
@@ -60,7 +77,7 @@ def merge_possible(snap, road, params, traffic_cfg):
 
 
 def obs_dim(cfg, lanes=3):
-    return TEAM*(EGO+lanes+TRAFFIC*cfg.traffic_k+MATE*(TEAM-1))+TEAM_FEATURES
+    return TEAM*(EGO+lanes+TRAFFIC*cfg.traffic_k+MATE*(TEAM-1))+TEAM_FEATURES+(TEAM*OT_FEATURES if cfg.overtakes else 0)
 
 
 class External:
@@ -77,13 +94,16 @@ class External:
 class NoHesiEnv(gymnasium.Env):
     metadata = {'render_modes': []}
 
-    def __init__(self, cfg: EnvConfig = EnvConfig(), seed_pool=None, rng_seed=None):
+    def __init__(self, cfg: EnvConfig = EnvConfig(), seed_pool=None, rng_seed=None, world=World):
+        """world: (scenario, seed) -> world for each episode (EpisodeRun); a CarlaSession runs it in CARLA."""
         self.cfg, self.seed_pool, self.pool_index = cfg, list(seed_pool) if seed_pool is not None else None, 0
+        self.world = world
         s = SCENARIOS[cfg.scenario]()
         self.scenario = replace(s, score=SCORES[cfg.score](), vehicle=replace(s.vehicle, model=cfg.vehicle_model))
         self.planner = Planner(mpc=cfg.mpc, speed_max=self.scenario.team_speed_max)
         self.lanes = self.scenario.road.lanes
-        self.action_space = spaces.MultiDiscrete([N_ACTIONS]*TEAM)
+        self.action_space = spaces.MultiDiscrete([n_actions(cfg)]*TEAM)
+        self._options = None   # (time, (3, len(OVERTAKES)) bool): overtakes that would start now, per decision
         self.observation_space = spaces.Box(-np.inf, np.inf, (obs_dim(cfg, self.lanes),), np.float32)
         self.run = None
         self.step_started = None
@@ -125,7 +145,7 @@ class NoHesiEnv(gymnasium.Env):
         self.policy = External()
         self.run = EpisodeRun(self.scenario, self.episode_seed,
                               lambda world: CentralizedTeam(self.scenario, world, self.policy, self.planner),
-                              self.planner)
+                              self.planner, world=self.world)
         self.team.prepare(self.snapshot)
         return self._obs(), {'seed': self.episode_seed, 'team_score': 0.0}
 
@@ -158,6 +178,11 @@ class NoHesiEnv(gymnasium.Env):
                'conflict': cfg.aux_conflict*sum(c[4] == 'unresolved' for c in log.conflicts[marks[2]:]),
                'emergency': cfg.aux_emergency*(fallbacks.count('emergency')+fallbacks.count('escape')),
                'collision': cfg.collision_extra*terms.get('collision', 0.0)/cfg.reward_scale}
+        if cfg.crash_penalty:   # fixed, whatever the banked points
+            aux['crash'] = cfg.crash_penalty*bool(run.snap.done)
+        if cfg.overtakes:   # an overtake abandoned before the pass (ending in the passing lane is 'stayed', free)
+            aux['overtake_abort'] = cfg.aux_overtake_abort*sum(r.kind == 'overtake_ended' and r.reason != 'car_gone'
+                                                               for r in records[marks[0]:])
         reward = sum(terms.values())/cfg.reward_scale+sum(aux.values())
         terminated = bool(run.snap.done)
         truncated = run.done and not terminated
@@ -166,28 +191,59 @@ class NoHesiEnv(gymnasium.Env):
             info['episode_metrics'] = metrics(run.episode())
         return self._obs(), float(reward), terminated, truncated, info
 
+    def _overtake_options(self):
+        """(3, len(OVERTAKES)) bool: the overtakes IntentionManager.overtake_check would start now (cached per
+        decision: the masks and the observation both use them)."""
+        snap = self.snapshot
+        if self._options is None or self._options[0] != (id(self.run), snap.time):
+            team = self.team
+            ok = np.array([[team.intentions.overtake_check(snap, team.plans, i, side, sc)[0] == ''
+                            for side, sc in OVERTAKES] for i in range(TEAM)])
+            self._options = ((id(self.run), snap.time), ok)
+        return self._options[1]
+
     def action_masks(self):
-        """(3*45,) bool: lane commands into an off-road lane masked (pending: relative to the origin, any other
-        valid command aborts); committed: only the locked command (lane - origin). With cfg.mask_gap_rule, a car
-        keeping its lane can only request lane changes the gap rule accepts now, checked per lane x speed action
-        at the target speed that action would set (a teammate deciding first can still cause a rare rejection). Speed and lean are
-        never masked."""
+        """(3*45,) bool (e4; (3*51,) with overtakes, see the module docstring): lane commands into an off-road lane
+        masked (pending: relative to the origin, any other valid command aborts); committed: only the locked command
+        (lane - origin). With cfg.mask_gap_rule, a car keeping its lane can only request lane changes the gap rule
+        accepts now, checked per lane x speed action at the target speed that action would set (a teammate deciding
+        first can still cause a rare rejection). Speed and lean are never masked."""
+        if self.cfg.overtakes:
+            return self._masks_with_overtakes()
         out = np.zeros((TEAM, N_ACTIONS), bool)
         for i, it in enumerate(self.intentions):
-            if it.phase == 'committed':
-                ok = LANE_CMD == it.lane-it.origin
-            else:
-                base = it.origin if it.phase == 'pending' else it.lane
-                ok = (base+LANE_CMD >= 0) & (base+LANE_CMD < self.lanes)
-                if it.phase == 'keep' and self.cfg.mask_gap_rule:
-                    team, pc = self.team, self.team.cfg
-                    for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)]):
-                        for sc in (-1, 0, 1):
-                            # The speed the decision would set, as IntentionManager.decide applies it before the gap rule.
-                            speed = float(np.clip(it.speed+sc*pc.speed_step, pc.speed_min, pc.speed_max))
-                            if team.intentions.gap_rule(self.snapshot, team.plans, i, base+int(c), speed)[0] is None:
-                                ok &= ~((LANE_CMD == c) & (SPEED_CMD == sc))
+            ok = self._lane_mask(i, it)
             out[i] = ok if ok.any() else LANE_CMD == 0
+        return out.ravel()
+
+    def _lane_mask(self, i, it):
+        """(45,) bool: car i's lane x speed x lean actions allowed (action_masks, before its keep fallback)."""
+        if it.phase == 'committed':
+            return LANE_CMD == it.lane-it.origin
+        base = it.origin if it.phase == 'pending' else it.lane
+        ok = (base+LANE_CMD >= 0) & (base+LANE_CMD < self.lanes)
+        if it.phase == 'keep' and self.cfg.mask_gap_rule:
+            team, pc = self.team, self.team.cfg
+            for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)]):
+                for sc in (-1, 0, 1):
+                    # The speed the decision would set, as IntentionManager.decide applies it before the gap rule.
+                    speed = float(np.clip(it.speed+sc*pc.speed_step, pc.speed_min, pc.speed_max))
+                    if team.intentions.gap_rule(self.snapshot, team.plans, i, base+int(c), speed)[0] is None:
+                        ok &= ~((LANE_CMD == c) & (SPEED_CMD == sc))
+        return ok
+
+    def _masks_with_overtakes(self):
+        """(3*51,) bool: without an overtake, the lane mask plus the overtakes that would start now; during one, only
+        the same-side overtakes (it runs to completion, the speed command setting its passing margin; to move over and
+        stay, the policy uses a plain lane change instead); a car with nothing allowed keeps its lane."""
+        keep = np.r_[LANE_CMD == 0, np.zeros(len(OVERTAKES), bool)]
+        options = self._overtake_options()
+        out = np.zeros((TEAM, n_actions(self.cfg)), bool)
+        for i, it in enumerate(self.intentions):
+            ot = it.overtake
+            row = np.r_[self._lane_mask(i, it), options[i]] if ot is None else \
+                np.r_[np.zeros(N_ACTIONS, bool), OT_SIDE == ot.side]
+            out[i] = row if row.any() else keep
         return out.ravel()
 
     def _obs(self):
@@ -225,6 +281,19 @@ class NoHesiEnv(gymnasium.Env):
         sc = run.scorer
         blocks.append([sc.multiplier/5, min((sc.time-sc.last_pass)/self.scenario.score.combo_window, 1.0),
                        snap.time/self.scenario.timing.duration])
+        if cfg.overtakes:   # e5: appended, so the e4 inputs keep their places (a warm start copies their weights)
+            options, ims = self._overtake_options(), team.intentions
+            left, right = (int(np.flatnonzero((OT_SIDE == s) & (OT_SPEED == 0))[0]) for s in (1, -1))
+            for i, it in enumerate(self.intentions):
+                ot = it.overtake
+                stage = np.zeros(len(OT_STAGES))
+                stage[OT_STAGES.index(ot.stage if ot is not None else None)] = 1
+                car = ims.passed_car(snap, i)
+                rel = ((car[0]-snap.team_s[i])/100, (car[1]-v[i])/30) if car is not None else (0.0, 0.0)
+                ready = ot is not None and ot.stage == 'pass' and ims.return_gap(snap, team.plans, i) is not None
+                blocks.append(np.r_[stage, ot.side if ot is not None else 0, rel,
+                                    (snap.time-ot.since)/5 if ot is not None else 0.0,
+                                    float(options[i, left]), float(options[i, right]), float(ready)])
         return np.concatenate(blocks).astype(np.float32)
 
 

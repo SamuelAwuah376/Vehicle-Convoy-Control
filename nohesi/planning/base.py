@@ -63,9 +63,11 @@ class Obstacles:
 @dataclass
 class Target:
     """What the MPC is asked to do: lane-centre offset, speed, the locked gap's bounding cars, and the
-    teammates changing into the vehicle's lane that it should get clear of (soft)."""
+    teammates changing into the vehicle's lane that it should get clear of (soft). d_stage: optional (N+1,) lateral
+    target per horizon step replacing d (an overtake's return: the passing lane until clear of the passed car)."""
     d: float
     speed: float
     front: tuple = None
     rear: tuple = None
     yield_to: tuple = ()
+    d_stage: tuple = None

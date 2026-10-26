@@ -142,6 +142,26 @@ def test_collision_costs_five_times_the_game_penalty():
     assert total_collision == pytest.approx(5*info['score_terms']['collision']/cfg.reward_scale)
 
 
+def test_crash_penalty_is_fixed_and_only_on_a_crash():
+    from nohesi.intentions import encode
+    from nohesi.rl.config import EnvConfig
+    from nohesi.rl.env import NoHesiEnv
+    cfg = replace(EnvConfig(), crash_penalty=-500.0, collision_extra=0.0)
+    env = NoHesiEnv(cfg)
+    env.reset(seed=3)
+    _, reward, terminated, _, info = env.step([encode(0, 0, 0)]*3)
+    assert not terminated and info['aux']['crash'] == 0.0
+    w = env.run.world
+    t = w.traffic
+    w.team[0, :2] = w.road.to_xy(t.s[0], t.d[0]); w.team[0, 3] = t.v[0]
+    _, reward, terminated, _, info = env.step([encode(0, 0, 0)]*3)
+    assert terminated and info['aux']['crash'] == -500.0
+    assert reward == pytest.approx(sum(info['score_terms'].values())/cfg.reward_scale+sum(info['aux'].values()))
+    plain = NoHesiEnv(EnvConfig())   # default 0: no crash term, e4 rewards unchanged
+    plain.reset(seed=3)
+    assert 'crash' not in plain.step([encode(0, 0, 0)]*3)[4]['aux']
+
+
 def test_gap_rule_mask_prevents_rejections():
     """With the gap-rule mask, random masked actions produce almost no rejected lane requests."""
     from dataclasses import replace
@@ -225,3 +245,39 @@ def test_step_watchdog_ignores_frozen_time(tmp_path, monkeypatch):
     exits = []
     assert watchdog.run(env, tmp_path, timeout=300, poll=5, exit=exits.append, once=True) is None
     assert exits == [] and not list(tmp_path.iterdir())
+
+
+def test_e5_overtake_actions_masks_and_obs():
+    """e5: 51 actions and 306 observations; an overtake the mask offers starts one, and while it runs the mask allows
+    only same-side overtakes: it runs to completion."""
+    from nohesi.intentions import ACTIONS, OVERTAKES
+    from nohesi.rl.env import OT_FEATURES, n_actions
+    cfg = EnvConfig(version='e5', overtakes=True, scenario='v5', score='v8')
+    env = NoHesiEnv(cfg)
+    assert env.action_space.nvec.tolist() == [len(ACTIONS)+len(OVERTAKES)]*3 == [n_actions(cfg)]*3
+    assert env.observation_space.shape == (obs_dim(cfg),) == (273+3*OT_FEATURES,)
+    with pytest.raises(ValueError):
+        EnvConfig(overtakes=True)   # overtakes are env e5
+    obs, _ = env.reset(seed=1001)
+    started = None
+    for _ in range(80):
+        m = env.action_masks().reshape(3, -1)
+        assert m.any(axis=1).all()
+        options = np.flatnonzero(m[:, len(ACTIONS):].any(axis=1))
+        actions = list(KEEP)
+        if started is None and len(options):
+            started = int(options[0])
+            actions[started] = len(ACTIONS)+int(np.flatnonzero(m[started, len(ACTIONS):])[0])
+        elif started is not None and env.intentions[started].overtake is not None:
+            ot = env.intentions[started].overtake
+            side = np.array([o[0] for o in OVERTAKES])
+            assert np.array_equal(m[started, len(ACTIONS):], side == ot.side)
+            assert not m[started, :len(ACTIONS)].any()
+            actions[started] = len(ACTIONS)+int(np.flatnonzero(side == ot.side)[0])
+        obs, r, term, trunc, info = env.step(actions)
+        assert obs.shape == (obs_dim(cfg),) and np.all(np.isfinite(obs))
+        assert 'overtake_abort' in info['aux']
+        if term or trunc:
+            break
+    kinds = [r.kind for r in env.team.intentions.records]
+    assert started is not None and 'overtake' in kinds and 'rejected' not in kinds
