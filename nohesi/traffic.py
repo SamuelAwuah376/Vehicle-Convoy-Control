@@ -351,7 +351,10 @@ class Traffic:
                 if gain > best_gain:
                     best, best_gain = new, gain
             if best is not None:
-                self.target[i], self.lc_t[i] = best, 0.0
+                if c.lane_change_prob >= 1 or self.rng.random() < c.lane_change_prob:
+                    self.target[i], self.lc_t[i] = best, 0.0
+                else:   # decided to stay: the cooldown applies as after a change
+                    self.lc_end[i] = self.time
 
     def step(self, dt, others_s, others_lane, others_v, length, others_d=None, width=0.0):
         """Advance one step. With others_d, a team car whose footprint (width) crosses a lane line also

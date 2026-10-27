@@ -14,8 +14,10 @@ RUN_ID = 'ppo_v8_e5_dyn_b2b_5m_001'    # folder under runs_rl/; reuse with RESUM
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
 # Batch 2b (the user's call, 2026-10-27): batch 2 stopped at its 1M checkpoint (46.8k, 0 crashes on 1000-1009) and
-# restarts from it with traffic that never seals the road (scenario v6) and a penalty for sitting behind traffic.
-SCENARIO = 'v6'              # SCENARIOS key (v6: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic blockades)
+# restarts from it with traffic that never seals the road and changes lanes less (scenario v7) and a penalty for
+# sitting behind traffic.
+SCENARIO = 'v7'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
+                             # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
 PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
 MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)

@@ -109,6 +109,9 @@ class Traffic:
     wall_slowdown: float = 3.0        # m/s off the rearmost wall car's desired speed
     lane_change_cooldown: float = 8.0 # s after finishing a lane change before the same car may start another
     keep_right_bias: float = 0.0      # m/s^2 added to the incentive for moving right, subtracted for left
+    # Chance a car starts the lane change MOBIL picks at an evaluation; otherwise it decides to stay, and the
+    # lane_change_cooldown applies as after a change. 1: always, with no rng draw (earlier scenarios unchanged).
+    lane_change_prob: float = 1.0
     # No blockades (stronger than no walls): the traffic never seals the road, so a car can always slot through. Two
     # traffic cars connect when they occupy the same or adjacent lanes less than blockade_gap apart along the road (CG);
     # a blockade is a connected group covering every lane. With blockade_gap = 2*(length + margin), a car at traffic
@@ -130,6 +133,8 @@ class Traffic:
             raise ValueError('keep_right_bias must be finite')
         if self.speed_min > self.speed_max:
             raise ValueError('speed_min must not exceed speed_max')
+        if not 0 < self.lane_change_prob <= 1:
+            raise ValueError('lane_change_prob must be in (0, 1]')
 
 
 @dataclass(frozen=True)
@@ -413,8 +418,14 @@ def scenario_v6():
                                                     blockade_gap=2*(s.vehicle.length+0.25)+0.5))
 
 
+def scenario_v7():
+    """v6 with fewer traffic lane changes: a car starts the change MOBIL picks with probability 0.1 per evaluation."""
+    s = scenario_v6()
+    return replace(s, version='v7', traffic=replace(s.traffic, lane_change_prob=0.1))
+
+
 SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4,
-             'v5': scenario_v5, 'v6': scenario_v6}
+             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7}
 
 
 def score_v1():

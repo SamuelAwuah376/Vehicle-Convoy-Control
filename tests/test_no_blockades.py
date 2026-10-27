@@ -118,3 +118,25 @@ def test_stuck_term_in_the_reward_and_metrics():
     from nohesi.evaluation.runner import run
     m = metrics(run(replace(V6, timing=replace(V6.timing, duration=10.0)), 0, 'lane_keeping'))
     assert len(m['stuck_time_s']) == 3 and all(0 <= x <= 10.0 for x in m['stuck_time_s'])
+
+
+def test_scenario_v7_lane_change_probability():
+    from nohesi.config import Traffic as TrafficConfig
+    v7 = SCENARIOS['v7']()
+    assert v7.version == 'v7' and v7.traffic.lane_change_prob == 0.1
+    assert replace(v7, version='v6', traffic=replace(v7.traffic, lane_change_prob=1.0)) == V6
+    for bad in (0.0, 1.5):
+        with pytest.raises(ValueError):
+            TrafficConfig(lane_change_prob=bad)
+
+    def slow_leader(prob):   # a 25 m/s car 40 m behind a 15 m/s car: MOBIL picks a change at the first evaluation
+        tr = placed([(0., 1, 25.), (40., 1, 15.)], lane_change_prob=prob, lane_changes=True)
+        tr.next_eval = np.zeros(2)
+        tr.step(0.05, *NONE, V6.vehicle.length)
+        return tr
+    go, stay = slow_leader(1.0), slow_leader(1e-9)
+    assert go.changing[0] and not stay.changing[0]
+    assert stay.lc_end[0] == pytest.approx(0.0)   # decided to stay: cooldown from now
+    for _ in range(int(V6.traffic.lane_change_cooldown/0.05)-2):
+        stay.step(0.05, *NONE, V6.vehicle.length)
+    assert stay.lc_end[0] == pytest.approx(0.0)   # no new evaluation during the cooldown
