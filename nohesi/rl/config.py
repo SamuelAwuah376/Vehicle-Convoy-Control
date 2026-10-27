@@ -29,6 +29,13 @@ class EnvConfig:
     # observations; an overtake abandoned before the pass costs aux_overtake_abort (ending in the passing lane does not).
     overtakes: bool = False
     aux_overtake_abort: float = -0.1
+    # Training-only reward per second (x reward_scale game points) for each team car stuck behind traffic for longer
+    # than stuck_grace: the nearest traffic car ahead in its lane is within stuck_window (CG) and the car is less than
+    # stuck_closing faster than it. Teammates in between do not shield it (a queue behind a slow car is stuck).
+    aux_stuck: float = 0.0
+    stuck_window: float = 100.0
+    stuck_closing: float = 2.0
+    stuck_grace: float = 2.0
 
     def __post_init__(self):
         if self.overtakes != (self.version == 'e5'):

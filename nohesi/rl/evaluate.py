@@ -17,8 +17,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 EVAL_SEEDS = tuple(range(1000, 1020))
 SUMMARY_FIELDS = ('team_score', 'collision', 'close_passes', 'draft_passes', 'train_passes', 'draft_time_s',
-                  'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'maneuvers', 'fallbacks', 'rejections', 'decisions',
-                  'duration_s')
+                  'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'maneuvers', 'fallbacks', 'rejections',
+                  'decisions', 'duration_s')
 
 
 # ---------------------------------------------------------------------------------------------- metrics
@@ -51,6 +51,7 @@ def summarize(m, decisions=None):
             'train_time_s': float(m.get('train_time_s', 0.0)),
             'mean_speed_mps': m.get('mean_speed_mps'),
             'top_speed_time_s': _total(m.get('top_speed_time_s')),
+            'stuck_time_s': _total(m['stuck_time_s']) if 'stuck_time_s' in m else None,
             'draft_time_s': _draft_time(m),
             'maneuvers': _total((m.get('maneuvers') or {}).get('count')),
             'fallbacks': _total(planner.get('fallbacks')), 'rejections': _total(planner.get('rejections')),
@@ -291,7 +292,7 @@ def _seed_list(text):
 
 def print_report(out):
     keys = ('team_score', 'team_score_std', 'collision_rate', 'close_passes', 'draft_passes', 'train_passes',
-            'draft_time_s', 'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'maneuvers',
+            'draft_time_s', 'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'maneuvers',
             'fallbacks', 'rejections', 'decisions')
     cols = [('ppo', out['summary'])]+([('overtaker', out['overtaker']['summary'])] if 'overtaker' in out else [])
     print(f"{'':16}"+''.join(f'{name:>12}' for name, _ in cols))

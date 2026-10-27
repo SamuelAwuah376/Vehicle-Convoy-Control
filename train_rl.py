@@ -9,11 +9,13 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v8_e5_dyn_b2_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v8_e5_dyn_b2b_5m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
-SCENARIO = 'v5'              # SCENARIOS key (v5: BMW M3s, 45-60 mph traffic, no traffic walls, team starts at 70 mph)
+# Batch 2b (the user's call, 2026-10-27): batch 2 stopped at its 1M checkpoint (46.8k, 0 crashes on 1000-1009) and
+# restarts from it with traffic that never seals the road (scenario v6) and a penalty for sitting behind traffic.
+SCENARIO = 'v6'              # SCENARIOS key (v6: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic blockades)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
 PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
 MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)
@@ -26,17 +28,21 @@ SEED = 0
 COLLISION_EXTRA = 0.0        # training-only extra multiple of the game's collision term (v7's 50 % wipe replaces the old 4.0)
 CRASH_PENALTY = -500.0       # training-only fixed reward on a crash (= 50,000 game points, ~2 good episodes): the game's crash
                              # cost scales with banked points and the MPC's vehicle clearance is soft (batch 1 had none)
+STUCK_PENALTY = -0.25        # training-only reward per second per car stuck behind traffic beyond 2 s (= -25 points/s):
+                             # the traffic car ahead in its lane within 100 m, the car less than 2 m/s faster than it
 LEARNING_RATE = 1e-3         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 starts high: new actions)
 LR_FINAL = 1e-5
 TARGET_KL = 0.05             # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off
-VF_WARMUP = 0                # fine-tuning: first decisions train only the value network (policy frozen); 0 from scratch
+VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value network (policy frozen); 0 from scratch
+                             # (batch 2b: the critic first learns the stuck penalty)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'runs_rl/ppo_v8_e4_dyn_b1_5m_001/final_model.zip'   # None: from scratch
+INIT_FROM = 'runs_rl/ppo_v8_e5_dyn_b2_5m_001/checkpoints/model_1000000.zip'   # None: from scratch
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
     env = EnvConfig(version=ENV_VERSION, overtakes=ENV_VERSION == 'e5', scenario=SCENARIO, score=SCORE,
-                    vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY)
+                    vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY,
+                    aux_stuck=STUCK_PENALTY)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
                       checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE, lr_final=LR_FINAL,
                       target_kl=TARGET_KL, resume=RESUME, init_from=INIT_FROM, vf_warmup=VF_WARMUP, device=DEVICE))

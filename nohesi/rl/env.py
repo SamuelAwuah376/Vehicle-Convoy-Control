@@ -32,7 +32,7 @@ import gymnasium
 from gymnasium import spaces
 from ..config import SCENARIOS, SCORES, Planner
 from ..coordination.centralized import CentralizedTeam
-from ..evaluation.metrics import metrics
+from ..evaluation.metrics import metrics, stuck_mask
 from ..evaluation.runner import EpisodeRun
 from ..intentions import ACTIONS, OVERTAKES, encode
 from ..world import TEAM, World
@@ -147,7 +147,21 @@ class NoHesiEnv(gymnasium.Env):
                               lambda world: CentralizedTeam(self.scenario, world, self.policy, self.planner),
                               self.planner, world=self.world)
         self.team.prepare(self.snapshot)
+        self.stuck_for, self._stuck_t = np.zeros(TEAM), self.snapshot.time
         return self._obs(), {'seed': self.episode_seed, 'team_score': 0.0}
+
+    def stuck(self, snap):
+        """(3,) bool: cars stuck behind traffic now (EnvConfig.aux_stuck; evaluation.metrics.stuck_mask)."""
+        return stuck_mask(self.team.intentions.road, snap.team_s[None], snap.team_d[None], snap.team[None, :, 3],
+                          snap.traffic_s[None], snap.traffic_d[None], snap.traffic_v[None],
+                          self.cfg.stuck_window, self.cfg.stuck_closing)[0]
+
+    def _stuck_seconds(self, snap):
+        """Advance the per-car stuck timers to snap; car-seconds stuck beyond stuck_grace since the last call."""
+        dt, before = snap.time-self._stuck_t, self.stuck_for
+        self.stuck_for = np.where(self.stuck(snap), before+dt, 0.0)
+        self._stuck_t = snap.time
+        return float(np.sum(np.maximum(self.stuck_for-np.maximum(before, self.cfg.stuck_grace), 0.0)))
 
     def step(self, action):
         self.step_started = time.monotonic()   # read by the step watchdog (rl/watchdog.py) in training workers
@@ -164,10 +178,12 @@ class NoHesiEnv(gymnasium.Env):
         self.policy.actions = np.asarray(action, int).reshape(TEAM)
         log, records = team.log, team.intentions.records
         marks = len(records), len(log.fallbacks), len(log.conflicts)
-        terms = {}
+        terms, stuck = {}, 0.0
         for _ in range(team.decide_every):
             for t, v in run.step().items():
                 terms[t] = terms.get(t, 0.0)+float(v.sum())
+            if cfg.aux_stuck:
+                stuck += self._stuck_seconds(run.snap)
             if run.done:
                 break
         if not run.done:
@@ -183,6 +199,8 @@ class NoHesiEnv(gymnasium.Env):
         if cfg.overtakes:   # an overtake abandoned before the pass (ending in the passing lane is 'stayed', free)
             aux['overtake_abort'] = cfg.aux_overtake_abort*sum(r.kind == 'overtake_ended' and r.reason != 'car_gone'
                                                                for r in records[marks[0]:])
+        if cfg.aux_stuck:
+            aux['stuck'] = cfg.aux_stuck*stuck
         reward = sum(terms.values())/cfg.reward_scale+sum(aux.values())
         terminated = bool(run.snap.done)
         truncated = run.done and not terminated

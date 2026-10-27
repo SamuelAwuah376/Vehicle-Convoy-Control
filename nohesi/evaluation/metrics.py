@@ -2,14 +2,32 @@ from collections import Counter
 from dataclasses import asdict
 import numpy as np
 from ..geometry import body_centre
+from ..road import Road
 from ..scoring.events import PAIRS
 from ..scoring.score import team_pass_multiplier
+
+
+STUCK_WINDOW, STUCK_CLOSING = 100.0, 2.0   # m (CG), m/s: the stuck_time_s metric (rl EnvConfig defaults)
 
 
 def _finite_min(values):
     values = np.asarray(values)
     values = values[np.isfinite(values)]
     return float(values.min()) if values.size else None
+
+
+def stuck_mask(road, team_s, team_d, team_v, traffic_s, traffic_d, traffic_v, window=STUCK_WINDOW,
+               closing=STUCK_CLOSING):
+    """(T, 3) bool from (T, 3) team and (T, N) traffic arrays: each car's nearest traffic car ahead in its lane is within
+    `window` (CG) and the car is less than `closing` faster than it (stuck behind traffic; teammates in between do not
+    count)."""
+    if not traffic_s.shape[1]:
+        return np.zeros(team_s.shape, bool)
+    ds = traffic_s[:, None, :]-team_s[:, :, None]                                   # (T, 3, N)
+    ahead = (road.lane_of(traffic_d)[:, None, :] == road.lane_of(team_d)[:, :, None]) & (ds > 0) & (ds < window)
+    k = np.argmin(np.where(ahead, ds, np.inf), axis=2)
+    lead_v = np.take_along_axis(traffic_v[:, None, :].repeat(team_s.shape[1], axis=1), k[:, :, None], axis=2)[:, :, 0]
+    return ahead.any(axis=2) & (team_v-lead_v < closing)
 
 
 def metrics(ep):
@@ -32,6 +50,8 @@ def metrics(ep):
         'train_time_s': float(getattr(ep, 'train_time', 0.0)),
         'mean_speed_mps': float(ep.team[:, :, 3].mean()),
         'top_speed_time_s': [float(np.sum(ep.team[1:, i, 3] > cfg.top_speed_threshold)*dt) for i in range(3)],
+        'stuck_time_s': (stuck_mask(Road(ep.scenario.road), ep.team_s[1:], ep.team_d[1:], ep.team[1:, :, 3],
+                                    ep.traffic_s[1:], ep.traffic_d[1:], ep.traffic_v[1:]).sum(axis=0)*dt).tolist(),
         'team_pass': team_pass_metrics(ep),
         'combo': combo_metrics(ep),
         'maneuvers': maneuver_metrics(ep),

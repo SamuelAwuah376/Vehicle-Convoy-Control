@@ -7,6 +7,30 @@ def _profile(tau):
     return tau**3*(10-15*tau+6*tau**2), 30*tau**2*(1-tau)**2
 
 
+class _Groups:
+    """Union-find over cars with the OR of their lane bits per group."""
+    def __init__(self, bits):
+        self.parent, self.cover = list(range(len(bits))), [int(b) for b in bits]
+
+    def find(self, x):
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a, b):
+        a, b = self.find(a), self.find(b)
+        if a != b:
+            self.parent[a] = b
+            self.cover[b] |= self.cover[a]
+
+
+def _touching(bits):
+    """(n, n) bool: cars sharing or occupying adjacent lanes (lane bitmasks)."""
+    bits = np.asarray(bits, np.int64)
+    return ((bits | bits << 1 | bits >> 1)[:, None] & bits[None, :]) != 0
+
+
 class Traffic:
     """Background cars with IDM car following, optional MOBIL lane changes, seeded spawning and recycling.
 
@@ -79,7 +103,72 @@ class Traffic:
             same[skip] = False
         if np.any(np.abs(self.s[same]-s) < self.cfg.min_gap):
             return False
+        if self.cfg.no_blockades and self._seals(s, {lane}, skip):
+            return False
         return not (self.cfg.no_walls and self._forms_wall(s, lane, skip))
+
+    def _bits(self):
+        """Lane bitmask per traffic car (its lane, plus its target while changing)."""
+        return (1 << self.lane) | np.where(self.changing, 1 << self.target, 0)
+
+    def _seals(self, s, lanes, skip=None):
+        """Would a car at s occupying `lanes` (car `skip` left out) join a group covering every lane, connecting within
+        blockade_gap + blockade_buffer?"""
+        keep = np.arange(len(self.s)) != (-1 if skip is None else skip)
+        pos = np.r_[self.s[keep], s]
+        bits = np.r_[self._bits()[keep], sum(1 << int(l) for l in set(lanes))]
+        near = (np.abs(pos[:, None]-pos[None, :]) < self.cfg.blockade_gap+self.cfg.blockade_buffer) & _touching(bits)
+        groups = _Groups(bits)
+        for a, b in zip(*np.nonzero(np.triu(near, 1))):
+            groups.union(a, b)
+        return groups.cover[groups.find(len(pos)-1)] == (1 << self.road.cfg.lanes)-1
+
+    def blockade_leaders(self, reach=80.0):
+        """(n,) virtual leader per car (-1: none) and its virtual bumper gap: car r holds blockade_gap behind car f
+        ahead in a touching lane (within `reach` m of connecting) when, at the point where r would connect to f, its
+        group and the groups of every touching car it would then be connected to cover every lane. Groups are the
+        current connections (closer than blockade_gap) plus approaches within blockade_buffer of connecting, taken
+        nearest first, so two approaches cannot complete a blockade in the same step."""
+        c, n = self.cfg, len(self.s)
+        lead, gap = np.full(n, -1), np.full(n, np.inf)
+        if n < 2:
+            return lead, gap
+        bits = self._bits()
+        full = (1 << self.road.cfg.lanes)-1
+        ds = self.s[None, :]-self.s[:, None]       # ds[r, f] = s_f - s_r
+        touching = _touching(bits)
+        np.fill_diagonal(touching, False)
+        groups = _Groups(bits)
+        for a, b in zip(*np.nonzero(np.triu(touching & (np.abs(ds) < c.blockade_gap), 1))):
+            groups.union(a, b)
+        rr, ff = np.nonzero(touching & (ds >= c.blockade_gap) & (ds < c.blockade_gap+reach))
+        for k in np.argsort(ds[rr, ff], kind='stable'):
+            r, f = rr[k], ff[k]
+            if groups.find(r) == groups.find(f):
+                continue
+            at = self.s[f]-c.blockade_gap           # where r would connect to f
+            joined = np.flatnonzero(touching[r] & (np.abs(self.s-at) < c.blockade_gap))
+            cover = groups.cover[groups.find(r)] | groups.cover[groups.find(f)]
+            for j in joined:
+                cover |= groups.cover[groups.find(j)]
+            if cover == full:
+                if ds[r, f]-c.blockade_gap < gap[r]:
+                    lead[r], gap[r] = f, ds[r, f]-c.blockade_gap
+            elif ds[r, f] < c.blockade_gap+c.blockade_buffer:
+                groups.union(r, f)
+        return lead, gap
+
+    def blockades(self):
+        """Current blockades: groups of car indices covering every lane, connected closer than blockade_gap."""
+        bits = self._bits()
+        groups = _Groups(bits)
+        near = (np.abs(self.s[:, None]-self.s[None, :]) < self.cfg.blockade_gap) & _touching(bits)
+        for a, b in zip(*np.nonzero(np.triu(near, 1))):
+            groups.union(a, b)
+        full, out = (1 << self.road.cfg.lanes)-1, {}
+        for k in range(len(self.s)):
+            out.setdefault(groups.find(k), []).append(k)
+        return [cars for root, cars in out.items() if groups.cover[root] == full]
 
     def _lane_sets(self, skip=None):
         """Lanes each traffic car occupies (its lane, plus its target while changing)."""
@@ -181,7 +270,16 @@ class Traffic:
         gap = np.maximum(all_s[j]-self.s-length, 0.1)
         desired = c.idm_gap+self.v*c.idm_headway+self.v*(self.v-all_v[j])/(2*np.sqrt(c.idm_accel*c.idm_brake))
         free = np.where(has, free-(np.maximum(desired, 0)/gap)**2, free)
-        return np.clip(c.idm_accel*free, -c.idm_brake_max, c.idm_accel)
+        acc = np.clip(c.idm_accel*free, -c.idm_brake_max, c.idm_accel)
+        if c.no_blockades:   # hold back from completing a blockade (IDM behind a virtual leader blockade_gap ahead)
+            lead, vgap = self.blockade_leaders()
+            held = lead >= 0
+            if held.any():
+                v, lv = self.v[held], self.v[lead[held]]
+                desired = v*c.blockade_headway+v*(v-lv)/(2*np.sqrt(c.idm_accel*c.idm_brake))
+                virtual = c.idm_accel*(1-(v/v0[held])**4-(np.maximum(desired, 0)/np.maximum(vgap[held], 0.1))**2)
+                acc[held] = np.minimum(acc[held], np.clip(virtual, -c.idm_brake_max, c.idm_accel))
+        return acc
 
     def _mobil(self, others_s, others_lane, others_v, length, others_lane2):
         """Start lane changes for cars due an evaluation (in index order, so earlier starts are seen)."""
@@ -233,6 +331,8 @@ class Traffic:
                 if np.any(beside):
                     continue
                 if c.no_walls and self._forms_wall(s, new, skip=i):   # never close the last open lane
+                    continue
+                if c.no_blockades and self._seals(s, {lane, new}, skip=i):   # never seal the road
                     continue
                 at_c = acc(i, ln)
                 gain = at_c-a_c

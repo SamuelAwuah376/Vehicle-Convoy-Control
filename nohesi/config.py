@@ -109,10 +109,21 @@ class Traffic:
     wall_slowdown: float = 3.0        # m/s off the rearmost wall car's desired speed
     lane_change_cooldown: float = 8.0 # s after finishing a lane change before the same car may start another
     keep_right_bias: float = 0.0      # m/s^2 added to the incentive for moving right, subtracted for left
+    # No blockades (stronger than no walls): the traffic never seals the road, so a car can always slot through. Two
+    # traffic cars connect when they occupy the same or adjacent lanes less than blockade_gap apart along the road (CG);
+    # a blockade is a connected group covering every lane. With blockade_gap = 2*(length + margin), a car at traffic
+    # speed can always get past any group with that bumper-to-bumper margin (an open lane, or a diagonal slot).
+    # Spawns and lane changes avoid groups within blockade_gap + blockade_buffer that would cover every lane; a car
+    # whose approach would complete one follows the car it would connect to as a virtual IDM leader, blockade_gap
+    # ahead of it, at blockade_headway (s).
+    no_blockades: bool = False
+    blockade_gap: float = 10.6
+    blockade_buffer: float = 10.0
+    blockade_headway: float = 0.5
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('lane_changes', 'mobil_politeness', 'mobil_threshold',
-                                                             'keep_right_bias', 'no_walls')))
+                                                             'keep_right_bias', 'no_walls', 'no_blockades')))
         if any(not isfinite(getattr(self, k)) or getattr(self, k) < 0 for k in ('mobil_politeness', 'mobil_threshold')):
             raise ValueError('mobil_politeness and mobil_threshold must be non-negative')
         if not isfinite(self.keep_right_bias):
@@ -394,8 +405,16 @@ def scenario_v5():
                    traffic=replace(s.traffic, speed_min=20.1, speed_max=26.8, no_walls=True, wall_window=2*car.length))
 
 
+def scenario_v6():
+    """v5 with no traffic blockades in place of no walls: the traffic always leaves a way through, an open lane or a
+    diagonal slot with 0.25 m bumper-to-bumper margins plus 0.5 m of play (blockade_gap = 2*(length + 0.25) + 0.5)."""
+    s = scenario_v5()
+    return replace(s, version='v6', traffic=replace(s.traffic, no_walls=False, no_blockades=True,
+                                                    blockade_gap=2*(s.vehicle.length+0.25)+0.5))
+
+
 SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4,
-             'v5': scenario_v5}
+             'v5': scenario_v5, 'v6': scenario_v6}
 
 
 def score_v1():
