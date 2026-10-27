@@ -50,6 +50,7 @@ def metrics(ep):
         'train_time_s': float(getattr(ep, 'train_time', 0.0)),
         'mean_speed_mps': float(ep.team[:, :, 3].mean()),
         'top_speed_time_s': [float(np.sum(ep.team[1:, i, 3] > cfg.top_speed_threshold)*dt) for i in range(3)],
+        'braking_mps': (-np.minimum(ep.controls[:, :, 0], 0.0).sum(axis=0)*dt).tolist(),   # speed braked away per car
         'stuck_time_s': (stuck_mask(Road(ep.scenario.road), ep.team_s[1:], ep.team_d[1:], ep.team[1:, :, 3],
                                     ep.traffic_s[1:], ep.traffic_d[1:], ep.traffic_v[1:]).sum(axis=0)*dt).tolist(),
         'team_pass': team_pass_metrics(ep),

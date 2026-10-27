@@ -178,12 +178,14 @@ class NoHesiEnv(gymnasium.Env):
         self.policy.actions = np.asarray(action, int).reshape(TEAM)
         log, records = team.log, team.intentions.records
         marks = len(records), len(log.fallbacks), len(log.conflicts)
-        terms, stuck = {}, 0.0
+        terms, stuck, braked = {}, 0.0, 0.0
         for _ in range(team.decide_every):
             for t, v in run.step().items():
                 terms[t] = terms.get(t, 0.0)+float(v.sum())
             if cfg.aux_stuck:
                 stuck += self._stuck_seconds(run.snap)
+            if cfg.aux_brake:
+                braked += float(np.maximum(-run.controls[-1][:, 0], 0.0).sum())*self.scenario.timing.dt
             if run.done:
                 break
         if not run.done:
@@ -201,6 +203,8 @@ class NoHesiEnv(gymnasium.Env):
                                                                for r in records[marks[0]:])
         if cfg.aux_stuck:
             aux['stuck'] = cfg.aux_stuck*stuck
+        if cfg.aux_brake:
+            aux['brake'] = cfg.aux_brake*braked
         reward = sum(terms.values())/cfg.reward_scale+sum(aux.values())
         terminated = bool(run.snap.done)
         truncated = run.done and not terminated

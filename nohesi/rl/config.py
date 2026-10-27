@@ -36,6 +36,9 @@ class EnvConfig:
     stuck_window: float = 100.0
     stuck_closing: float = 2.0
     stuck_grace: float = 2.0
+    # Training-only reward per m/s of speed braked away, summed over the team (x reward_scale game points): a car braking
+    # at b m/s^2 for dt seconds costs aux_brake*b*dt (applied acceleration; emergency and safety braking count too).
+    aux_brake: float = 0.0
 
     def __post_init__(self):
         if self.overtakes != (self.version == 'e5'):

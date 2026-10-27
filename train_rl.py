@@ -14,8 +14,8 @@ RUN_ID = 'ppo_v8_e5_dyn_b2b_5m_001'    # folder under runs_rl/; reuse with RESUM
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
 # Batch 2b (the user's call, 2026-10-27): batch 2 stopped at its 1M checkpoint (46.8k, 0 crashes on 1000-1009) and
-# restarts from it with traffic that never seals the road and changes lanes less (scenario v7) and a penalty for
-# sitting behind traffic.
+# restarts from it with traffic that never seals the road and changes lanes less (scenario v7), a penalty for sitting
+# behind traffic and a penalty for braking.
 SCENARIO = 'v7'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
@@ -32,6 +32,8 @@ CRASH_PENALTY = -500.0       # training-only fixed reward on a crash (= 50,000 g
                              # cost scales with banked points and the MPC's vehicle clearance is soft (batch 1 had none)
 STUCK_PENALTY = -0.25        # training-only reward per second per car stuck behind traffic beyond 2 s (= -25 points/s):
                              # the traffic car ahead in its lane within 100 m, the car less than 2 m/s faster than it
+BRAKE_PENALTY = -0.1         # training-only reward per m/s of speed braked away (= -10 points per m/s; the batch 2 policy
+                             # brakes away ~87 m/s per car-minute, ~-5k points per episode): smooth driving, little braking
 LEARNING_RATE = 1e-3         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 starts high: new actions)
 LR_FINAL = 1e-5
 TARGET_KL = 0.05             # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off
@@ -44,7 +46,7 @@ RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_200000
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
     env = EnvConfig(version=ENV_VERSION, overtakes=ENV_VERSION == 'e5', scenario=SCENARIO, score=SCORE,
                     vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY,
-                    aux_stuck=STUCK_PENALTY)
+                    aux_stuck=STUCK_PENALTY, aux_brake=BRAKE_PENALTY)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
                       checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE, lr_final=LR_FINAL,
                       target_kl=TARGET_KL, resume=RESUME, init_from=INIT_FROM, vf_warmup=VF_WARMUP, device=DEVICE))
