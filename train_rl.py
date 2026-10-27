@@ -24,6 +24,7 @@ MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the d
 ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
 N_ENVS = 24                  # parallel SubprocVecEnv workers (one CPU thread each; 24 = the physical cores)
 TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic, 24 envs: ~1.2 days
+EVAL_ENVS = 4                # parallel eval workers (idle between evals; each holds ~0.6 GB: 24 + 10 left 0.3 GB free)
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 250_000    # frequent: train_rl_supervised.py resumes from the latest one after a failure
 SEED = 0
@@ -48,5 +49,6 @@ if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-im
                     vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY,
                     aux_stuck=STUCK_PENALTY, aux_brake=BRAKE_PENALTY)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
-                      checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE, lr_final=LR_FINAL,
+                      eval_envs=EVAL_ENVS, checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE,
+                      lr_final=LR_FINAL,
                       target_kl=TARGET_KL, resume=RESUME, init_from=INIT_FROM, vf_warmup=VF_WARMUP, device=DEVICE))
