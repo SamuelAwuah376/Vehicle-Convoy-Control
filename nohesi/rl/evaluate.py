@@ -98,10 +98,11 @@ class ObsNormalizer:
 
 def make_eval_vec_env(env_cfg, n_envs, subproc=True):
     """Raw (unnormalised) eval envs; seeds are set explicitly per episode by run_policy."""
-    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+    from stable_baselines3.common.vec_env import DummyVecEnv
     from .env import make_env
+    from .vec_worker import subproc_vec_env
     thunks = [make_env(env_cfg, rank, 0) for rank in range(n_envs)]
-    return SubprocVecEnv(thunks) if subproc and n_envs > 1 else DummyVecEnv(thunks)
+    return subproc_vec_env(thunks) if subproc and n_envs > 1 else DummyVecEnv(thunks)
 
 
 def run_policy(model, normalize, vec_env, seeds, deterministic=True):

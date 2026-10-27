@@ -238,10 +238,11 @@ def single_thread_workers():
 
 
 def make_vec_env(env_cfg, n_envs, base_seed, subproc=True):
-    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+    from stable_baselines3.common.vec_env import DummyVecEnv
     from .env import make_env
+    from .vec_worker import subproc_vec_env
     thunks = [make_env(env_cfg, rank, base_seed) for rank in range(n_envs)]
-    return SubprocVecEnv(thunks) if subproc and n_envs > 1 else DummyVecEnv(thunks)
+    return subproc_vec_env(thunks) if subproc and n_envs > 1 else DummyVecEnv(thunks)
 
 
 # ---------------------------------------------------------------------------------------------- callback
