@@ -22,8 +22,8 @@ SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 m
 PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
 MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)
 ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
-N_ENVS = 16                  # parallel SubprocVecEnv workers (one CPU thread each)
-TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic: ~37/s, ~1.6 days
+N_ENVS = 24                  # parallel SubprocVecEnv workers (one CPU thread each; 24 = the physical cores)
+TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic, 24 envs: ~1.2 days
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 250_000    # frequent: train_rl_supervised.py resumes from the latest one after a failure
 SEED = 0
