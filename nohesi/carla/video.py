@@ -1,7 +1,7 @@
-"""MP4 of a CARLA episode from a chase camera: an RGB camera rendered at `fps` (sensor_tick = 1/fps, real time), moved
-every CARLA tick to sit low behind the team's rear car looking at the team (pulling back and up as the team spreads,
-smoothed); frames are written in order with a HUD (caption, the frame's time, team score, each car's speed and lane),
-H.264 at constant quality `crf`. Install it as session.recorder: CarlaWorld calls start(world) when an episode
+"""MP4 of a CARLA episode from a chase camera: an RGB camera rendered at `fps` (sensor_tick = 1/fps, real time; the
+default 100 is one frame per 0.01 s CARLA tick), moved every CARLA tick to sit low behind the team's rear car looking
+at the team (pulling back and up as the team spreads, smoothed); frames are written in order with a HUD (caption, the
+frame's time, team score, each car's speed and lane), H.264 at constant quality `crf`. Install it as session.recorder: CarlaWorld calls start(world) when an episode
 begins, follow(xy) after every tick and step(world) after every sim step.
 CARLA's standalone OpenDRIVE mode renders no road markings, so the recorder paints the lane lines and edges as
 permanent debug lines (visible to the camera)."""
@@ -42,7 +42,7 @@ def paint_lanes(world, road, dash=3.0, gap=9.0, z=0.03):
 
 
 class Recorder:
-    def __init__(self, session, path, road, fps=50, width=1920, height=1080, fov=70.0, smooth=0.04, crf=17):
+    def __init__(self, session, path, road, fps=100, width=1920, height=1080, fov=70.0, smooth=0.04, crf=17):
         bp = session.blueprints.find('sensor.camera.rgb')
         for k, v in (('image_size_x', width), ('image_size_y', height), ('fov', fov), ('sensor_tick', 1/fps),
                      ('bloom_intensity', 0.0), ('lens_flare_intensity', 0.0), ('motion_blur_intensity', 0.0)):
@@ -54,7 +54,8 @@ class Recorder:
         self.writer = imageio.get_writer(str(path), fps=fps, codec='libx264', pixelformat='yuv420p', macro_block_size=8,
                                          output_params=['-crf', str(crf), '-preset', 'medium'])
         self.smooth, self.rig = smooth, None
-        self.caption, self.score, self.written, self.t0 = '', None, 0, 0.0
+        self.caption, self.score, self.written, self.t0, self.last = '', None, 0, 0.0, 0.0   # last: newest frame's time
+        self.period = 1/fps
         self.scale = height/720
         self.big, self.small = _font(round(26*self.scale)), _font(round(20*self.scale))
         self.hud = []
@@ -92,12 +93,16 @@ class Recorder:
         for n, line in enumerate(lines):
             draw.text((24*k, (56+26*n)*k), line, font=self.small, fill=(235, 235, 235))
         self.writer.append_data(np.asarray(frame))
-        self.written += 1
+        self.written, self.last = self.written+1, image.timestamp
 
-    def _drain(self, timeout=None):
+    def _drain(self, timeout=5.0):
+        """Write the frames up to the world's latest tick. CARLA streams them behind the ticks, so wait (up to timeout s
+        each) for those still in flight: they would otherwise pile up, carry a later step's HUD, and be dropped when
+        the camera stops (the 50 fps episode lost its last 4.8 s)."""
+        end = self.world.get_snapshot().timestamp.elapsed_seconds-1.5*self.period
         while True:
             try:
-                self._write(self.frames.get(timeout=timeout) if timeout else self.frames.get_nowait())
+                self._write(self.frames.get(timeout=timeout) if self.last < end else self.frames.get_nowait())
             except queue.Empty:
                 return
 
@@ -105,7 +110,7 @@ class Recorder:
         """A new episode: drop frames rendered before it (settling, pre-roll), restart the clock, aim at its team."""
         while not self.frames.empty():
             self.frames.get_nowait()
-        self.t0 = self.world.get_snapshot().timestamp.elapsed_seconds
+        self.t0 = self.last = self.world.get_snapshot().timestamp.elapsed_seconds
         self.rig, self.hud = None, self._hud(world)
         self.follow(world.team[:, :2])
 
@@ -114,8 +119,8 @@ class Recorder:
         self._drain()
         self.hud = self._hud(world)
 
-    def close(self, timeout=2.0):
+    def close(self):
+        self._drain()
         self.camera.stop()
-        self._drain(timeout)
         self.camera.destroy()
         self.writer.close()

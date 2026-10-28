@@ -37,7 +37,8 @@ def _reddish(color):
 def set_tick(world, tick, settings=None):
     """Synchronous mode with world.tick() advancing `tick` s. This CARLA build (0.9.16 client, UE4) runs more than one
     frame of fixed_delta_seconds per tick (two here), so the frame time is set from the frames a tick measurably
-    advances; returns the frames per tick."""
+    advances; returns the frames per tick. While rendering, a tick sometimes runs one frame: CarlaWorld._tick
+    keeps CARLA's clock on its own."""
     settings = settings or world.get_settings()
     settings.synchronous_mode = True
     for _ in range(3):   # the first ticks after a map load can be irregular: measure, check, retry
@@ -71,7 +72,7 @@ class CarlaSession:
         settings = self.world.get_settings()
         self.original = (settings.synchronous_mode, settings.no_rendering_mode, settings.fixed_delta_seconds)
         settings.no_rendering_mode = not render
-        set_tick(self.world, tick, settings)
+        self.frame = tick/set_tick(self.world, tick, settings)   # fixed_delta_seconds
         self.blueprints = self.world.get_blueprint_library()
         self.episode = None
         self.recorder = None   # video.Recorder: CarlaWorld calls its start, follow (every tick) and step
@@ -169,12 +170,24 @@ class CarlaWorld(World):
         for i, actor in enumerate(self.actors):
             actor.enable_constant_velocity(carla.Vector3D(float(self.team[i][3]), 0.0, 0.0))
             actor.apply_control(self._control(self.cal.floor_at(self.team[i][3]), 0.0, 0.0))
+        self.clock = self.carla.get_snapshot().timestamp.elapsed_seconds   # CARLA time _tick keeps to
         for _ in range(int(round(PREROLL/self.session.tick))):
-            self.carla.tick()
+            self._tick()
         for actor in self.actors:
             actor.disable_constant_velocity()
         self._read_all()
         self.snapshot = self._snapshot()
+
+    def _tick(self):
+        """Advance CARLA one session tick; returns its snapshot. While rendering, a world.tick() runs one or two
+        frames (always two without), which left CARLA's clock 4-11% behind ours (the team's physics slower than its
+        controls and the traffic): tick until CARLA's clock reaches ours, so it stays within a frame of it."""
+        self.clock += self.session.tick
+        snap = self.carla.get_snapshot()
+        while snap.timestamp.elapsed_seconds < self.clock-0.5*self.session.frame:
+            self.carla.tick()
+            snap = self.carla.get_snapshot()
+        return snap
 
     def _control(self, throttle, brake, steer):
         if self.cal.manual_gear:
@@ -233,8 +246,7 @@ class CarlaWorld(World):
                 batch.append(carla.command.ApplyTransform(actor.id, self._traffic_transform(
                     k, s0[k]+f*(s1[k]-s0[k]), d0[k]+f*(d1[k]-d0[k]), h0[k]+f*(h1[k]-h0[k]))))
             self.session.client.apply_batch(batch)
-            self.carla.tick()
-            snap = self.carla.get_snapshot()
+            snap = self._tick()
             self.upset.update(self._upset(snap))
             if self.upset:
                 break

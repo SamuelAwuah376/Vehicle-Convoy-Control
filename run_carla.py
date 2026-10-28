@@ -4,7 +4,7 @@ settings below, then run this file with the .venv-carla interpreter (Python 3.12
 Our straight road is loaded as OpenDRIVE; the team cars are CARLA's Tesla Model 3 tuned to the scenario's car and
 driven by CARLA's physics; traffic follows our model with the same seeds as run_sim.py. Outputs go to results/ like
 run_sim.py (label suffix _carla): team.gif, summary.png, metrics.json, events.json, plus carla.json (physical contacts)
-and, with VIDEO, carla.mp4 (chase camera, 1080p at 50 fps; needs RENDER).
+and, with VIDEO, carla.mp4 (chase camera, 1080p at 100 fps; needs RENDER).
 """
 from dataclasses import replace
 import json
