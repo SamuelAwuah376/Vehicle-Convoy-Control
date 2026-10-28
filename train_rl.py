@@ -9,7 +9,7 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v8_e5_dyn_b2c_3m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v8_e5_dyn_b3_5m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -17,6 +17,8 @@ RUN_ID = 'ppo_v8_e5_dyn_b2c_3m_001'    # folder under runs_rl/; reuse with RESUM
 # restarts from it with traffic that never seals the road and changes lanes less (scenario v7), a penalty for sitting
 # behind traffic and a penalty for braking. Batch 2c (2026-10-27): braking and stuck time were flat at 2b's 2M eval
 # (approx_kl ~0.07 above target_kl at LR 1e-3), so the remaining 3M warm-start from 2b's 2M checkpoint at a lower LR.
+# Batch 3 (2026-10-28): from batch 2c's final model (50 seeds 1000-1049: 56.5k, 0 crashes; 2c's 3M best 54.4k; the 2b
+# start 45.5k, 4 % crashes), same settings, a fresh 5M LR cycle.
 SCENARIO = 'v7'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1)
 SCORE = 'v8'                 # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread penalty)
@@ -24,8 +26,8 @@ PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with lo
 MPC = 'nonlinear'            # 'linear' or 'nonlinear' (use nonlinear with the dynamic plant)
 ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
 N_ENVS = 24                  # parallel SubprocVecEnv workers (one CPU thread each; 24 = the physical cores)
-TOTAL_TIMESTEPS = 3_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic, 24 envs: ~63/s, ~13 h
-EVAL_ENVS = 4                # parallel eval workers (idle between evals; each holds ~0.6 GB: 24 + 10 left 0.3 GB free)
+TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (240 per 120 s episode); dynamic, 24 envs: ~63/s, ~22 h
+EVAL_ENVS = 10               # parallel eval workers (idle between evals; torch-free workers hold ~0.1 GB each)
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 250_000    # frequent: train_rl_supervised.py resumes from the latest one after a failure
 SEED = 0
@@ -40,9 +42,9 @@ LEARNING_RATE = 3e-4         # initial LR, decayed linearly to LR_FINAL (batch 1
 LR_FINAL = 1e-5
 TARGET_KL = 0.05             # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off
 VF_WARMUP = 0                # fine-tuning: first decisions train only the value network (policy frozen); 0 from scratch
-                             # (batch 2b: 100k, the critic first learned the stuck penalty; 2c: reward unchanged)
+                             # (batch 2b: 100k, the critic first learned the stuck penalty; 2c, 3: reward unchanged)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'runs_rl/ppo_v8_e5_dyn_b2b_5m_001/checkpoints/model_2000064.zip'   # None: from scratch
+INIT_FROM = 'runs_rl/ppo_v8_e5_dyn_b2c_3m_001/final_model.zip'   # None: from scratch
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
