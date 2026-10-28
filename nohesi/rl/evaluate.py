@@ -16,6 +16,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 EVAL_SEEDS = tuple(range(1000, 1020))
+RERUNS = 2   # run_policy: reruns of a seed whose worker died
 SUMMARY_FIELDS = ('team_score', 'collision', 'close_passes', 'draft_passes', 'train_passes', 'draft_time_s',
                   'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'braking_mps', 'maneuvers', 'fallbacks',
                   'rejections', 'decisions', 'duration_s')
@@ -106,12 +107,13 @@ def make_eval_vec_env(env_cfg, n_envs, subproc=True):
 
 
 def run_policy(model, normalize, vec_env, seeds, deterministic=True):
-    """Run one episode per seed on vec_env (seeds handed to free envs as they finish).
+    """Run one episode per seed on vec_env (seeds handed to free envs as they finish). An episode whose worker died
+    (vec_worker: info['worker_restart']) is run again, up to RERUNS times per seed.
 
     Returns [(seed, episode_metrics, decisions, summed aux, summed score terms)] in seed order."""
     from sb3_contrib.common.maskable.utils import get_action_masks
     n, queue = vec_env.num_envs, list(seeds)
-    active, steps, results = [None]*n, np.zeros(n, int), {}
+    active, steps, results, reruns = [None]*n, np.zeros(n, int), {}, {}
     obs = np.zeros((n,)+vec_env.observation_space.shape, np.float32)
 
     def start(i):
@@ -132,6 +134,14 @@ def run_policy(model, normalize, vec_env, seeds, deterministic=True):
             steps[i] += 1
             if dones[i]:
                 info = infos[i]
+                if info.get('worker_restart'):
+                    seed = active[i]
+                    reruns[seed] = reruns.get(seed, 0)+1
+                    if reruns[seed] > RERUNS:
+                        raise RuntimeError(f'seed {seed}: its worker died {reruns[seed]} times')
+                    queue.insert(0, seed)
+                    start(i)
+                    continue
                 if 'episode_metrics' not in info:
                     raise RuntimeError("env did not report 'episode_metrics' at episode end")
                 results[active[i]] = (active[i], info['episode_metrics'], int(steps[i]))

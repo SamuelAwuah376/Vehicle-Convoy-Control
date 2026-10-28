@@ -1,6 +1,7 @@
-"""Run train_rl.py's run under a supervisor, for long runs: if training exits with an error (e.g. a worker's step
-watchdog ended a hung solver, see nohesi/rl/watchdog.py), resume it from its latest checkpoint, up to MAX_RESTARTS
-times. Launch this file instead of train_rl.py (same settings, read from train_rl.py); output goes to the same stdout.
+"""Run train_rl.py's run under a supervisor, for long runs: if training exits with an error, resume it from its latest
+checkpoint, up to MAX_RESTARTS times (an env worker that dies, a native solver crash or the step watchdog ending a hung
+solver, no longer ends the run: the vec env replaces the worker, see nohesi/rl/vec_worker.py). Launch this file
+instead of train_rl.py (same settings, read from train_rl.py); output goes to the same stdout.
 """
 import re
 import subprocess

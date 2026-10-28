@@ -479,9 +479,9 @@ def train(cfg):
 
 
 def close_vec_env(vec_env, failed=False):
-    """Close a (wrapped) vec env. After a failure, e.g. a worker that died mid-step (the step watchdog ending a hung
-    solver), SubprocVecEnv.close() waits forever for replies the other workers already sent: terminate the workers
-    instead, so the trainer exits and its supervisor can resume."""
+    """Close a (wrapped) vec env. After a failure mid-step (e.g. a replacement worker that died too), SubprocVecEnv.close()
+    waits forever for replies the other workers already sent: terminate the workers instead, so the trainer exits and its
+    supervisor can resume."""
     if vec_env is None:
         return
     inner = vec_env

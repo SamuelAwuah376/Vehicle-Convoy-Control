@@ -4,8 +4,8 @@ A solver hang inside compiled code never returns (seen twice: HPIPM on a QP line
 now guarded by NonlinearMPC._sane), so
 the worker stops answering and the whole run waits on it. A daemon thread in each worker checks how long the env's
 current step has run; past the timeout it writes the Python stack and the nonlinear MPC's last QP (acados'
-dump_last_qp_to_json, for an offline repro) to the run's hangs/ folder, then ends the worker. The trainer then fails,
-and its supervisor (train_rl_supervised.py) resumes from the latest checkpoint.
+dump_last_qp_to_json, for an offline repro) to the run's hangs/ folder, then ends the worker. The trainer's vec env
+then replaces the worker (vec_worker.subproc_vec_env: its episode is cut short) and training carries on.
 
 The trainer sets NOHESI_HANG_DIR (run_dir/hangs) before spawning workers; NOHESI_STEP_TIMEOUT overrides the timeout
 (s, default 300: a normal decision takes well under 10 s). Time the whole process was frozen (suspended to pause a run,
