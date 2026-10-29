@@ -9,15 +9,15 @@ from nohesi.evaluation.io import append_index, next_run_dir, save
 from nohesi.evaluation.runner import run
 from nohesi.evaluation.viz import animate, plot
 
-SCENARIO = 'v5'          # 'v0'-'v2' early worlds; 'v3'/'v4' lane-changing traffic; 'v5' = v4 with BMW M3s, 45-60 mph traffic, no walls, up to 134 mph
+SCENARIO = 'v7'          # 'v0'-'v2' early worlds; 'v3'/'v4' lane-changing traffic; 'v5' = v4 with BMW M3s, 45-60 mph traffic, no walls, up to 134 mph; 'v6' = v5 where traffic never blocks every lane; 'v7' = v6 with fewer traffic lane changes
 POLICY = 'ppo'           # 'overtaker' (lane changes + MPC), 'lane_keeping', or 'ppo' (trained MaskablePPO team policy)
-PPO_RUN = 'models/ppo_v8_e4_10m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version)
+PPO_RUN = 'models/ppo_v8_e5_dyn_b2c_3m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version); 'models/ppo_v8_e4_10m' = kinematic-car model (v5, PLANT 'kinematic', MPC 'linear')
 PPO_MODEL = 'final'      # POLICY = 'ppo' only: 'best' or 'final' model of PPO_RUN
 SEED = 2                 # different traffic layout per seed
 SCORE = 'v8'             # 'v4' drafting + team passes; 'v5'/'v6' more drafting / draft passes; 'v7' team play (trains, spread penalty, crash wipe); 'v8' = v7 fast (trains > 80 mph, bonus > 120 mph)
 TRAFFIC = None             # number of traffic cars; None keeps the scenario's (v0: 8, v1: 10, v2: 20)
-PLANT = 'kinematic'      # simulated vehicle physics: 'kinematic' or 'dynamic' (tyre slip)
-MPC = 'linear'           # 'linear' (kinematic OSQP MPC) or 'nonlinear' (acados NMPC on the dynamic bicycle; pair with PLANT = 'dynamic')
+PLANT = 'dynamic'        # simulated vehicle physics: 'kinematic' or 'dynamic' (tyre slip)
+MPC = 'nonlinear'        # 'linear' (kinematic OSQP MPC) or 'nonlinear' (acados NMPC on the dynamic bicycle; pair with PLANT = 'dynamic')
 ANIMATE = True           # GIF adds a few seconds
 # Each run gets the next free number: results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>[...]; see results/runs.csv.
 LABEL = f'{SCENARIO}_{POLICY}'+(f'-{Path(PPO_RUN).name}' if POLICY == 'ppo' else '')+f'_score{SCORE}_seed{SEED}'+(f'_traffic{TRAFFIC}' if TRAFFIC else '')+(f'_{PLANT}' if PLANT != 'kinematic' else '')+('_nmpc' if MPC == 'nonlinear' else '')
