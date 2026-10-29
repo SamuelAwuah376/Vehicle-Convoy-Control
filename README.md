@@ -1,6 +1,6 @@
 # No Hesi Team Driving
 
-A **No Hesi-style team game** in Python (`nohesi/`): three cars weave through highway traffic, scoring points for close passes, staying near teammates and lane-change maneuvers. Each car is driven by a model predictive controller (MPC) that turns high-level choices ("change left, speed up") into safe, smooth steering and throttle. The planned next stage is a reinforcement-learning (RL) policy choosing those high-level actions.
+A **No Hesi-style team game** in Python (`nohesi/`): three cars weave through highway traffic, scoring points for close passes, staying near teammates and lane-change maneuvers. Each car is driven by a model predictive controller (MPC) that turns high-level choices ("change left, speed up") into safe, smooth steering and throttle. A reinforcement-learning (RL) policy chooses those high-level actions, and a bridge runs the team in CARLA.
 
 Everything uses SI units (metres, seconds, m/s, radians).
 
@@ -23,7 +23,7 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 
 | Setting | Options |
 |---|---|
-| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic |
+| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic · `'v5'` BMW M3s, 45–60 mph traffic · `'v6'` v5 where traffic never blocks every lane · `'v7'` v6 with fewer traffic lane changes |
 | `POLICY` | `'overtaker'` (lane changes + MPC) · `'lane_keeping'` (stays in its lane, no MPC) |
 | `SCORE` | `'v0'` … `'v4'` (see [Scoring](#scoring)); `'v4'` is the latest (default) |
 | `SEED` | any integer: a different traffic layout |
@@ -45,7 +45,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M3 | PPO policy (MaskablePPO), score v4 with drafting, and stronger safety fallbacks. |
 | No Hesi M3, part 2 | Trained PPO models, drafting-focused fine-tuning (scores v5–v6), faster simulator. |
 | No Hesi M4 | Safety layer m3.7, team-play scores v7–v8, the v8 world (BMW M3s, faster traffic without walls), and a new 10M-decision model trained on all of it. |
-| **No Hesi M4, part 2** | The stack on the dynamic car: realistic M3 braking physics, a grip budget, an MPC with grip hard and contact soft, a 100 Hz stability layer, an MPC emergency mode and plan verification (planner m4.2). |
+| No Hesi M4, part 2 | The stack on the dynamic car: realistic M3 braking physics, a grip budget, an MPC with grip hard and contact soft, a 100 Hz stability layer, an MPC emergency mode and plan verification (planner m4.2). |
+| **No Hesi M5** | The policy trained on the dynamic car in batches: an overtake action, traffic that always leaves a gap, training that survives hangs and crashes, and a CARLA bridge. |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -220,7 +221,45 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
   - clipping the stability layer's reference to the same envelope;
   - then fine-tuning the policy on the dynamic car.
 
-**Next:** CARLA (Town04 highway) is planned later, for visualisation and evaluation only. A curved, Town04-like road was started and is paused until the dynamic stack is settled.
+**Milestone 5** trains the policy on the dynamic car (nonlinear MPC, planner m4.3) and connects the simulator to CARLA. In the order it happened:
+
+1. **Long runs that survive.** The first dynamic run (20M decisions) froze after 213k: one worker hung for 11 h inside the QP solver.
+   - A step watchdog (`rl/watchdog.py`) saves the stuck QP and ends the worker; `train_rl_supervised.py` resumes from the latest checkpoint (every 250k decisions).
+   - The saved QP showed the cause: an emergency solve diverged, and the next QP had Jacobian entries up to 1e43. A diverged iterate is now rejected before it is linearised.
+   - **Planner m4.3:** emergency braking guesses stop at zero speed, and tyre slip uses at least 5 m/s. Diverged iterates fell from 187 to 2 per 30 episodes.
+   - **Speed:** the MPC calls acados' C setters directly and geometry checks are batched: 7.5 → 10 decisions/s per process, with bit-identical results.
+
+   The run was then split into four 5M-decision batches, each starting from the one before.
+2. **Batch 1** (env e4, from scratch, scenario v5, score v8): the 10-seed eval rose from −67.7k to 48.1k (best, 4.5M), ending at 35.7k, with 0–30 % crashes. Its crash rate rose late, so every later batch adds a fixed −500 reward (−50k points) for a crash.
+3. **Batch 2: an overtake action** (env e5, 51 actions per car). "Pass the car ahead on the left or right, 3/6/9 m/s faster" is one intention. The MPC blends the pull-out over half the time to contact, returns 2 m past the passed car, or stays in the passing lane when there is no room. Scripted on dense traffic (10 seeds), it had 0 crashes and 66.6 passes against 56.5 for the overtaker, with pull-out steering rates 40 % lower. The batch started from batch 1, its policy grown to the new actions, and rose from 26.2k to 46.8k in 1M decisions.
+4. **Batch 2b: open traffic and smoothness**, from batch 2 at 1M.
+   - **Scenario v6:** traffic never blocks every lane at once, so there is always an open lane or a tight diagonal slot. Near the team, the road was blocked 22 % of the time in v5; now it never is.
+   - **Scenario v7:** traffic takes a lane change with probability 0.1 (0.53 → 0.10 changes per car-minute).
+   - **Training-only penalties:** −25 points/s for each car stuck behind traffic for more than 2 s, and −10 points per m/s of speed braked away.
+   - **24 workers**, one per core: about 63 decisions/s, 1.8× faster.
+
+   After 2M decisions braking and stuck time had not moved: at LR 1e-3 each update hit the KL limit and stopped early.
+5. **Batch 2c:** the remaining 3M from 2b's 2M checkpoint, at LR 3e-4.
+   - **Memory:** each worker loaded PyTorch and CUDA without using them, and RAM reached 100 %. Workers now start from a torch-free module (`rl/vec_worker.py`): 0.56 → 0.10 GB each.
+   - **Native crashes:** two workers died inside the acados linear algebra (blasfeo). Both crash dumps show a CPU state that normal execution can't produce; the laptop's i9-14900HX runs microcode older than Intel's instability fixes. A dead worker is now replaced, which costs one episode instead of up to 250k decisions.
+6. **CARLA bridge** (`nohesi/carla`, `run_carla.py`): the straight 3-lane road as OpenDRIVE; CARLA's Tesla Model 3 tuned and calibrated to the M3; CARLA physics for the team at 100 Hz (with the stability layer) and our traffic model moving CARLA's actors. The v8 model crashed in 1 of 10 seeds in CARLA, as in our simulator. CARLA's clock is kept on ours while rendering, and videos record at 100 fps (kept locally, not in git).
+7. **Batch 3** (running): 5M decisions from 2c's final model, same settings.
+
+**Results (milestone 5):** 50 seeds (1000–1049), scenario v7, score v8, dynamic car with the nonlinear MPC (`models/ppo_v8_e5_dyn_b2c_3m/eval_50seeds_1000-1049.json`):
+
+| | Batch 2b at 2M (2c's start) | 2c best (3M) | **2c final** |
+|---|---|---|---|
+| Team score | 45,534 | 54,374 | **56,513** |
+| Crash rate | 0.04 | **0.00** | **0.00** |
+| Close passes | 46.5 | **53.3** | 52.2 |
+| Draft passes | 14.3 | **16.7** | 16.5 |
+| Stuck behind traffic (car-s per episode) | 126 | **113** | 119 |
+| Speed braked away (m/s per episode) | **473** | 503 | 502 |
+| Mean speed (m/s) | 27.0 | 27.4 | 27.3 |
+
+- **Batch 2c's final model beats its start** by 11.0k ± 4.5k per seed, with no crashes. It is saved as `models/ppo_v8_e5_dyn_b2c_3m` and is batch 3's start.
+- **10-seed evals during training are noisy:** the 3M checkpoint scored 69.6k on 10 seeds but 54.4k on 50, within noise of the final model.
+- **Open issues:** the braking penalty has not reduced braking, and stuck time fell only about 6 %.
 
 ## Training (milestone 3)
 
@@ -228,6 +267,7 @@ Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE 
 
 - **Setup:** 16 `SubprocVecEnv` workers × 512 steps (8192 per update), batch 1024, 10 epochs, lr 3e-4 decaying linearly to 0, clip 0.2, entropy 0.01, γ 0.99, λ 0.95. Separate 256×256 tanh networks for policy and value. `VecNormalize` normalises observations and rewards (clip 10), and its statistics are saved with every model.
 - **Threads:** each worker uses one thread (`OMP/MKL/OPENBLAS_NUM_THREADS=1`), and the learner uses 1 torch thread while collecting rollouts and 4 during PPO updates. With 16 envs, training runs at about 80 timesteps/s; the environment (mostly the MPC) is the bottleneck.
+- **Dynamic-car batches (milestone 5):** run with `train_rl_supervised.py`, which resumes from the latest checkpoint after a failure. 24 torch-free workers (`rl/vec_worker.py`) run at about 63 decisions/s; a dead worker is replaced, and the step watchdog ends a hung solve. `train_rl.py` holds the current batch's settings, with the history of each batch in its comments.
 - **Evaluation:** every 500k timesteps on held-out seeds 1000–1009 (`--seeds` for the final evaluation, default 1000–1019), with deterministic actions and masks applied. The model with the best mean team score is saved as `best_model.zip` + `best_vecnormalize.pkl`.
 - **Saved models:** `models/<name>/` holds the trained models kept in git: best and final models with their `vecnormalize` files, `config.json`, `eval_history.csv` and the 20-seed evaluations. `run_sim.py` (`POLICY = 'ppo'`, `PPO_RUN`) and `nohesi.rl.evaluate` accept these folders like a run folder.
 - **Outputs:** everything goes to `runs_rl/<run_id>/` (git-ignored): `config.json` (configs, library versions, git commit), TensorBoard logs in `tb/` (per-term reward, aux penalties, episode and eval metrics; view with `.venv\Scripts\tensorboard --logdir runs_rl`), `checkpoints/`, and `eval_history.csv`.
@@ -313,7 +353,10 @@ Each run folder contains:
 | `stability.py` | Stability layer: 100 Hz inner loop under every command on the dynamic car (grip governor, yaw/sideslip corrections, state buffer) |
 | `planning/fallback.py` | Fallback plans and plan conflict checks |
 | `coordination/centralized.py` | Runs the policy, intentions and the three MPCs together |
-| `rl/scripted.py` | Lane-keeping and overtaker policies |
+| `rl/scripted.py` | Lane-keeping, overtaker and overtake-macro policies |
+| `rl/env.py`, `rl/train.py`, `rl/evaluate.py` | RL environment, PPO training and evaluation |
+| `rl/vec_worker.py`, `rl/watchdog.py` | Torch-free env workers that are replaced when they die; the hung-step watchdog |
+| `carla/` | CARLA bridge: OpenDRIVE road, M3 tuning and calibration, CARLA world, video recorder (`run_carla.py`) |
 | `scoring/events.py`, `scoring/score.py` | Measure what happened, then turn it into points |
 | `evaluation/` | Episode runner, metrics, file output and plots/GIFs |
 
@@ -324,12 +367,13 @@ Each run folder contains:
 **Limitations:**
 - The road is straight.
 - The dynamic model has longitudinal load transfer only (quasi-static), no left/right tyres and no wheel-speed (ABS) dynamics; the stability layer's grip governor stands in for ABS and traction control.
-- The nonlinear MPC needs a local acados build.
-- Traffic changes lanes only in v3/v4.
+- The nonlinear MPC needs a local acados build; CARLA needs the CARLA server and a Python 3.12 environment (`.venv-carla`).
+- Traffic changes lanes only in v3 and later.
 - Safety checks are sampled every 0.05 s rather than continuous.
 
 **Planned next steps:**
-- fine-tuning the policy on the dynamic car;
+- finishing the dynamic-car batches (batch 3 running, then batch 4);
+- less braking: the braking penalty has not worked yet;
 - a yaw-rate and sideslip envelope in the MPC;
 - curved roads (a Town04-like road is drafted);
-- CARLA/Assetto Corsa evaluation.
+- evaluating the dynamic-car model in CARLA.
