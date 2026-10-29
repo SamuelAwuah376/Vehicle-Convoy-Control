@@ -1,0 +1,100 @@
+{
+  "ppo_v6": {
+    "team_score": 36194,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 39612,
+      "speed": 315,
+      "maneuver": 11105,
+      "draft": 2803,
+      "spread": -17642
+    },
+    "close_passes": 48,
+    "draft_passes": 9,
+    "draft_time_s": [
+      15.6,
+      16.5,
+      34.9
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 98.30000000000001,
+    "maneuvers": {
+      "chain_single": 6,
+      "pass_single": 25,
+      "base": 3
+    },
+    "lane_changes": 89,
+    "mean_speed_mps": 26.4,
+    "team_spread_m_median": 77.4,
+    "time_all_within_30m_s": 41.5,
+    "time_all_same_lane_s": 11.2,
+    "min_clearance_traffic_m": 0.2324369773898698,
+    "min_clearance_teammates_m": 0.2521787628575921,
+    "fallbacks": {
+      "shifted": 29,
+      "lane_keep": 5,
+      "emergency": 1
+    },
+    "rejections": {
+      "gap_claimed": 2,
+      "teammate_merging": 1
+    },
+    "collisions": [],
+    "train_time_s": 12.7,
+    "train_passes": 3,
+    "team_pass_mean_multiplier": 1.097,
+    "team_pass_boosted": 9
+  },
+  "ppo_v7": {
+    "team_score": 49568,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 43884,
+      "speed": 315,
+      "maneuver": 12148,
+      "draft": 2089,
+      "spread": -8868
+    },
+    "close_passes": 53,
+    "draft_passes": 10,
+    "draft_time_s": [
+      12.5,
+      12.4,
+      22.4
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 108.10000000000001,
+    "maneuvers": {
+      "pass_single": 29,
+      "base": 9,
+      "chain_single": 5,
+      "pass_double": 1
+    },
+    "lane_changes": 93,
+    "mean_speed_mps": 27.1,
+    "team_spread_m_median": 81.1,
+    "time_all_within_30m_s": 24.6,
+    "time_all_same_lane_s": 14.9,
+    "min_clearance_traffic_m": 0.20257964049566168,
+    "min_clearance_teammates_m": 0.10309814359883185,
+    "fallbacks": {
+      "shifted": 50,
+      "lane_keep": 13
+    },
+    "rejections": {
+      "teammate_merging": 3,
+      "mpc_timeout": 1,
+      "gap_too_short": 1,
+      "mpc_failed": 1,
+      "mpc_infeasible": 1,
+      "middle_blocked": 1
+    },
+    "collisions": [],
+    "train_time_s": 7.0,
+    "train_passes": 3,
+    "team_pass_mean_multiplier": 1.086,
+    "team_pass_boosted": 10
+  }
+}

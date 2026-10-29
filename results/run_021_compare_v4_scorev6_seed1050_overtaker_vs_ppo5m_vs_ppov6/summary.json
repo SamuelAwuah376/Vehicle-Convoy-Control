@@ -1,0 +1,126 @@
+{
+  "overtaker": {
+    "team_score": 3636,
+    "end": "collision",
+    "duration_s": 29.5,
+    "points_by_term": {
+      "close_pass": 3386,
+      "speed": 104,
+      "collision": -500,
+      "draft": 646
+    },
+    "close_passes": 11,
+    "draft_passes": 0,
+    "draft_time_s": [
+      0.0,
+      4.0,
+      5.0
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 26.1,
+    "maneuvers": {},
+    "lane_changes": 6,
+    "mean_speed_mps": 29.5,
+    "team_spread_m_median": 75.1,
+    "time_all_within_30m_s": 0.0,
+    "time_all_same_lane_s": 17.7,
+    "min_clearance_traffic_m": 0.0,
+    "min_clearance_teammates_m": 10.146715519072139,
+    "fallbacks": {
+      "shifted": 1,
+      "lane_keep": 9,
+      "emergency": 5
+    },
+    "rejections": {},
+    "collisions": [
+      {
+        "vehicle": 1,
+        "kind": "traffic",
+        "other": 15
+      }
+    ]
+  },
+  "ppo_5m": {
+    "team_score": 54125,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 43052,
+      "speed": 317,
+      "maneuver": 8955,
+      "draft": 1801
+    },
+    "close_passes": 54,
+    "draft_passes": 7,
+    "draft_time_s": [
+      13.7,
+      4.5,
+      7.0
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 114.10000000000001,
+    "maneuvers": {
+      "pass_single": 28,
+      "chain_single": 3,
+      "base": 8
+    },
+    "lane_changes": 109,
+    "mean_speed_mps": 27.5,
+    "team_spread_m_median": 110.9,
+    "time_all_within_30m_s": 0.0,
+    "time_all_same_lane_s": 22.2,
+    "min_clearance_traffic_m": 0.24376965024559538,
+    "min_clearance_teammates_m": 0.15629217367383788,
+    "fallbacks": {
+      "shifted": 32,
+      "emergency": 8,
+      "lane_keep": 25
+    },
+    "rejections": {
+      "gap_too_short": 1,
+      "mpc_infeasible": 2
+    },
+    "collisions": []
+  },
+  "ppo_v6": {
+    "team_score": 98433,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 80060,
+      "speed": 393,
+      "maneuver": 15445,
+      "draft": 2534
+    },
+    "close_passes": 70,
+    "draft_passes": 9,
+    "draft_time_s": [
+      8.2,
+      13.1,
+      0.6
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 113.15,
+    "maneuvers": {
+      "pass_single": 34,
+      "chain_single": 7,
+      "base": 5
+    },
+    "lane_changes": 105,
+    "mean_speed_mps": 28.4,
+    "team_spread_m_median": 105.2,
+    "time_all_within_30m_s": 10.7,
+    "time_all_same_lane_s": 23.7,
+    "min_clearance_traffic_m": 0.23487449081755107,
+    "min_clearance_teammates_m": 0.18393832659177103,
+    "fallbacks": {
+      "lane_keep": 5,
+      "emergency": 8,
+      "shifted": 24
+    },
+    "rejections": {
+      "gap_claimed": 2
+    },
+    "collisions": []
+  }
+}

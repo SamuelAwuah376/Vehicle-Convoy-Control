@@ -1,0 +1,107 @@
+{
+  "overtaker": {
+    "team_score": 3439,
+    "end": "collision",
+    "duration_s": 12.55,
+    "points_by_term": {
+      "close_pass": 7664,
+      "speed": 77,
+      "collision": -4444,
+      "draft": 259,
+      "spread": -116
+    },
+    "close_passes": 10,
+    "draft_passes": 7,
+    "draft_time_s": [
+      0.0,
+      8.5,
+      8.4
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 11.950000000000001,
+    "maneuvers": {},
+    "lane_changes": 1,
+    "mean_speed_mps": 32.3,
+    "team_spread_m_median": 56.4,
+    "time_all_within_30m_s": 0.0,
+    "time_all_same_lane_s": 8.5,
+    "min_clearance_traffic_m": 0.0,
+    "min_clearance_teammates_m": 8.561501574273478,
+    "fallbacks": {
+      "lane_keep": 8,
+      "emergency": 7
+    },
+    "rejections": {
+      "teammate_merging": 1
+    },
+    "collisions": [
+      {
+        "vehicle": 1,
+        "kind": "traffic",
+        "other": 18
+      }
+    ],
+    "train_time_s": 0.0,
+    "train_passes": 0,
+    "top_speed_time_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_speed_mps": 40.5
+  },
+  "ppo_v7": {
+    "team_score": 37640,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 88704,
+      "speed": 586,
+      "maneuver": 9965,
+      "draft": 831,
+      "spread": -62446
+    },
+    "close_passes": 77,
+    "draft_passes": 23,
+    "draft_time_s": [
+      16.4,
+      20.4,
+      7.4
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 100.7,
+    "maneuvers": {
+      "pass_single": 23,
+      "chain_single": 4,
+      "base": 1,
+      "pass_double": 1
+    },
+    "lane_changes": 143,
+    "mean_speed_mps": 30.5,
+    "team_spread_m_median": 172.2,
+    "time_all_within_30m_s": 3.5,
+    "time_all_same_lane_s": 21.1,
+    "min_clearance_traffic_m": 0.21003484714277026,
+    "min_clearance_teammates_m": 0.25040003109424264,
+    "fallbacks": {
+      "lane_keep": 11,
+      "shifted": 20,
+      "emergency": 1
+    },
+    "rejections": {
+      "gap_too_short": 3,
+      "mpc_infeasible": 1,
+      "mpc_failed": 2,
+      "teammate_merging": 1
+    },
+    "collisions": [],
+    "train_time_s": 0.0,
+    "train_passes": 0,
+    "top_speed_time_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_speed_mps": 46.7
+  }
+}

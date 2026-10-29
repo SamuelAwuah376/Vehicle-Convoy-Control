@@ -1,0 +1,105 @@
+{
+  "ppo_v8_6M": {
+    "team_score": 81891,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 83241,
+      "speed": 449,
+      "maneuver": 5915,
+      "draft": 1664,
+      "spread": -9378
+    },
+    "close_passes": 71,
+    "draft_passes": 28,
+    "draft_time_s": [
+      4.9,
+      25.8,
+      32.2
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 113.0,
+    "maneuvers": {
+      "pass_single": 16,
+      "pass_double": 3,
+      "base": 1
+    },
+    "lane_changes": 87,
+    "mean_speed_mps": 28.6,
+    "team_spread_m_median": 57.1,
+    "time_all_within_30m_s": 7.9,
+    "time_all_same_lane_s": 23.2,
+    "min_clearance_traffic_m": 0.08224456268111309,
+    "min_clearance_teammates_m": 0.24602369315870787,
+    "fallbacks": {
+      "shifted": 26,
+      "lane_keep": 15,
+      "emergency": 5
+    },
+    "rejections": {
+      "mpc_infeasible": 1,
+      "mpc_failed": 1
+    },
+    "collisions": [],
+    "train_time_s": 2.2,
+    "train_passes": 4,
+    "top_speed_time_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_speed_mps": 46.1
+  },
+  "ppo_v7": {
+    "team_score": 51599,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 74658,
+      "speed": 470,
+      "maneuver": 9495,
+      "draft": 1178,
+      "spread": -34202
+    },
+    "close_passes": 67,
+    "draft_passes": 13,
+    "draft_time_s": [
+      9.6,
+      5.1,
+      21.0
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 116.85000000000001,
+    "maneuvers": {
+      "pass_single": 23,
+      "chain_single": 2,
+      "base": 3,
+      "pass_double": 2
+    },
+    "lane_changes": 132,
+    "mean_speed_mps": 29.4,
+    "team_spread_m_median": 82.7,
+    "time_all_within_30m_s": 9.8,
+    "time_all_same_lane_s": 17.4,
+    "min_clearance_traffic_m": 0.221087585129729,
+    "min_clearance_teammates_m": 0.5687056194886172,
+    "fallbacks": {
+      "lane_keep": 7,
+      "shifted": 6,
+      "emergency": 1
+    },
+    "rejections": {
+      "gap_too_short": 3,
+      "gap_claimed": 1
+    },
+    "collisions": [],
+    "train_time_s": 2.4,
+    "train_passes": 3,
+    "top_speed_time_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_speed_mps": 48.5
+  }
+}

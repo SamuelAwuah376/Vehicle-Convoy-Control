@@ -1,0 +1,98 @@
+{
+  "ppo_v6": {
+    "team_score": 79102,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 76810,
+      "speed": 427,
+      "maneuver": 17070,
+      "draft": 918,
+      "spread": -16124
+    },
+    "close_passes": 76,
+    "draft_passes": 13,
+    "draft_time_s": [
+      3.7,
+      11.0,
+      9.6
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 118.75,
+    "maneuvers": {
+      "pass_single": 45,
+      "chain_single": 4,
+      "base": 3,
+      "pass_double": 1
+    },
+    "lane_changes": 117,
+    "mean_speed_mps": 29.2,
+    "team_spread_m_median": 111.0,
+    "time_all_within_30m_s": 5.2,
+    "time_all_same_lane_s": 19.0,
+    "min_clearance_traffic_m": 0.2454864726811786,
+    "min_clearance_teammates_m": 0.32666442366696974,
+    "fallbacks": {
+      "shifted": 9,
+      "lane_keep": 3
+    },
+    "rejections": {
+      "gap_too_short": 2
+    },
+    "collisions": [],
+    "train_time_s": 1.1,
+    "train_passes": 1,
+    "team_pass_mean_multiplier": 1.02,
+    "team_pass_boosted": 3
+  },
+  "ppo_v7": {
+    "team_score": 95061,
+    "end": "time",
+    "duration_s": 120.0,
+    "points_by_term": {
+      "close_pass": 81481,
+      "speed": 436,
+      "maneuver": 23180,
+      "draft": 2056,
+      "spread": -12093
+    },
+    "close_passes": 83,
+    "draft_passes": 13,
+    "draft_time_s": [
+      8.0,
+      21.2,
+      14.7
+    ],
+    "max_combo": 5.0,
+    "combo_time_above_1_s": 118.05000000000001,
+    "maneuvers": {
+      "pass_single": 44,
+      "base": 4,
+      "chain_single": 13,
+      "pass_double": 1
+    },
+    "lane_changes": 115,
+    "mean_speed_mps": 29.3,
+    "team_spread_m_median": 107.8,
+    "time_all_within_30m_s": 6.8,
+    "time_all_same_lane_s": 32.2,
+    "min_clearance_traffic_m": 0.07615442556415451,
+    "min_clearance_teammates_m": 0.27081971876914773,
+    "fallbacks": {
+      "shifted": 23,
+      "lane_keep": 5,
+      "emergency": 1
+    },
+    "rejections": {
+      "gap_claimed": 1,
+      "gap_too_short": 1,
+      "mpc_infeasible": 2,
+      "teammate_merging": 1
+    },
+    "collisions": [],
+    "train_time_s": 6.1,
+    "train_passes": 4,
+    "team_pass_mean_multiplier": 1.038,
+    "team_pass_boosted": 5
+  }
+}

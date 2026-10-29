@@ -1,0 +1,193 @@
+{
+  "overtakes": [
+    {
+      "time": 2.1,
+      "vehicle": 1,
+      "traffic_id": 7,
+      "min_clearance": 0.6732795638039164,
+      "speed": 31.64179677368345
+    },
+    {
+      "time": 2.3000000000000003,
+      "vehicle": 0,
+      "traffic_id": 10,
+      "min_clearance": 1.7999999999999998,
+      "speed": 31.806035582785245
+    },
+    {
+      "time": 3.5,
+      "vehicle": 0,
+      "traffic_id": 12,
+      "min_clearance": 1.8000000000000007,
+      "speed": 31.99492398339623
+    },
+    {
+      "time": 4.3500000000000005,
+      "vehicle": 2,
+      "traffic_id": 0,
+      "min_clearance": 1.2060393089847665,
+      "speed": 31.993766743891936
+    },
+    {
+      "time": 4.4,
+      "vehicle": 0,
+      "traffic_id": 6,
+      "min_clearance": 1.7954356341481017,
+      "speed": 31.996024409347996
+    },
+    {
+      "time": 5.300000000000001,
+      "vehicle": 1,
+      "traffic_id": 10,
+      "min_clearance": 0.6671471375374582,
+      "speed": 31.97253574074482
+    },
+    {
+      "time": 5.5,
+      "vehicle": 2,
+      "traffic_id": 7,
+      "min_clearance": 1.755268507683714,
+      "speed": 31.997494461438695
+    },
+    {
+      "time": 7.0,
+      "vehicle": 0,
+      "traffic_id": 16,
+      "min_clearance": 0.9114725153889979,
+      "speed": 26.94796784612711
+    },
+    {
+      "time": 7.3500000000000005,
+      "vehicle": 1,
+      "traffic_id": 12,
+      "min_clearance": 0.41723409505276177,
+      "speed": 31.938157278244773
+    },
+    {
+      "time": 7.45,
+      "vehicle": 1,
+      "traffic_id": 6,
+      "min_clearance": 2.8772729246214435,
+      "speed": 31.93265235776075
+    },
+    {
+      "time": 8.15,
+      "vehicle": 2,
+      "traffic_id": 10,
+      "min_clearance": 1.3644021683617533,
+      "speed": 31.96782298936746
+    }
+  ],
+  "close_passes": [
+    {
+      "time": 2.1,
+      "vehicle": 1,
+      "traffic_id": 7,
+      "min_clearance": 0.6732795638039164,
+      "speed": 31.64179677368345,
+      "points": 175.28955997926806
+    },
+    {
+      "time": 4.3500000000000005,
+      "vehicle": 2,
+      "traffic_id": 0,
+      "min_clearance": 1.2060393089847665,
+      "speed": 31.993766743891936,
+      "points": 204.98414248590205
+    },
+    {
+      "time": 5.300000000000001,
+      "vehicle": 1,
+      "traffic_id": 10,
+      "min_clearance": 0.6671471375374582,
+      "speed": 31.97253574074482,
+      "points": 355.1772453475356
+    },
+    {
+      "time": 7.0,
+      "vehicle": 0,
+      "traffic_id": 16,
+      "min_clearance": 0.9114725153889979,
+      "speed": 26.94796784612711,
+      "points": 335.0093541729168
+    },
+    {
+      "time": 7.3500000000000005,
+      "vehicle": 1,
+      "traffic_id": 12,
+      "min_clearance": 0.41723409505276177,
+      "speed": 31.938157278244773,
+      "points": 589.205597750665
+    },
+    {
+      "time": 8.15,
+      "vehicle": 2,
+      "traffic_id": 10,
+      "min_clearance": 1.3644021683617533,
+      "speed": 31.96782298936746,
+      "points": 435.72084969670584
+    }
+  ],
+  "maneuvers": [],
+  "collisions": [
+    {
+      "vehicle": 0,
+      "kind": "edge",
+      "other": -1
+    }
+  ],
+  "intentions": [
+    {
+      "time": 7.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 4.7782208420238135
+    },
+    {
+      "time": 8.6,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.200000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    }
+  ],
+  "fallbacks": [
+    {
+      "time": 9.3,
+      "vehicle": 0,
+      "level": "shifted"
+    },
+    {
+      "time": 9.4,
+      "vehicle": 0,
+      "level": "shifted"
+    },
+    {
+      "time": 9.5,
+      "vehicle": 0,
+      "level": "shifted"
+    },
+    {
+      "time": 9.600000000000001,
+      "vehicle": 0,
+      "level": "shifted"
+    },
+    {
+      "time": 9.700000000000001,
+      "vehicle": 0,
+      "level": "shifted"
+    }
+  ],
+  "plan_conflicts": []
+}
