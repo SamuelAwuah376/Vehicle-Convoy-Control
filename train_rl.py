@@ -61,8 +61,8 @@ STUCK_PENALTY = -3.0         # training-only reward per second per car stuck beh
                              # the traffic car ahead in its lane within 100 m, the car less than 2 m/s faster than it
 BRAKE_PENALTY = -1.0         # training-only reward per m/s of speed braked away (= -100 points per m/s, -0.1 to 3b; the batch 2 policy
                              # brakes away ~87 m/s per car-minute, ~-5k points per episode): smooth driving, little braking
-LEARNING_RATE = 1e-4         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
-                             # 2c, 3: 3e-4; 3b, 4, 5: 1e-4; 4b: 8.2e-5, batch 4's at 1M)
+LEARNING_RATE = 5e-4         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
+                             # 2c, 3: 3e-4; 3b, 4: 1e-4; 4b: 8.2e-5, batch 4's at 1M; 5: 5e-4, the user's call)
 LR_FINAL = 1e-5
 TARGET_KL = 0.05             # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off
 VF_WARMUP = 250_000          # fine-tuning: first decisions train only the value network (policy frozen); 0 from scratch
