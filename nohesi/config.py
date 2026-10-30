@@ -194,6 +194,8 @@ class Score:
     train_headway: float = 0.5        # s
     train_pass_gain: float = 1.0      # 1 disables
     train_min_speed: float = 0.0      # m/s every train car must exceed for train points/passes (0: draft_min_speed)
+    train_ramp: tuple = ()            # ((m/s, share), ...): train points and the train-pass bonus scale by the share
+                                      # interpolated at the slowest car's speed (the last share above); (): always full
     # Top speed bonus: top_speed_rate pts/s per car above top_speed_threshold, times the combo multiplier.
     top_speed_rate: float = 0.0       # 0 disables
     top_speed_threshold: float = 53.64  # m/s (120 mph)
@@ -213,7 +215,7 @@ class Score:
         if not 0 <= self.collision_wipe <= 1:
             raise ValueError('collision_wipe must be in [0, 1]')
         _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', 'team_pass_require_all',
-                                                             'spread_penalty_cap', *self.NON_NEGATIVE)
+                                                             'spread_penalty_cap', 'train_ramp', *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
         if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_') and k != 'lc_base'):
             raise ValueError('lane-change points must be non-negative (lc_base may be a penalty)')
@@ -224,6 +226,10 @@ class Score:
             raise ValueError('proximity_falloff must be flat or linear')
         if self.combo_max < 1:
             raise ValueError('combo_max must be at least 1')
+        if self.train_ramp:
+            speeds, shares = zip(*self.train_ramp)
+            if any(b <= a for a, b in zip(speeds, speeds[1:])) or not all(0 < f <= 1 for f in shares):
+                raise ValueError('train_ramp needs increasing speeds and shares in (0, 1]')
 
 
 @dataclass(frozen=True)
@@ -493,5 +499,15 @@ def score_v9():
                    train_pass_gain=30.0, lc_base=-300.0, speed_rate=10.0)
 
 
+def score_v10():
+    """v9 with a speed ramp for the draft train (the user's design, 2026-10-30): train points and the train-pass bonus
+    start at 60 mph (26.8 m/s) instead of 75, at 40 % there, 50 % at 65 mph, 70 % at 70 mph and 100 % from 80 mph
+    (35.8 m/s), linear in between, by the slowest car's speed. A train pass earns 1 + 29 * share, at least the draft-pass
+    15x when the passer was drafting."""
+    return replace(score_v9(), version='v10', train_min_speed=26.82,
+                   train_ramp=((26.82, 0.4), (29.06, 0.5), (31.29, 0.7), (35.76, 1.0)))
+
+
 SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,
-          'v7': score_v7, 'v8': score_v8, 'v9': score_v9}
+          'v7': score_v7, 'v8': score_v8, 'v9': score_v9,
+          'v10': score_v10}

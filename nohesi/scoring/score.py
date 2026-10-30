@@ -14,6 +14,14 @@ def close_pass_points(min_clearance, speed, cfg):
     return cfg.pass_base*closeness*speed/cfg.pass_ref_speed
 
 
+def train_share(slowest, cfg):
+    """Share of train points and of the train-pass bonus at the slowest car's speed (cfg.train_ramp; 1 without one)."""
+    if not cfg.train_ramp:
+        return 1.0
+    speeds, shares = zip(*cfg.train_ramp)
+    return float(np.interp(slowest, speeds, shares))
+
+
 def team_pass_multiplier(vehicle, pair_distance, cfg):
     """1 + team_pass_gain * sum over the passer's teammates of max(0, 1 - body-centre distance/team_pass_distance).
     With team_pass_require_all, 1 unless every teammate pair is within team_pass_distance (the whole team is close)."""
@@ -32,7 +40,9 @@ class Scorer:
     too; speed and collisions are not. A close pass by a car drafting now or within draft_pass_window s
     (a draft pass) is also scaled by draft_pass_gain. While all three cars form a draft train (in a row along the road,
     any lanes, each within train_headway of the car ahead), every car earns train_rate instead of draft_rate, and a pass
-    by any car while the train holds (or within draft_pass_window after) is scaled by train_pass_gain instead.
+    by any car while the train holds (or within draft_pass_window after) is scaled by train_pass_gain instead. With a
+    train_ramp, train points are train_rate*share and a train pass 1 + (train_pass_gain - 1)*share (at least the draft
+    pass gain when the passer drafted), the share taken at the slowest car's speed when the train last held.
     A pass of a traffic car the same team car scored within repass_cooldown s scores nothing (and leaves the combo).
     A collision costs collision_penalty per involved car, plus collision_wipe of every car's banked points (the team's run). The team spread penalty (pairs beyond spread_free_distance,
     quadratic in the excess) is not multiplied. The combo resets
@@ -54,6 +64,7 @@ class Scorer:
         self.last_draft = np.full(TEAM, -np.inf)   # last time each car was drafting
         self.last_train = -np.inf                  # last time the three-car draft train held
         self.train_time = 0.0
+        self.train_share = 1.0                     # train_ramp share the last time the train held
         self.last_scored = {}  # (vehicle, traffic id) -> time of its last scored pass
         self.time, self.last_pass = 0.0, 0.0
         self.combo, self.max_combo = 0, 0
@@ -82,6 +93,7 @@ class Scorer:
             min(m.speeds) > (cfg.train_min_speed or cfg.draft_min_speed)
         if train:
             self.last_train, self.train_time = self.time, self.train_time+m.dt
+            self.train_share = train_share(min(m.speeds), cfg)
         for o in m.overtakes:
             points = close_pass_points(o.min_clearance, o.speed, cfg)
             key = (o.vehicle, o.traffic_id)
@@ -92,7 +104,8 @@ class Scorer:
                 team = team_pass_multiplier(o.vehicle, m.pair_distance, cfg)
                 train_pass = cfg.train_pass_gain != 1.0 and self.time-self.last_train <= cfg.draft_pass_window+EPS
                 draft_pass = self.time-self.last_draft[o.vehicle] <= cfg.draft_pass_window+EPS
-                gain = cfg.train_pass_gain if train_pass else cfg.draft_pass_gain if draft_pass else 1.0
+                gain = max(1+(cfg.train_pass_gain-1)*self.train_share if train_pass else 1.0,
+                           cfg.draft_pass_gain if draft_pass else 1.0)
                 points *= team*self.multiplier*gain
                 self.team_pass.append(team); self.draft_pass.append(bool(train_pass or draft_pass))
                 self.train_pass.append(bool(train_pass))
@@ -106,7 +119,7 @@ class Scorer:
                 weight = 1-distance/cfg.proximity_distance if cfg.proximity_falloff == 'linear' else 1.0
                 inc['proximity'][[i, j]] += 0.5*cfg.proximity_rate*weight*m.dt*self.multiplier
         if train and cfg.train_rate:
-            inc['draft'] += cfg.train_rate*m.dt*self.multiplier
+            inc['draft'] += cfg.train_rate*self.train_share*m.dt*self.multiplier
         elif cfg.draft_rate:
             inc['draft'][drafting] += cfg.draft_rate*m.dt*self.multiplier
         if cfg.spread_penalty_rate:
