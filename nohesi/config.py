@@ -81,6 +81,8 @@ class Traffic:
     count: int = 8
     speed_min: float = 18.0
     speed_max: float = 25.0
+    lane_speeds: tuple = ()         # ((min, max) m/s per lane, right to left): a car's desired speed is drawn from its
+                                    # lane's range (at spawn and once a lane change is done) instead of [speed_min, speed_max]
     spawn_behind: float = 80.0      # initial spawn window relative to the team
     spawn_ahead: float = 250.0
     recycle_behind: float = 150.0   # cars this far behind the rearmost teammate respawn ahead
@@ -126,7 +128,9 @@ class Traffic:
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('lane_changes', 'mobil_politeness', 'mobil_threshold',
-                                                             'keep_right_bias', 'no_walls', 'no_blockades')))
+                                                             'keep_right_bias', 'no_walls', 'no_blockades', 'lane_speeds')))
+        if not all(isfinite(lo) and isfinite(hi) and 0 < lo <= hi for lo, hi in self.lane_speeds):
+            raise ValueError('lane_speeds needs a (min, max) range per lane with 0 < min <= max')
         if any(not isfinite(getattr(self, k)) or getattr(self, k) < 0 for k in ('mobil_politeness', 'mobil_threshold')):
             raise ValueError('mobil_politeness and mobil_threshold must be non-negative')
         if not isfinite(self.keep_right_bias):
@@ -430,8 +434,21 @@ def scenario_v7():
     return replace(s, version='v7', traffic=replace(s.traffic, lane_change_prob=0.1))
 
 
+def scenario_v8():
+    """v7 with speeds by lane and denser traffic (the user's design, 2026-10-30): traffic in the right and middle lanes
+    drives at 60-65 mph (26.8-29.1 m/s), in the left lane at 70-80 mph (31.3-35.8 m/s), and a car that changes lanes draws
+    a new speed from the new lane's range; 30 traffic cars instead of 20, spawned from 150 m behind to 350 m ahead of the
+    team (about the band they keep during an episode; to 300 m ahead, 6 % of seeds could not place all 30): ~6 per 100 m
+    of road (v7: ~4.5)."""
+    s = scenario_v7()
+    slow, fast = (26.82, 29.06), (31.29, 35.76)
+    return replace(s, version='v8', traffic=replace(s.traffic, count=30, spawn_behind=150.0, spawn_ahead=350.0,
+                                                    speed_min=26.82, speed_max=35.76,
+                                                    lane_speeds=(slow, slow, fast)))
+
+
 SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4,
-             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7}
+             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7, 'v8': scenario_v8}
 
 
 def score_v1():

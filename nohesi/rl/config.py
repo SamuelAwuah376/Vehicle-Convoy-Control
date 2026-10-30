@@ -39,6 +39,10 @@ class EnvConfig:
     # Training-only reward per m/s of speed braked away, summed over the team (x reward_scale game points): a car braking
     # at b m/s^2 for dt seconds costs aux_brake*b*dt (applied acceleration; emergency and safety braking count too).
     aux_brake: float = 0.0
+    # Policy decision rate: Planner.decision_interval (s; 0.5 = 2 Hz) and the target speed change per speed action
+    # (Planner.speed_step, m/s; 2.0 at 2 Hz is 4 m/s per second of commands).
+    decision_interval: float = 0.5
+    speed_step: float = 2.0
 
     def __post_init__(self):
         if self.overtakes != (self.version == 'e5'):

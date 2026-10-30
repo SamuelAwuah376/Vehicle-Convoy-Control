@@ -1,4 +1,4 @@
-"""Gymnasium environment: one step = one team decision (Planner.decision_interval, 10 sim steps at the defaults).
+"""Gymnasium environment: one step = one team decision (EnvConfig.decision_interval, 10 sim steps at the default 0.5 s).
 
 The action picks one of the 45 intention actions per car (nohesi.intentions.ACTIONS); the centralized coordinator
 turns them into MPC targets exactly as for the scripted policies, so an Overtaker driving the env reproduces
@@ -100,7 +100,8 @@ class NoHesiEnv(gymnasium.Env):
         self.world = world
         s = SCENARIOS[cfg.scenario]()
         self.scenario = replace(s, score=SCORES[cfg.score](), vehicle=replace(s.vehicle, model=cfg.vehicle_model))
-        self.planner = Planner(mpc=cfg.mpc, speed_max=self.scenario.team_speed_max)
+        self.planner = Planner(mpc=cfg.mpc, speed_max=self.scenario.team_speed_max,
+                               decision_interval=cfg.decision_interval, speed_step=cfg.speed_step)
         self.lanes = self.scenario.road.lanes
         self.action_space = spaces.MultiDiscrete([n_actions(cfg)]*TEAM)
         self._options = None   # (time, (3, len(OVERTAKES)) bool): overtakes that would start now, per decision

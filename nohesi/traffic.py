@@ -47,6 +47,8 @@ class Traffic:
         self.lc_t = np.empty(0)             # time into the current change; nan when not changing
         self.lc_end = np.empty(0)           # time the last change finished (-inf: none yet)
         self.next_id = 0
+        if cfg.lane_speeds and len(cfg.lane_speeds) != road.cfg.lanes:
+            raise ValueError('lane_speeds needs one speed per lane')
         rear, front = np.min(team_s), np.max(team_s)
         for _ in range(cfg.count):
             for _ in range(1000):
@@ -231,8 +233,12 @@ class Traffic:
                 out.append(found); used.update(found)
         return out
 
+    def _speed(self, lane):
+        """Desired speed of a new car in this lane: uniform in its lane_speeds range, else in [speed_min, speed_max]."""
+        return self.rng.uniform(*(self.cfg.lane_speeds[lane] if self.cfg.lane_speeds else (self.cfg.speed_min, self.cfg.speed_max)))
+
     def _add(self, s, lane):
-        v0 = self.rng.uniform(self.cfg.speed_min, self.cfg.speed_max)
+        v0 = self._speed(lane)
         self.s = np.r_[self.s, s]; self.lane = np.r_[self.lane, lane]
         self.v = np.r_[self.v, v0]; self.v0 = np.r_[self.v0, v0]
         self.target = np.r_[self.target, lane]; self.lc_t = np.r_[self.lc_t, np.nan]
@@ -376,6 +382,9 @@ class Traffic:
             self.lc_t = self.lc_t+dt
             done = self.changing & (self.lc_t >= self.cfg.lane_change_time-1e-9)
             self.lane = np.where(done, self.target, self.lane)
+            if self.cfg.lane_speeds:
+                for k in np.flatnonzero(done):
+                    self.v0[k] = self._speed(self.lane[k])
             self.lc_t[done] = np.nan
             self.lc_end[done] = self.time
 
@@ -386,7 +395,7 @@ class Traffic:
             s = front+self.cfg.respawn_ahead+self.rng.uniform(0, 50)
             lanes = [l for l in self.rng.permutation(self.road.cfg.lanes) if self._free(s, l, skip=i)]
             if lanes:
-                v0 = self.rng.uniform(self.cfg.speed_min, self.cfg.speed_max)
+                v0 = self._speed(lanes[0])
                 self.s[i], self.lane[i], self.v[i], self.v0[i] = s, lanes[0], v0, v0
                 self.target[i], self.lc_t[i], self.lc_end[i] = lanes[0], np.nan, -np.inf
                 self.id[i] = self.next_id; self.next_id += 1

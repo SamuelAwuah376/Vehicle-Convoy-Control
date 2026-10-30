@@ -177,7 +177,8 @@ def scenario_for(env_cfg):
         pass
     scenario = SCENARIOS[env_cfg.scenario]()
     scenario = replace(scenario, vehicle=replace(scenario.vehicle, model=env_cfg.vehicle_model))
-    planner = replace(Planner(), mpc=env_cfg.mpc)
+    planner = replace(Planner(), mpc=env_cfg.mpc, decision_interval=env_cfg.decision_interval,
+                      speed_step=env_cfg.speed_step)
     return scenario, planner, SCORES[env_cfg.score]()
 
 

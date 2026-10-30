@@ -281,3 +281,17 @@ def test_e5_overtake_actions_masks_and_obs():
             break
     kinds = [r.kind for r in env.team.intentions.records]
     assert started is not None and 'overtake' in kinds and 'rejected' not in kinds
+
+
+def test_decision_rate_5_hz():
+    env = short(4.0, decision_interval=0.2, speed_step=0.8)
+    assert (env.planner.decision_interval, env.planner.speed_step) == (0.2, 0.8)
+    env.reset(seed=0)
+    assert env.team.decide_every == 4   # 0.2 s of 0.05 s steps; the MPC still replans every 0.1 s
+    steps = 0
+    while True:
+        _, _, term, trunc, _ = env.step(KEEP)
+        steps += 1
+        if term or trunc:
+            break
+    assert steps == 20   # 4 s at 5 Hz (2 Hz: 8)
