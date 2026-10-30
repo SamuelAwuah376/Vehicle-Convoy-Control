@@ -166,7 +166,7 @@ class Score:
     combo_window: float = 5.0       # seconds without a scored close pass before the combo resets
     proximity_falloff: str = 'flat' # 'flat': full rate inside the radius; 'linear': rate*(1 - distance/radius)
     # Lane-change maneuvers (0 points disables; detection always runs). Base points, times the combo multiplier.
-    lc_base: float = 0.0              # lane change (single or two-lane) without a close pass
+    lc_base: float = 0.0              # lane change (single or two-lane) without a close pass (< 0: a flat penalty, no combo)
     lc_pass_single: float = 0.0       # single lane change + close pass, no follow-up change
     lc_pass_double: float = 0.0       # two-lane change + close pass, no follow-up change
     lc_chain_single: float = 0.0      # single lane change + close pass + another lane change
@@ -215,8 +215,8 @@ class Score:
         _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', 'team_pass_require_all',
                                                              'spread_penalty_cap', *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
-        if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_')):
-            raise ValueError('lane-change points must be non-negative')
+        if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_') and k != 'lc_base'):
+            raise ValueError('lane-change points must be non-negative (lc_base may be a penalty)')
         for k in self.NON_NEGATIVE:
             if not isfinite(getattr(self, k)) or getattr(self, k) < 0:
                 raise ValueError(f'{k} must be non-negative')
@@ -484,5 +484,14 @@ def score_v8():
                    spread_penalty_rate=4.0, spread_penalty_cap=400.0, team_pass_distance=50.0)
 
 
+def score_v9():
+    """v8 reshaped for team play (the user's design, 2026-10-29): the three-car draft train earns 10x (250 pts/s per car)
+    from 75 mph (33.5 m/s) instead of 80; draft passes and train passes are worth 10x (15x and 30x a close pass, where a
+    single car's close pass is unchanged); a lane change near traffic that no close pass follows costs a flat 300 points
+    (it earned 25 times the combo); speed points are 40x (10 pts/s per car per m/s above 25 m/s)."""
+    return replace(score_v8(), version='v9', train_rate=250.0, train_min_speed=33.53, draft_pass_gain=15.0,
+                   train_pass_gain=30.0, lc_base=-300.0, speed_rate=10.0)
+
+
 SCORES = {'v0': Score, 'v1': score_v1, 'v2': score_v2, 'v3': score_v3, 'v4': score_v4, 'v5': score_v5, 'v6': score_v6,
-          'v7': score_v7, 'v8': score_v8}
+          'v7': score_v7, 'v8': score_v8, 'v9': score_v9}

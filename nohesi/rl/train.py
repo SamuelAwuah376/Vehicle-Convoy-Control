@@ -76,6 +76,8 @@ class TrainConfig:
     norm_obs: bool = True
     norm_reward: bool = True
     clip_obs: float = 10.0
+    clip_reward: float = 10.0        # clip on the normalised reward (SB3's default); raise it so a large fixed crash
+                                     # penalty is not cut down to clip_reward return std
     # evaluation / checkpoints
     eval_every: int = 500_000        # timesteps (decisions) between held-out evaluations
     eval_seeds: tuple = tuple(range(1000, 1010))   # 10 of the 20 held-out seeds during training; final eval uses 1000-1019
@@ -166,7 +168,8 @@ def load_obs_normalisation(path, venv, cfg):
     if n_old == n_new:
         saved.set_venv(venv)
         return saved
-    out = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma, clip_obs=cfg.clip_obs)
+    out = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma, clip_obs=cfg.clip_obs,
+                       clip_reward=cfg.clip_reward)
     out.obs_rms.mean[:n_old], out.obs_rms.var[:n_old] = saved.obs_rms.mean, saved.obs_rms.var
     out.obs_rms.count = saved.obs_rms.count
     return out
@@ -415,7 +418,7 @@ def train(cfg):
             resume = Path(cfg.resume)
             vecnorm_path = _vecnorm_path(resume)
             venv = VecNormalize.load(str(vecnorm_path), venv)
-            venv.training, venv.norm_reward = True, cfg.norm_reward
+            venv.training, venv.norm_reward, venv.clip_reward = True, cfg.norm_reward, cfg.clip_reward
             model = MaskablePPO.load(str(resume), env=venv, device=cfg.device,
                                      tensorboard_log=str(run_dir/'tb'))
             best, last_eval, wall = _history_state(run_dir)
@@ -423,11 +426,11 @@ def train(cfg):
             if cfg.init_from:
                 from stable_baselines3.common.running_mean_std import RunningMeanStd
                 venv = load_obs_normalisation(_vecnorm_path(Path(cfg.init_from)), venv, cfg)
-                venv.training, venv.norm_reward = True, cfg.norm_reward
+                venv.training, venv.norm_reward, venv.clip_reward = True, cfg.norm_reward, cfg.clip_reward
                 venv.ret_rms, venv.returns = RunningMeanStd(shape=()), np.zeros(venv.num_envs)   # new score: new return scale
             else:
                 venv = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma,
-                                    clip_obs=cfg.clip_obs)
+                                    clip_obs=cfg.clip_obs, clip_reward=cfg.clip_reward)
             policy_kwargs = dict(net_arch=dict(pi=list(cfg.net_pi), vf=list(cfg.net_vf)),
                                  activation_fn=torch.nn.Tanh if cfg.activation == 'tanh' else torch.nn.ReLU)
             model = MaskablePPO('MlpPolicy', venv, learning_rate=LinearSchedule(cfg.learning_rate, cfg.lr_final),

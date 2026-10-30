@@ -41,7 +41,7 @@ class Scorer:
     Maneuvers: an eligible lane change L1 (traffic within lc_traffic_distance, speed above lc_min_speed)
     links the car's first unused scored pass in [L1.start_time, L1.time+lc_chain_window]; an eligible
     follow-up change starting at/after the pass and settling within lc_chain_window of it makes a chain.
-    Each maneuver earns one award (chain, pass, or base by L1 size) times the multiplier when it resolves
+    Each maneuver earns one award (chain, pass, or base by L1 size; a negative base is a flat penalty) times the multiplier when it resolves
     (follow-up, window expiry, or the car's next eligible change); awards never change the combo. Each car
     has at most one pending maneuver; every eligible change starts a new one. Collisions drop all pending."""
     def __init__(self, cfg):
@@ -142,7 +142,8 @@ class Scorer:
         l1, pass_time = self.pending.pop(v)
         if kind != 'base':
             kind += '_double' if l1.size >= 2 else '_single'
-        points = getattr(self.cfg, f'lc_{kind}')*self.multiplier
+        points = getattr(self.cfg, f'lc_{kind}')
+        points *= self.multiplier if points > 0 else 1.0   # a penalty (negative lc_base) is flat
         inc[v] += points
         self.maneuvers.append(dict(time=self.time, vehicle=v, kind=kind, points=points, start_time=l1.start_time,
                                    lane_change_time=l1.time, from_lane=l1.from_lane, to_lane=l1.to_lane,

@@ -91,6 +91,17 @@ def test_init_from_copies_policy_and_obs_norm_only(trained, tmp_path):
     new = pickle.load(open(cfg.run_dir/'final_vecnormalize.pkl', 'rb'))
     assert np.array_equal(old.obs_rms.mean, new.obs_rms.mean) and new.ret_rms.count < 1
     assert json.loads((cfg.run_dir/'config.json').read_text(encoding='utf-8'))['train']['init_from'] == str(src)
+    assert old.clip_reward == 10.0 and new.clip_reward == 10.0
+
+
+def test_clip_reward_reaches_vecnormalize(trained, tmp_path):
+    import pickle
+    from dataclasses import replace
+    src = trained.run_dir/'final_model.zip'
+    for run_id, kw in (('tiny_clip', {}), ('tiny_clip_ft', dict(init_from=str(src)))):
+        cfg = replace(trained, run_id=run_id, total_timesteps=0, out_root=str(tmp_path), clip_reward=50.0, **kw)
+        train(cfg)
+        assert pickle.load(open(cfg.run_dir/'final_vecnormalize.pkl', 'rb')).clip_reward == 50.0
 
 
 def test_init_from_e4_grows_into_e5(trained, tmp_path):
