@@ -31,7 +31,7 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 | `TRAFFIC` | override the number of traffic cars (`None` keeps the scenario's) |
 | `PLANT` | `'dynamic'` (dynamic bicycle with tyre slip, default) · `'kinematic'` |
 | `MPC` | `'nonlinear'` (acados, dynamic model, default; use with `PLANT = 'dynamic'`) · `'linear'` (OSQP, kinematic model) |
-| `PLANNER_OVERRIDES` | planner settings over the defaults: `()` (default) · `(('retry_cooldown', 1.0), ('w_lateral', 10.0))` = batch 8b's quicker lane changes |
+| `PLANNER_OVERRIDES` | planner settings over the defaults: `(('retry_cooldown', 1.0), ('w_lateral', 10.0))` = batch 8b's quicker lane changes (default) · `()` keeps the planner defaults |
 | `ANIMATE` | `True` writes a GIF (takes a few extra seconds) |
 
 Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>/`, so runs never overwrite each other. `results/runs.csv` lists every run with its settings, versions, team score and collisions. The same runs are available from the command line, e.g. `.venv\Scripts\python -m nohesi --scenario v1 --policy overtaker --seed 0 --animate`.

@@ -18,7 +18,7 @@ SCORE = 'v10'            # 'v4' drafting + team passes; 'v5'/'v6' more drafting 
 TRAFFIC = None             # number of traffic cars; None keeps the scenario's (v0: 8, v1: 10, v2: 20)
 PLANT = 'dynamic'        # simulated vehicle physics: 'kinematic' or 'dynamic' (tyre slip)
 MPC = 'nonlinear'        # 'linear' (kinematic OSQP MPC) or 'nonlinear' (acados NMPC on the dynamic bicycle; pair with PLANT = 'dynamic')
-PLANNER_OVERRIDES = ()   # Planner settings over the defaults (and over a PPO run's own): () keeps them; batch 8b's quicker lane changes = (('retry_cooldown', 1.0), ('w_lateral', 10.0))
+PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', 10.0))  # Planner settings over the defaults (and over a PPO run's own): batch 8b's quicker lane changes (default); () keeps the defaults
 ANIMATE = True           # GIF adds a few seconds
 # Each run gets the next free number: results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>[...]; see results/runs.csv.
 LABEL = f'{SCENARIO}_{POLICY}'+(f'-{Path(PPO_RUN).name}' if POLICY == 'ppo' else '')+f'_score{SCORE}_seed{SEED}'+(f'_traffic{TRAFFIC}' if TRAFFIC else '')+(f'_{PLANT}' if PLANT != 'kinematic' else '')+('_nmpc' if MPC == 'nonlinear' else '')+''.join(f'_{k}{v:g}' for k, v in PLANNER_OVERRIDES)
