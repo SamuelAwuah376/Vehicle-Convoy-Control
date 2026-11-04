@@ -120,6 +120,48 @@ def test_stuck_term_in_the_reward_and_metrics():
     assert len(m['stuck_time_s']) == 3 and all(0 <= x <= 10.0 for x in m['stuck_time_s'])
 
 
+def test_stuck_escape_only_charges_missed_escapes():
+    from nohesi.intentions import encode
+    from nohesi.rl.config import EnvConfig
+    from nohesi.rl.env import NoHesiEnv
+    env = NoHesiEnv(replace(EnvConfig(scenario='v6', score='v8'), aux_stuck=-1.0, stuck_grace=0.0, stuck_escape_only=True))
+    env.reset(seed=0)
+    env.stuck = lambda snap: np.ones(3, bool)
+    env.escapes = lambda cars: np.array([True, True, False]) & cars
+    seconds = env.team.decide_every*env.scenario.timing.dt
+    info = env.step([encode(0, 0, 0)]*3)[4]                            # cars 0 and 1 keep with a way out: charged
+    assert info['aux']['stuck'] == pytest.approx(-2*seconds)
+    info = env.step([encode(1, 0, 0), encode(0, 1, 0), encode(0, 0, 0)])[4]   # car 0 takes its escape: only car 1
+    assert info['aux']['stuck'] == pytest.approx(-seconds)
+
+
+def test_escapes():
+    from nohesi.rl.config import EnvConfig
+    from nohesi.rl.env import LANE_CMD, NoHesiEnv
+    env = NoHesiEnv(replace(EnvConfig(scenario='v6', score='v8'), aux_stuck=-1.0, stuck_escape_only=True))
+    env.reset(seed=0)
+    road, snap0 = env.team.intentions.road, env.run.snap
+    lane = env.intentions[0].lane
+    s0 = snap0.team_s[0]
+
+    def place(cars, allowed=(0, 1)):
+        """Traffic (ds from car 0, lane, v) only; the mask allows car 0 the lane commands in `allowed`."""
+        s, l, v = (np.array(x, float) for x in zip(*cars)) if cars else (np.empty(0),)*3
+        env.run.snap = replace(snap0, traffic_s=s0+s, traffic_d=np.array([road.lane_center(int(k)) for k in l]),
+                               traffic_v=v, traffic_id=np.arange(len(s)), traffic_vd=None, traffic_target_lane=None)
+        env._lane_mask = lambda i, it: np.isin(LANE_CMD, allowed)
+        return env.escapes(np.array([True, False, False]))[0]
+
+    slow = (30.0, lane, 20.0)
+    assert place([slow, (40.0, lane+1, 30.0)])                      # faster leader in the open lane: an escape
+    assert not place([slow, (40.0, lane+1, 21.0)])                  # 1 m/s faster: not enough (stuck_closing 2)
+    assert place([slow])                                            # open lane with no leader within the window
+    assert place([slow, (150.0, lane+1, 10.0)])                     # its leader beyond stuck_window: none
+    assert not place([slow], allowed=(0,))                          # the mask allows no lane change
+    env.intentions[0].phase = 'pending'
+    assert not place([slow])                                        # already changing lanes
+
+
 def test_scenario_v7_lane_change_probability():
     from nohesi.config import Traffic as TrafficConfig
     v7 = SCENARIOS['v7']()

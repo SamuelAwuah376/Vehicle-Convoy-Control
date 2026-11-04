@@ -157,12 +157,38 @@ class NoHesiEnv(gymnasium.Env):
                           snap.traffic_s[None], snap.traffic_d[None], snap.traffic_v[None],
                           self.cfg.stuck_window, self.cfg.stuck_closing)[0]
 
-    def _stuck_seconds(self, snap):
-        """Advance the per-car stuck timers to snap; car-seconds stuck beyond stuck_grace since the last call."""
+    def _stuck_seconds(self, snap, charge=None):
+        """Advance the per-car stuck timers to snap; car-seconds stuck beyond stuck_grace since the last call (only the
+        cars in the (3,) bool charge, if given; the timers run for all)."""
         dt, before = snap.time-self._stuck_t, self.stuck_for
         self.stuck_for = np.where(self.stuck(snap), before+dt, 0.0)
         self._stuck_t = snap.time
-        return float(np.sum(np.maximum(self.stuck_for-np.maximum(before, self.cfg.stuck_grace), 0.0)))
+        over = np.maximum(self.stuck_for-np.maximum(before, self.cfg.stuck_grace), 0.0)
+        return float(np.sum(over if charge is None else over[charge]))
+
+    def escapes(self, cars=None):
+        """(3,) bool: cars with a way out of their lane at this decision (EnvConfig.stuck_escape_only), among the
+        (3,) bool cars (default all). A car keeping its lane with no overtake running has one if an overtake would start
+        now, or if the mask allows a lane change into a lane whose nearest traffic car ahead within stuck_window is at
+        least stuck_closing faster than the one in its own lane, or has none. A car changing lanes or overtaking: no."""
+        cfg, snap, road = self.cfg, self.snapshot, self.team.intentions.road
+        t_lane = road.lane_of(snap.traffic_d).astype(int)
+        out = np.zeros(TEAM, bool)
+        for i, it in enumerate(self.intentions):
+            if (cars is not None and not cars[i]) or it.phase != 'keep' or getattr(it, 'overtake', None) is not None:
+                continue
+            if cfg.overtakes and self._overtake_options()[i].any():
+                out[i] = True
+                continue
+            ds = snap.traffic_s-snap.team_s[i]
+
+            def lead_v(lane):
+                sel = (t_lane == lane) & (ds > 0) & (ds < cfg.stuck_window)
+                return snap.traffic_v[sel][np.argmin(ds[sel])] if sel.any() else np.inf
+            own = lead_v(it.lane)
+            ok = self._lane_mask(i, it)
+            out[i] = any(lead_v(it.lane+int(c)) >= own+cfg.stuck_closing for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)]))
+        return out
 
     def step(self, action):
         self.step_started = time.monotonic()   # read by the step watchdog (rl/watchdog.py) in training workers
@@ -180,11 +206,18 @@ class NoHesiEnv(gymnasium.Env):
         log, records = team.log, team.intentions.records
         marks = len(records), len(log.fallbacks), len(log.conflicts)
         terms, stuck, braked = {}, 0.0, 0.0
+        # Missed escapes are judged at the decision (before the commands act) and charged over its interval, unless the
+        # car takes one now (a lane change or an overtake); only cars that can pass stuck_grace in it are checked.
+        charge = None
+        if cfg.aux_stuck and cfg.stuck_escape_only:
+            keeps = np.array([x < N_ACTIONS and LANE_CMD[x] == 0 for x in self.policy.actions])
+            due = self.stuck_for+team.decide_every*self.scenario.timing.dt > cfg.stuck_grace
+            charge = self.escapes(self.stuck(run.snap) & keeps & due)
         for _ in range(team.decide_every):
             for t, v in run.step().items():
                 terms[t] = terms.get(t, 0.0)+float(v.sum())
             if cfg.aux_stuck:
-                stuck += self._stuck_seconds(run.snap)
+                stuck += self._stuck_seconds(run.snap, charge)
             if cfg.aux_brake:
                 braked += float(np.maximum(-run.controls[-1][:, 0], 0.0).sum())*self.scenario.timing.dt
             if run.done:

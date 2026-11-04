@@ -36,6 +36,10 @@ class EnvConfig:
     stuck_window: float = 100.0
     stuck_closing: float = 2.0
     stuck_grace: float = 2.0
+    # With stuck_escape_only, a stuck car is charged only while it has a way out at the decision (a missed escape, see
+    # NoHesiEnv.escapes): an overtake would start, or the mask allows a lane change into a lane whose nearest traffic car
+    # ahead within stuck_window is at least stuck_closing faster than the one in its own lane (or has none).
+    stuck_escape_only: bool = False
     # Training-only reward per m/s of speed braked away, summed over the team (x reward_scale game points): a car braking
     # at b m/s^2 for dt seconds costs aux_brake*b*dt (applied acceleration; emergency and safety braking count too).
     aux_brake: float = 0.0
