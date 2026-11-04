@@ -102,6 +102,8 @@ class NoHesiEnv(gymnasium.Env):
         self.scenario = replace(s, score=SCORES[cfg.score](), vehicle=replace(s.vehicle, model=cfg.vehicle_model))
         self.planner = Planner(mpc=cfg.mpc, speed_max=self.scenario.team_speed_max,
                                decision_interval=cfg.decision_interval, speed_step=cfg.speed_step)
+        if cfg.planner_overrides:
+            self.planner = replace(self.planner, **dict(cfg.planner_overrides))
         self.lanes = self.scenario.road.lanes
         self.action_space = spaces.MultiDiscrete([n_actions(cfg)]*TEAM)
         self._options = None   # (time, (3, len(OVERTAKES)) bool): overtakes that would start now, per decision

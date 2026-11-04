@@ -51,6 +51,9 @@ class EnvConfig:
     # (Planner.speed_step, m/s; 2.0 at 2 Hz is 4 m/s per second of commands).
     decision_interval: float = 0.5
     speed_step: float = 2.0
+    # Other Planner settings for this env, as (name, value) pairs applied over the defaults (e.g. (('retry_cooldown',
+    # 1.0), ('w_lateral', 10.0))). () keeps every default.
+    planner_overrides: tuple = ()
 
     def __post_init__(self):
         if self.overtakes != (self.version == 'e5'):
