@@ -40,6 +40,10 @@ class EnvConfig:
     # NoHesiEnv.escapes): an overtake would start, or the mask allows a lane change into a lane whose nearest traffic car
     # ahead within stuck_window is at least stuck_closing faster than the one in its own lane (or has none).
     stuck_escape_only: bool = False
+    # With stuck_pass_lanes, a lane change into a lane that is not faster is a way out too when the car can get past its
+    # lead traffic car through it (NoHesiEnv._passable: the overtake corridor test at the team's top speed); taking it
+    # exempts the car, staying is charged.
+    stuck_pass_lanes: bool = False
     # Training-only reward per m/s of speed braked away, summed over the team (x reward_scale game points): a car braking
     # at b m/s^2 for dt seconds costs aux_brake*b*dt (applied acceleration; emergency and safety braking count too).
     aux_brake: float = 0.0

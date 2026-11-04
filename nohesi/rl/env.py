@@ -170,9 +170,10 @@ class NoHesiEnv(gymnasium.Env):
         """(3,) bool: cars with a way out of their lane at this decision (EnvConfig.stuck_escape_only), among the
         (3,) bool cars (default all). A car keeping its lane with no overtake running has one if an overtake would start
         now, or if the mask allows a lane change into a lane whose nearest traffic car ahead within stuck_window is at
-        least stuck_closing faster than the one in its own lane, or has none. A car changing lanes or overtaking: no.
-        With actions (this decision's), a car whose action takes one of its ways out (that overtake or lane change) is
-        left out: a move into a lane that is not faster does not count."""
+        least stuck_closing faster than the one in its own lane, or has none; with stuck_pass_lanes, also into a lane
+        it can pass its lead traffic car through (_passable). A car changing lanes or overtaking: no. With actions (this
+        decision's), a car whose action takes one of its ways out (that overtake or lane change) is left out: a move
+        into a lane that is not a way out does not count."""
         cfg, snap, road = self.cfg, self.snapshot, self.team.intentions.road
         t_lane = road.lane_of(snap.traffic_d).astype(int)
         out = np.zeros(TEAM, bool)
@@ -187,11 +188,32 @@ class NoHesiEnv(gymnasium.Env):
             own = lead_v(it.lane)
             ok = self._lane_mask(i, it)
             ways = [c for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)]) if lead_v(it.lane+int(c)) >= own+cfg.stuck_closing]
+            if cfg.stuck_pass_lanes:
+                ways += [c for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)])
+                         if c not in ways and self._passable(i, it, int(c), ok)]
             overtake = bool(cfg.overtakes and self._overtake_options()[i].any())
             a = None if actions is None else int(actions[i])
             taken = a is not None and ((a >= N_ACTIONS and overtake) or (a < N_ACTIONS and LANE_CMD[a] in ways))
             out[i] = (bool(ways) or overtake) and not taken
         return out
+
+    def _passable(self, i, it, c, ok):
+        """EnvConfig.stuck_pass_lanes: can car i (keeping its lane) get past its lead traffic car (within overtake_look)
+        through the adjacent lane it.lane+c? The overtake corridor test (IntentionManager._corridor: overtake_clear past
+        the lead within overtake_pass_max, the lane's front gap car still length + margin_long ahead then) at the team's
+        top speed, on a gap the mask allows the change into (any of its allowed speed commands)."""
+        im, snap, pc = self.team.intentions, self.snapshot, self.team.cfg
+        lead = im._lead(snap, i)
+        if lead is None:
+            return False
+        for sc in (-1, 0, 1):
+            if not (ok & (LANE_CMD == c) & (SPEED_CMD == sc)).any():
+                continue
+            speed = float(np.clip(it.speed+sc*pc.speed_step, pc.speed_min, pc.speed_max))
+            gap = im.gap_rule(snap, self.team.plans, i, it.lane+c, speed)[0]
+            if gap is not None and im._corridor(snap, self.team.plans, i, pc.speed_max, lead, gap[0]):
+                return True
+        return False
 
     def step(self, action):
         self.step_started = time.monotonic()   # read by the step watchdog (rl/watchdog.py) in training workers
