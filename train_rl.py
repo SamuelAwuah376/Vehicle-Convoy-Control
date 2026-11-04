@@ -9,7 +9,7 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v10_e5_dyn_b8_10m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v10_e5_dyn_b8b_10m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -44,6 +44,10 @@ RUN_ID = 'ppo_v10_e5_dyn_b8_10m_001'     # folder under runs_rl/; reuse with RES
 # Batch 8 (the user's call, 2026-11-04): batch 7 worked (50 seeds: its 9.0M checkpoint 969k vs batch 6's final 699k,
 # +270k +- 58k paired, 39/50 wins; train passes 19.3 -> 26.3), so 10M more from its final model with the stuck penalty
 # reshaped: only missed escapes are charged, steeper and sooner (STUCK_*), with a value warm-up for the new reward.
+# Batch 8b (the user's call, 2026-11-04): batch 8 stopped at 1.31M (flat; about half its missed-escape charges were cars
+# moving into a lane they could pass their leader through), so 10M from batch 7's final model again with: such pass
+# lanes counted as ways out (STUCK_PASS_LANES), the planner's retry cooldown 3.0 -> 1.0 s and quicker lane changes
+# (PLANNER_OVERRIDES), and a value warm-up for the changed reward and dynamics.
 SCENARIO = 'v8'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1; v8: v7 with
                              # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left)
@@ -75,7 +79,17 @@ STUCK_PENALTY = -20.0        # training-only reward per second per car stuck beh
 STUCK_ESCAPE_ONLY = True     # charge only missed escapes: an overtake would start, or the mask allows a lane change into a lane
                              # whose leader is >= 2 m/s faster (or none within 100 m), and the car does not take it (until 7: all
                              # stuck time; batch 7's policy: 46 % of it mid-lane-change, 31 % no faster lane, 16.5 % a missed escape)
+STUCK_PASS_LANES = True      # 8b: a lane the car can pass its lead traffic car through also counts as a way out (EnvConfig.
+                             # stuck_pass_lanes; batch 7's policy: 5.1 s/episode of 8's missed escapes were such moves)
 STUCK_GRACE = 0.5            # s stuck before the penalty starts (until 7: 2.0; 8: 0.5, the user's call: openings close fast)
+W_LATERAL = 10.0             # 8b: NMPC lateral-error weight (Planner.w_lateral, default 1): lane changes ~2.05 -> ~1.5 s, sideways
+                             # force p99 4.2 -> 7.3 m/s2 (grip cap 8.8). Batch 7's final model with cooldown 1.0, 50 seeds:
+                             # w 1: 1,048k (2/50 crashes), w 3: 1,184k (2/50), w 10: 1,449k (4/50; +401k +- 98k vs w 1, 34/50 wins);
+                             # w 10's crashes: retries into closing gaps ending in cancels and emergency fallbacks
+PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', W_LATERAL))   # 8b: Planner settings over the defaults
+                             # (EnvConfig.planner_overrides). retry_cooldown 3.0 -> 1.0 s: after a forced cancel the car may
+                             # re-request that lane sooner (batch 7's final model, 50 seeds: 1,048k vs 924k, +124k +- 69k);
+                             # w_lateral 1 -> W_LATERAL: quicker lane changes
 BRAKE_PENALTY = -1.0         # training-only reward per m/s of speed braked away (= -100 points per m/s, -0.1 to 3b; the batch 2 policy
                              # brakes away ~87 m/s per car-minute, ~-5k points per episode): smooth driving, little braking
 LEARNING_RATE = 5e-4         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
@@ -90,7 +104,7 @@ VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value
                              # 4: 100k, the reward reshape; 4b: 100k, the train ramp; 5: 250k at 5 Hz = 100k at 2 Hz,
                              # the new traffic and decision rate; 5b: 250k, the critic had fallen behind, the user asked;
                              # 6: 100k, back to 2 Hz: the critic's per-decision discount and rewards change; 7: 0, the reward, traffic
-                             # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape)
+                             # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
 INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b7_10m_001/final_model.zip'   # None: from scratch
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
@@ -99,6 +113,7 @@ if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-im
     env = EnvConfig(version=ENV_VERSION, overtakes=ENV_VERSION == 'e5', scenario=SCENARIO, score=SCORE,
                     vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY,
                     aux_stuck=STUCK_PENALTY, stuck_escape_only=STUCK_ESCAPE_ONLY, stuck_grace=STUCK_GRACE,
+                    stuck_pass_lanes=STUCK_PASS_LANES, planner_overrides=PLANNER_OVERRIDES,
                     aux_brake=BRAKE_PENALTY, decision_interval=DECISION_INTERVAL,
                     speed_step=SPEED_STEP)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
