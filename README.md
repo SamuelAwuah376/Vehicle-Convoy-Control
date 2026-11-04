@@ -47,7 +47,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M3, part 2 | Trained PPO models, drafting-focused fine-tuning (scores v5–v6), faster simulator. |
 | No Hesi M4 | Safety layer m3.7, team-play scores v7–v8, the v8 world (BMW M3s, faster traffic without walls), and a new 10M-decision model trained on all of it. |
 | No Hesi M4, part 2 | The stack on the dynamic car: realistic M3 braking physics, a grip budget, an MPC with grip hard and contact soft, a 100 Hz stability layer, an MPC emergency mode and plan verification (planner m4.2). |
-| **No Hesi M5** | The policy trained on the dynamic car in batches: an overtake action, traffic that always leaves a gap, training that survives hangs and crashes, and a CARLA bridge. |
+| No Hesi M5 | The policy trained on the dynamic car in batches: an overtake action, traffic that always leaves a gap, training that survives hangs and crashes, and a CARLA bridge. |
+| **No Hesi M6** | Team play on the dynamic car: scores v9–v10, lane-speed traffic (scenario v8), 2 Hz decisions with a smaller entropy bonus, a missed-escape stuck penalty and quicker lane changes. On 50 seeds: 457k → 924k (batch 7), and 1,449k with the new planner settings. |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -244,7 +245,7 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
    - **Memory:** each worker loaded PyTorch and CUDA without using them, and RAM reached 100 %. Workers now start from a torch-free module (`rl/vec_worker.py`): 0.56 → 0.10 GB each.
    - **Native crashes:** two workers died inside the acados linear algebra (blasfeo). Both crash dumps show a CPU state that normal execution can't produce; the laptop's i9-14900HX runs microcode older than Intel's instability fixes. A dead worker is now replaced, which costs one episode instead of up to 250k decisions.
 6. **CARLA bridge** (`nohesi/carla`, `run_carla.py`): the straight 3-lane road as OpenDRIVE; CARLA's Tesla Model 3 tuned and calibrated to the M3; CARLA physics for the team at 100 Hz (with the stability layer) and our traffic model moving CARLA's actors. The v8 model crashed in 1 of 10 seeds in CARLA, as in our simulator. CARLA's clock is kept on ours while rendering, and videos record at 100 fps (kept locally, not in git).
-7. **Batch 3** (running): 5M decisions from 2c's final model, same settings.
+7. **Batch 3:** 5M decisions from 2c's final model, same settings (continued in milestone 6).
 
 **Results (milestone 5):** 50 seeds (1000–1049), scenario v7, score v8, dynamic car with the nonlinear MPC (`models/ppo_v8_e5_dyn_b2c_3m/eval_50seeds_1000-1049.json`):
 
@@ -262,6 +263,43 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **10-seed evals during training are noisy:** the 3M checkpoint scored 69.6k on 10 seeds but 54.4k on 50, within noise of the final model.
 - **Open issues:** the braking penalty has not reduced braking, and stuck time fell only about 6 %.
 
+**Milestone 6** turns the dynamic-car policy into a team that moves together, then finds what kept it stuck behind traffic. In the order it happened:
+
+1. **Batches 3 and 3b** (score v8, scenario v7): at LR 3e-4, batch 3's updates were large (KL about 0.04, 40–54 % clipped) but its training stats were flat from 0.75M, so it stopped at 2.4M. Batch 3b ran the remaining 2.75M from its 2.25M checkpoint at LR 1e-4 → 1e-5.
+2. **Score v9, the team-play reshape:** train points 10× (250 pts/s per car, from 75 mph), draft passes 15× and train passes 30×, −300 for a lane change near traffic without a pass, and speed points 40×. The training crash penalty became a fixed −10,000 reward units (1M points), larger than any episode, with the reward clip raised from 10 to 50 so it isn't cut. Batch 4 was flat to 1M: the team drafted in a train only about 4–5 s per episode, because all three cars were above 75 mph only about 6 % of the time.
+3. **Score v10, a train speed ramp:** train points and the train-pass bonus start at 40 % at 60 mph and reach 100 % at 80 mph, linear in the slowest car's speed. Batch 4b was flat by 0.9M, at 61 mph: the team sat behind 45–60 mph traffic about a third of the time.
+4. **Scenario v8, lane-speed traffic:** 30 cars at 60–65 mph in the right and middle lanes and 70–80 mph in the left. A traffic lane change draws a speed from the new lane's range.
+5. **Batches 5 and 5b, 5 Hz decisions:** the policy decided every 0.2 s, with γ, λ, the rollout and the speed step rescaled to keep the same time constants. At LR 5e-4 most updates stopped early on the KL limit, and the critic's explained variance fell from 0.7 to about 0.2. Batch 5b froze the policy for 250k decisions while the critic caught up and loosened the KL limit (0.05 → 0.1), but gained nothing on 50 seeds (best 555k against 541k at its start). Its entropy rose (5.98 → 6.28) while team play fell.
+6. **Batch 6, back to 2 Hz with a 10× smaller entropy bonus** (0.01 → 0.001), 5M decisions from 5b's best: 457k → 699k on 50 seeds (+242k ± 46k, better on 38 of 50), and train passes 12.3 → 19.3.
+7. **Batch 7:** 10M more decisions with the same settings: 924k (+225k ± 58k over batch 6, 35 of 50), with 1 crash in 50. Most of the gain came in the second half, as the learning rate decayed.
+8. **Missed-escape stuck penalty** (`EnvConfig.stuck_escape_only`): instead of all stuck time, a stuck car is charged −20 reward units per second (after 0.5 s) only while it has a way out it doesn't take: an overtake that would start, or a lane change the mask allows into a faster lane. Batch 8 trained on it from batch 7's final model, and was flat at 1.31M.
+9. **Where the stuck time goes** (batch 7's final model, 11 seeds):
+   - The gap rule rarely blocks a stuck car: 2.5 s per episode, mostly the 3 s retry cooldown after a cancelled lane change.
+   - About half of all stuck time is during the lane change itself, between accepting a gap and the car's centre crossing the lane line.
+   - A lane change took about 2 s, about 0.4–0.5 g of sideways force. The nonlinear MPC's cost weights set that pace, not a limit.
+   - About half of what batch 8 charged as missed escapes was the car moving into a slower lane through which it could still pass its leader.
+10. **Planner settings per run** (`EnvConfig.planner_overrides`): with the policy unchanged, a 1 s retry cooldown (from 3 s) and a lateral-error weight of 10 (from 1, `Planner.w_lateral`) make lane changes about 25 % quicker (about 1.5 s). The MPC weights are runtime values, so the acados solver isn't rebuilt.
+11. **Pass lanes** (`EnvConfig.stuck_pass_lanes`): a lane through which the car can pass its leader also counts as a way out. The test is the overtake corridor at the team's top speed: 2 m clear of the leader within 8 s, with that lane's car ahead still clear.
+12. **Batch 8b** (running): 10M decisions from batch 7's final model, with pass lanes, the 1 s cooldown and the lateral weight 10.
+
+**Results (milestone 6):** 50 seeds (1000–1049), scenario v8, score v10, dynamic car with the nonlinear MPC (`models/ppo_v10_e5_dyn_b7_10m/eval_50seeds_*.json`). These scores aren't comparable with milestone 5's (score v8, scenario v7).
+
+| | Batch 6 start (5b best) | Batch 6 final | **Batch 7 final** | Batch 7 final, cooldown 1 s | Batch 7 final, 8b planner |
+|---|---|---|---|---|---|
+| Team score | 456,558 | 698,966 | 923,612 | 1,047,565 | **1,448,735** |
+| Crash rate | 0.06 | 0.06 | **0.02** | 0.04 | 0.08 |
+| Close passes | 50.4 | 57.1 | 62.4 | 65.5 | **73.0** |
+| Draft passes | 20.8 | 28.4 | 34.4 | 39.4 | **44.7** |
+| Train passes | 12.3 | 19.3 | 24.9 | 29.7 | **35.5** |
+| Train time (s) | 11.7 | 17.8 | 23.1 | 28.4 | **30.6** |
+| Stuck behind traffic (car-s per episode) | 98.8 | 93.6 | 86.3 | 78.9 | **67.4** |
+| Mean speed (m/s) | 30.1 | 30.1 | 30.4 | 30.7 | **31.6** |
+
+- **Batch 7's final model** (saved as `models/ppo_v10_e5_dyn_b7_10m`) doubles batch 6's start, mostly through team motion: train passes 2×, train time 2×.
+- **The same policy with the 8b planner** scores +401k ± 98k over the 1 s cooldown alone (34 of 50). A lateral weight of 3 gave 1,184k.
+- **Its 4 crashes in 50** all follow the same chain: a car backs out of a closing gap, retries it soon after, then cancels again or falls back to the emergency mode, and hits traffic. With 50 seeds, 4 crashes isn't distinguishable from 2. Batch 8b trains with the crash penalty on this planner.
+- **Seed 1500,** a hard seed: batch 7's final model scores 258k with its own planner and 1,357k with the 8b planner (`results/run_053_...`); the PPO v8 model scores 212k (`results/run_052_...`).
+
 ## Training (milestone 3)
 
 Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE = 'cuda'` in `train_rl.py`), install the CUDA build: `pip install --force-reinstall --no-deps torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130`. `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run; `--init-from <model>.zip` starts a new run from a trained model, for fine-tuning; `--vf-warmup N` then trains only the value network for the first N decisions, so its estimates fit the new score before the policy changes). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
@@ -269,6 +307,7 @@ Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE 
 - **Setup:** 16 `SubprocVecEnv` workers × 512 steps (8192 per update), batch 1024, 10 epochs, lr 3e-4 decaying linearly to 0, clip 0.2, entropy 0.01, γ 0.99, λ 0.95. Separate 256×256 tanh networks for policy and value. `VecNormalize` normalises observations and rewards (clip 10), and its statistics are saved with every model.
 - **Threads:** each worker uses one thread (`OMP/MKL/OPENBLAS_NUM_THREADS=1`), and the learner uses 1 torch thread while collecting rollouts and 4 during PPO updates. With 16 envs, training runs at about 80 timesteps/s; the environment (mostly the MPC) is the bottleneck.
 - **Dynamic-car batches (milestone 5):** run with `train_rl_supervised.py`, which resumes from the latest checkpoint after a failure. 24 torch-free workers (`rl/vec_worker.py`) run at about 63 decisions/s; a dead worker is replaced, and the step watchdog ends a hung solve. `train_rl.py` holds the current batch's settings, with the history of each batch in its comments.
+- **Milestone 6 batches:** 2 Hz decisions (0.5 s), 24 workers × 512 steps, LR 5e-4 decaying to 1e-5, KL limit 0.1, entropy 0.001, and a 100k-decision value warm-up when the reward or the dynamics change. Training-only terms: a fixed −10,000 reward units for a crash (1M points; reward clip 50) and the missed-escape stuck penalty (`STUCK_*`). `PLANNER_OVERRIDES` (`EnvConfig.planner_overrides`) sets planner values such as the retry cooldown or MPC weights for a run; they are saved in its `config.json`.
 - **Evaluation:** every 500k timesteps on held-out seeds 1000–1009 (`--seeds` for the final evaluation, default 1000–1019), with deterministic actions and masks applied. The model with the best mean team score is saved as `best_model.zip` + `best_vecnormalize.pkl`.
 - **Saved models:** `models/<name>/` holds the trained models kept in git: best and final models with their `vecnormalize` files, `config.json`, `eval_history.csv` and the 20-seed evaluations. `run_sim.py` (`POLICY = 'ppo'`, `PPO_RUN`) and `nohesi.rl.evaluate` accept these folders like a run folder.
 - **Outputs:** everything goes to `runs_rl/<run_id>/` (git-ignored): `config.json` (configs, library versions, git commit), TensorBoard logs in `tb/` (per-term reward, aux penalties, episode and eval metrics; view with `.venv\Scripts\tensorboard --logdir runs_rl`), `checkpoints/`, and `eval_history.csv`.
@@ -312,7 +351,7 @@ Key ideas, in the order things happen:
 
 ## Scoring
 
-Scores are versioned, and each result records which version it used. v4 is the default. v5 is v4 with drafting 5× more rewarding; v6 is v5 plus draft passes. v7 rewards the whole team moving together, and v8 (used to train the current model) makes that fast.
+Scores are versioned, and each result records which version it used. v4 is the default. v5 is v4 with drafting 5× more rewarding; v6 is v5 plus draft passes. v7 rewards the whole team moving together, and v8 makes that fast. v9 reshapes v8 so team play dominates, and v10 (used to train the current models) ramps train points in with speed.
 
 | Points for | How |
 |---|---|
@@ -325,6 +364,8 @@ Scores are versioned, and each result records which version it used. v4 is the d
 | **Draft train** (v7) | All three cars in a row along the road, in any lanes, each within 0.5 s bumper to bumper of the car ahead, all above 20 m/s. Every car earns 25 points per second (times the combo) while it holds; a two-car draft earns 5. In v8 train points and train passes need every car above 80 mph (35.8 m/s). |
 | **Lane-change maneuvers** (v3+) | Only scored with traffic within 10 m and speed above 25 m/s. 300 for a two-lane change → close pass → another lane change, 150 for the same with a single change, 90/60 for a lane change with a close pass, 25 for a lane change alone. Each step of a chain must happen within 3 s. |
 | **Speed** | A small amount for driving above 25 m/s (v1+). |
+| **Team play** (v9) | v8 with train points 10× (250 points per second per car, from 75 mph), draft passes 15× and train passes 30× (a single car's close pass is unchanged), speed points 40×, and −300 for a lane change near traffic without a close pass. |
+| **Train speed ramp** (v10) | v9 with train points and the train-pass bonus scaled by the slowest car's speed: 40 % at 60 mph, rising linearly to 100 % at 80 mph. |
 | **Top speed** (v8) | +10 points per second for each car above 120 mph (53.6 m/s), times the combo. |
 | **Team spread penalty** (v7) | For each pair of teammates more than 50 m apart: −2 × ((distance − 50 m) / 10 m)² points per second, at most 200 (reached at 150 m), split between the pair (−18 pts/s at 80 m, −50 at 100 m). Not multiplied by the combo. v8 doubles it: −4 × ((distance − 50 m) / 10 m)², at most 400. |
 | **Collision** | −500 to each car involved, and the episode ends. In v7 a collision also wipes 50 % of the whole team's banked points (No Hesi-style run reset). |
@@ -373,8 +414,9 @@ Each run folder contains:
 - Safety checks are sampled every 0.05 s rather than continuous.
 
 **Planned next steps:**
-- finishing the dynamic-car batches (batch 3 running, then batch 4);
-- less braking: the braking penalty has not worked yet;
+- batch 8b (running): judge it on 50 seeds, including its crash rate and how often lane changes are aborted;
+- fewer abort-and-retry crashes into closing gaps;
+- less braking: the braking penalty has not worked yet (braking rose from 494 to 543 m/s per episode over batches 6–7);
 - a yaw-rate and sideslip envelope in the MPC;
 - curved roads (a Town04-like road is drafted);
 - evaluating the dynamic-car model in CARLA.
