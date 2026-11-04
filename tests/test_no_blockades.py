@@ -127,16 +127,17 @@ def test_stuck_escape_only_charges_missed_escapes():
     env = NoHesiEnv(replace(EnvConfig(scenario='v6', score='v8'), aux_stuck=-1.0, stuck_grace=0.0, stuck_escape_only=True))
     env.reset(seed=0)
     env.stuck = lambda snap: np.ones(3, bool)
-    env.escapes = lambda cars: np.array([True, True, False]) & cars
+    seen = []
+    env.escapes = lambda cars, actions: seen.append(list(actions)) or np.array([True, True, False]) & cars
     seconds = env.team.decide_every*env.scenario.timing.dt
-    info = env.step([encode(0, 0, 0)]*3)[4]                            # cars 0 and 1 keep with a way out: charged
-    assert info['aux']['stuck'] == pytest.approx(-2*seconds)
-    info = env.step([encode(1, 0, 0), encode(0, 1, 0), encode(0, 0, 0)])[4]   # car 0 takes its escape: only car 1
-    assert info['aux']['stuck'] == pytest.approx(-seconds)
+    action = [encode(0, 0, 0), encode(0, 1, 0), encode(1, 0, 0)]
+    info = env.step(action)[4]                                       # cars 0 and 1 missed a way out: charged
+    assert info['aux']['stuck'] == pytest.approx(-2*seconds) and seen == [action]
 
 
 def test_escapes():
     from nohesi.rl.config import EnvConfig
+    from nohesi.intentions import encode
     from nohesi.rl.env import LANE_CMD, NoHesiEnv
     env = NoHesiEnv(replace(EnvConfig(scenario='v6', score='v8'), aux_stuck=-1.0, stuck_escape_only=True))
     env.reset(seed=0)
@@ -144,13 +145,15 @@ def test_escapes():
     lane = env.intentions[0].lane
     s0 = snap0.team_s[0]
 
-    def place(cars, allowed=(0, 1)):
-        """Traffic (ds from car 0, lane, v) only; the mask allows car 0 the lane commands in `allowed`."""
+    def place(cars, allowed=(0, 1), action=None):
+        """Traffic (ds from car 0, lane, v) only; the mask allows car 0 the lane commands in `allowed`; car 0's action
+        this decision (None: not given)."""
         s, l, v = (np.array(x, float) for x in zip(*cars)) if cars else (np.empty(0),)*3
         env.run.snap = replace(snap0, traffic_s=s0+s, traffic_d=np.array([road.lane_center(int(k)) for k in l]),
                                traffic_v=v, traffic_id=np.arange(len(s)), traffic_vd=None, traffic_target_lane=None)
         env._lane_mask = lambda i, it: np.isin(LANE_CMD, allowed)
-        return env.escapes(np.array([True, False, False]))[0]
+        actions = None if action is None else [action, encode(0, 0, 0), encode(0, 0, 0)]
+        return env.escapes(np.array([True, False, False]), actions)[0]
 
     slow = (30.0, lane, 20.0)
     assert place([slow, (40.0, lane+1, 30.0)])                      # faster leader in the open lane: an escape
@@ -158,6 +161,10 @@ def test_escapes():
     assert place([slow])                                            # open lane with no leader within the window
     assert place([slow, (150.0, lane+1, 10.0)])                     # its leader beyond stuck_window: none
     assert not place([slow], allowed=(0,))                          # the mask allows no lane change
+    both = [slow, (40.0, lane+1, 30.0), (20.0, lane-1, 15.0)]       # left faster, right slower; both allowed
+    assert place(both, (-1, 0, 1), encode(0, 1, 0))                 # keeps its lane (speeding up): missed
+    assert not place(both, (-1, 0, 1), encode(1, 0, 0))             # takes the faster lane: not charged
+    assert place(both, (-1, 0, 1), encode(-1, 0, 0))                # moves into the slower lane: still charged
     env.intentions[0].phase = 'pending'
     assert not place([slow])                                        # already changing lanes
 

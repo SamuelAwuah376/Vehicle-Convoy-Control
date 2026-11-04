@@ -66,8 +66,13 @@ CRASH_PENALTY = -10_000.0    # training-only fixed reward on a crash (= 1M game 
                              # banked points and the MPC's vehicle clearance is soft (batch 1 had none). Kept above a whole
                              # episode: -500 until batch 3b (v8 episodes ~360-840 RU), -10,000 on v9 (~3,700-5,200 RU)
 CLIP_REWARD = 50.0           # clip on the normalised reward (SB3 default 10): v9's crash is ~15 return std (v8's -500: 4.5)
-STUCK_PENALTY = -3.0         # training-only reward per second per car stuck behind traffic beyond 2 s (= -300 points/s; -0.25 to 3b):
+STUCK_PENALTY = -20.0        # training-only reward per second per car stuck behind traffic beyond STUCK_GRACE (-0.25 to 3b,
+                             # -3 to 7; 8: -20 = -2,000 points/s, about what a car earns per second from passes, the user's call):
                              # the traffic car ahead in its lane within 100 m, the car less than 2 m/s faster than it
+STUCK_ESCAPE_ONLY = True     # charge only missed escapes: an overtake would start, or the mask allows a lane change into a lane
+                             # whose leader is >= 2 m/s faster (or none within 100 m), and the car does not take it (until 7: all
+                             # stuck time; batch 7's policy: 46 % of it mid-lane-change, 31 % no faster lane, 16.5 % a missed escape)
+STUCK_GRACE = 0.5            # s stuck before the penalty starts (until 7: 2.0; 8: 0.5, the user's call: openings close fast)
 BRAKE_PENALTY = -1.0         # training-only reward per m/s of speed braked away (= -100 points per m/s, -0.1 to 3b; the batch 2 policy
                              # brakes away ~87 m/s per car-minute, ~-5k points per episode): smooth driving, little braking
 LEARNING_RATE = 5e-4         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
@@ -90,7 +95,8 @@ RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_200000
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
     env = EnvConfig(version=ENV_VERSION, overtakes=ENV_VERSION == 'e5', scenario=SCENARIO, score=SCORE,
                     vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY,
-                    aux_stuck=STUCK_PENALTY, aux_brake=BRAKE_PENALTY, decision_interval=DECISION_INTERVAL,
+                    aux_stuck=STUCK_PENALTY, stuck_escape_only=STUCK_ESCAPE_ONLY, stuck_grace=STUCK_GRACE,
+                    aux_brake=BRAKE_PENALTY, decision_interval=DECISION_INTERVAL,
                     speed_step=SPEED_STEP)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
                       eval_envs=EVAL_ENVS, checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE,

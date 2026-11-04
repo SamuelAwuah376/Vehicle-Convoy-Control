@@ -166,19 +166,18 @@ class NoHesiEnv(gymnasium.Env):
         over = np.maximum(self.stuck_for-np.maximum(before, self.cfg.stuck_grace), 0.0)
         return float(np.sum(over if charge is None else over[charge]))
 
-    def escapes(self, cars=None):
+    def escapes(self, cars=None, actions=None):
         """(3,) bool: cars with a way out of their lane at this decision (EnvConfig.stuck_escape_only), among the
         (3,) bool cars (default all). A car keeping its lane with no overtake running has one if an overtake would start
         now, or if the mask allows a lane change into a lane whose nearest traffic car ahead within stuck_window is at
-        least stuck_closing faster than the one in its own lane, or has none. A car changing lanes or overtaking: no."""
+        least stuck_closing faster than the one in its own lane, or has none. A car changing lanes or overtaking: no.
+        With actions (this decision's), a car whose action takes one of its ways out (that overtake or lane change) is
+        left out: a move into a lane that is not faster does not count."""
         cfg, snap, road = self.cfg, self.snapshot, self.team.intentions.road
         t_lane = road.lane_of(snap.traffic_d).astype(int)
         out = np.zeros(TEAM, bool)
         for i, it in enumerate(self.intentions):
             if (cars is not None and not cars[i]) or it.phase != 'keep' or getattr(it, 'overtake', None) is not None:
-                continue
-            if cfg.overtakes and self._overtake_options()[i].any():
-                out[i] = True
                 continue
             ds = snap.traffic_s-snap.team_s[i]
 
@@ -187,7 +186,11 @@ class NoHesiEnv(gymnasium.Env):
                 return snap.traffic_v[sel][np.argmin(ds[sel])] if sel.any() else np.inf
             own = lead_v(it.lane)
             ok = self._lane_mask(i, it)
-            out[i] = any(lead_v(it.lane+int(c)) >= own+cfg.stuck_closing for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)]))
+            ways = [c for c in np.unique(LANE_CMD[ok & (LANE_CMD != 0)]) if lead_v(it.lane+int(c)) >= own+cfg.stuck_closing]
+            overtake = bool(cfg.overtakes and self._overtake_options()[i].any())
+            a = None if actions is None else int(actions[i])
+            taken = a is not None and ((a >= N_ACTIONS and overtake) or (a < N_ACTIONS and LANE_CMD[a] in ways))
+            out[i] = (bool(ways) or overtake) and not taken
         return out
 
     def step(self, action):
@@ -207,12 +210,11 @@ class NoHesiEnv(gymnasium.Env):
         marks = len(records), len(log.fallbacks), len(log.conflicts)
         terms, stuck, braked = {}, 0.0, 0.0
         # Missed escapes are judged at the decision (before the commands act) and charged over its interval, unless the
-        # car takes one now (a lane change or an overtake); only cars that can pass stuck_grace in it are checked.
+        # car takes one now; only cars that can pass stuck_grace in it are checked.
         charge = None
         if cfg.aux_stuck and cfg.stuck_escape_only:
-            keeps = np.array([x < N_ACTIONS and LANE_CMD[x] == 0 for x in self.policy.actions])
             due = self.stuck_for+team.decide_every*self.scenario.timing.dt > cfg.stuck_grace
-            charge = self.escapes(self.stuck(run.snap) & keeps & due)
+            charge = self.escapes(self.stuck(run.snap) & due, self.policy.actions)
         for _ in range(team.decide_every):
             for t, v in run.step().items():
                 terms[t] = terms.get(t, 0.0)+float(v.sum())
