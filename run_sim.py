@@ -9,18 +9,19 @@ from nohesi.evaluation.io import append_index, next_run_dir, save
 from nohesi.evaluation.runner import run
 from nohesi.evaluation.viz import animate, plot
 
-SCENARIO = 'v7'          # 'v0'-'v2' early worlds; 'v3'/'v4' lane-changing traffic; 'v5' = v4 with BMW M3s, 45-60 mph traffic, no walls, up to 134 mph; 'v6' = v5 where traffic never blocks every lane; 'v7' = v6 with fewer traffic lane changes
+SCENARIO = 'v8'          # 'v0'-'v2' early worlds; 'v3'/'v4' lane-changing traffic; 'v5' = v4 with BMW M3s, 45-60 mph traffic, no walls, up to 134 mph; 'v6' = v5 where traffic never blocks every lane; 'v7' = v6 with fewer traffic lane changes; 'v8' = v7 with lane speeds (60-65 mph right/middle, 70-80 mph left, 30 cars)
 POLICY = 'ppo'           # 'overtaker' (lane changes + MPC), 'lane_keeping', or 'ppo' (trained MaskablePPO team policy)
-PPO_RUN = 'models/ppo_v8_e5_dyn_b2c_3m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version); 'models/ppo_v8_e4_10m' = kinematic-car model (v5, PLANT 'kinematic', MPC 'linear')
+PPO_RUN = 'models/ppo_v10_e5_dyn_b7_10m'  # POLICY = 'ppo' only: trained run or models/ folder (its env config must match the current env version); 'models/ppo_v8_e5_dyn_b2c_3m' = milestone 5 dynamic-car model (v7, score v8); 'models/ppo_v8_e4_10m' = kinematic-car model (v5, PLANT 'kinematic', MPC 'linear')
 PPO_MODEL = 'final'      # POLICY = 'ppo' only: 'best' or 'final' model of PPO_RUN
 SEED = 2                 # different traffic layout per seed
-SCORE = 'v8'             # 'v4' drafting + team passes; 'v5'/'v6' more drafting / draft passes; 'v7' team play (trains, spread penalty, crash wipe); 'v8' = v7 fast (trains > 80 mph, bonus > 120 mph)
+SCORE = 'v10'            # 'v4' drafting + team passes; 'v5'/'v6' more drafting / draft passes; 'v7' team play (trains, spread penalty, crash wipe); 'v8' = v7 fast (trains > 80 mph, bonus > 120 mph); 'v9' = v8 reshaped for team play; 'v10' = v9 + a train speed ramp
 TRAFFIC = None             # number of traffic cars; None keeps the scenario's (v0: 8, v1: 10, v2: 20)
 PLANT = 'dynamic'        # simulated vehicle physics: 'kinematic' or 'dynamic' (tyre slip)
 MPC = 'nonlinear'        # 'linear' (kinematic OSQP MPC) or 'nonlinear' (acados NMPC on the dynamic bicycle; pair with PLANT = 'dynamic')
+PLANNER_OVERRIDES = ()   # Planner settings over the defaults (and over a PPO run's own): () keeps them; batch 8b's quicker lane changes = (('retry_cooldown', 1.0), ('w_lateral', 10.0))
 ANIMATE = True           # GIF adds a few seconds
 # Each run gets the next free number: results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>[...]; see results/runs.csv.
-LABEL = f'{SCENARIO}_{POLICY}'+(f'-{Path(PPO_RUN).name}' if POLICY == 'ppo' else '')+f'_score{SCORE}_seed{SEED}'+(f'_traffic{TRAFFIC}' if TRAFFIC else '')+(f'_{PLANT}' if PLANT != 'kinematic' else '')+('_nmpc' if MPC == 'nonlinear' else '')
+LABEL = f'{SCENARIO}_{POLICY}'+(f'-{Path(PPO_RUN).name}' if POLICY == 'ppo' else '')+f'_score{SCORE}_seed{SEED}'+(f'_traffic{TRAFFIC}' if TRAFFIC else '')+(f'_{PLANT}' if PLANT != 'kinematic' else '')+('_nmpc' if MPC == 'nonlinear' else '')+''.join(f'_{k}{v:g}' for k, v in PLANNER_OVERRIDES)
 
 def run_ppo():
     """Run the trained PPO policy on this file's scenario/score/plant/MPC and save it like the scripted policies."""
@@ -33,7 +34,8 @@ def run_ppo():
     if env_cfg.version not in VERSIONS:
         raise SystemExit(f'{PPO_RUN} was trained on env {env_cfg.version}; this code runs envs {", ".join(VERSIONS)}, '
                          'whose observations no longer match. Pick a run trained on one of those.')
-    env_cfg = replace(env_cfg, scenario=SCENARIO, score=SCORE, vehicle_model=PLANT, mpc=MPC)
+    env_cfg = replace(env_cfg, scenario=SCENARIO, score=SCORE, vehicle_model=PLANT, mpc=MPC,
+                      planner_overrides=(*env_cfg.planner_overrides, *PLANNER_OVERRIDES))
     model, normalize = load_policy(*resolve(run_dir, PPO_MODEL))
     out, metrics = store_episode(model, normalize, env_cfg, SEED, LABEL, root=Path(__file__).parent/'results',
                                  policy=f'ppo-{run_dir.name}')
@@ -49,7 +51,7 @@ elif __name__ == '__main__':
     if TRAFFIC:
         scenario = replace(scenario, traffic=replace(scenario.traffic, count=TRAFFIC))
     scenario = replace(scenario, vehicle=replace(scenario.vehicle, model=PLANT))
-    episode = run(scenario, SEED, POLICY, replace(Planner(), mpc=MPC), score=SCORES[SCORE]())
+    episode = run(scenario, SEED, POLICY, replace(Planner(), mpc=MPC, **dict(PLANNER_OVERRIDES)), score=SCORES[SCORE]())
     OUT = next_run_dir(Path(__file__).parent/'results', LABEL)
     metrics = save(episode, OUT)
     plot(episode, OUT/'summary.png')

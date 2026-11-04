@@ -23,14 +23,15 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 
 | Setting | Options |
 |---|---|
-| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic · `'v5'` BMW M3s, 45–60 mph traffic · `'v6'` v5 where traffic never blocks every lane · `'v7'` v6 with fewer traffic lane changes (default) |
+| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic · `'v5'` BMW M3s, 45–60 mph traffic · `'v6'` v5 where traffic never blocks every lane · `'v7'` v6 with fewer traffic lane changes · `'v8'` v7 with lane speeds: 60–65 mph right and middle, 70–80 mph left (default) |
 | `POLICY` | `'ppo'` (trained team policy, default) · `'overtaker'` (lane changes + MPC) · `'lane_keeping'` (stays in its lane, no MPC) |
-| `PPO_RUN` | trained model folder: `'models/ppo_v8_e5_dyn_b2c_3m'` (dynamic car, default) · `'models/ppo_v8_e4_10m'` (kinematic car: use `SCENARIO = 'v5'`, `PLANT = 'kinematic'`, `MPC = 'linear'`) |
-| `SCORE` | `'v0'` … `'v8'` (see [Scoring](#scoring)); `'v8'` is the latest (default) |
+| `PPO_RUN` | trained model folder: `'models/ppo_v10_e5_dyn_b7_10m'` (dynamic car, batch 7, default) · `'models/ppo_v8_e5_dyn_b2c_3m'` (milestone 5: use `SCENARIO = 'v7'`, `SCORE = 'v8'`) · `'models/ppo_v8_e4_10m'` (kinematic car: use `SCENARIO = 'v5'`, `PLANT = 'kinematic'`, `MPC = 'linear'`) |
+| `SCORE` | `'v0'` … `'v10'` (see [Scoring](#scoring)); `'v10'` is the latest (default) |
 | `SEED` | any integer: a different traffic layout |
 | `TRAFFIC` | override the number of traffic cars (`None` keeps the scenario's) |
 | `PLANT` | `'dynamic'` (dynamic bicycle with tyre slip, default) · `'kinematic'` |
 | `MPC` | `'nonlinear'` (acados, dynamic model, default; use with `PLANT = 'dynamic'`) · `'linear'` (OSQP, kinematic model) |
+| `PLANNER_OVERRIDES` | planner settings over the defaults: `()` (default) · `(('retry_cooldown', 1.0), ('w_lateral', 10.0))` = batch 8b's quicker lane changes |
 | `ANIMATE` | `True` writes a GIF (takes a few extra seconds) |
 
 Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<policy>_score<score>_seed<seed>/`, so runs never overwrite each other. `results/runs.csv` lists every run with its settings, versions, team score and collisions. The same runs are available from the command line, e.g. `.venv\Scripts\python -m nohesi --scenario v1 --policy overtaker --seed 0 --animate`.

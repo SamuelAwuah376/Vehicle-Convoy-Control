@@ -44,3 +44,4 @@ run,time,folder,scenario,policy,score,seed,planner,vehicle_model,team_score,coll
 043,2026-10-25T20:05:30,run_043_v5_overtake_macro_scorev8_seed1009_dynamic_nmpc_dense30_nolc,v5,centralized/overtake_macro,v8,1009,m4.3,dynamic,-38849.9,0,time
 046,2026-10-28T01:40:44,run_046_v7_ppo-b2c_best1.5M_scorev8_seed1001_carla,v7,ppo-ppo_v8_e5_dyn_b2c_3m_001,v8,1001,m4.3,dynamic,70185.6,0,time
 047,2026-10-28T02:21:08,run_047_v7_ppo-b2c_best1.5M_scorev8_seed1001_carla_100fps,v7,ppo-ppo_v8_e5_dyn_b2c_3m_001,v8,1001,m4.3,dynamic,52363.2,0,time
+054,2026-11-04T13:02:05,run_054_v8_ppo-ppo_v10_e5_dyn_b7_10m_scorev10_seed2_dynamic_nmpc,v8,ppo-ppo_v10_e5_dyn_b7_10m,v10,2,m4.3,dynamic,1772321.6,0,time
