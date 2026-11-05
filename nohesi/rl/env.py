@@ -24,6 +24,13 @@ same-side overtakes are allowed, the speed command setting the passing margin; a
 moves over and stays. Observation: the e4 vector, then 11 per car (appended so e4 inputs keep their places): overtake stage
 one-hot (none/out/pass/return), side, passed car ds/100 and dv/30, time in the overtake/5 s, overtake left / right
 possible now (margin +6), return possible now. Reward: aux_overtake_abort per overtake cancelled before the pass.
+
+Follow (EnvConfig.follow, e5): action FOLLOW (= the overtake right while slowing, which then never starts) follows the
+teammate directly ahead in the lane (Planner.follow); masked unless the car follows already or follow_check would start
+one; it is not masked during a follow, nor are the other actions (any of them ends it). Observation: 2 per car appended
+after the e5 features: following, follow possible now. Missed escapes: a follower whose leader is changing lanes or
+starts a lane change at this decision takes the leader's way out with it (not charged); a dropped join of a follower
+(record 'aborted', reason 'follow') is not charged as aux_lc_abort.
 """
 from dataclasses import replace
 import time
@@ -34,7 +41,7 @@ from ..config import SCENARIOS, SCORES, Planner
 from ..coordination.centralized import CentralizedTeam
 from ..evaluation.metrics import metrics, stuck_mask
 from ..evaluation.runner import EpisodeRun
-from ..intentions import ACTIONS, OVERTAKES, encode
+from ..intentions import ACTIONS, FOLLOW, OVERTAKES, encode
 from ..world import TEAM, World
 from .config import EnvConfig
 
@@ -46,7 +53,7 @@ OT_SIDE = np.array([o[0] for o in OVERTAKES])
 OT_SPEED = np.array([o[1] for o in OVERTAKES])
 PHASES = ('keep', 'pending', 'committed')
 OT_STAGES = (None, 'out', 'pass', 'return')
-EGO, TRAFFIC, MATE, TEAM_FEATURES, OT_FEATURES = 17, 7, 7, 3, 11
+EGO, TRAFFIC, MATE, TEAM_FEATURES, OT_FEATURES, FOLLOW_FEATURES = 17, 7, 7, 3, 11, 2
 
 
 def n_actions(cfg):
@@ -78,7 +85,8 @@ def merge_possible(snap, road, params, traffic_cfg):
 
 
 def obs_dim(cfg, lanes=3):
-    return TEAM*(EGO+lanes+TRAFFIC*cfg.traffic_k+MATE*(TEAM-1))+TEAM_FEATURES+(TEAM*OT_FEATURES if cfg.overtakes else 0)
+    return TEAM*(EGO+lanes+TRAFFIC*cfg.traffic_k+MATE*(TEAM-1))+TEAM_FEATURES+(TEAM*OT_FEATURES if cfg.overtakes else 0) + \
+        (TEAM*FOLLOW_FEATURES if getattr(cfg, 'follow', False) else 0)
 
 
 def clock_index(cfg, lanes=3):
@@ -110,6 +118,8 @@ class NoHesiEnv(gymnasium.Env):
                                decision_interval=cfg.decision_interval, speed_step=cfg.speed_step)
         if cfg.planner_overrides:
             self.planner = replace(self.planner, **dict(cfg.planner_overrides))
+        if cfg.follow:
+            self.planner = replace(self.planner, follow=True)
         self.lanes = self.scenario.road.lanes
         self.action_space = spaces.MultiDiscrete([n_actions(cfg)]*TEAM)
         self._options = None   # (time, (3, len(OVERTAKES)) bool): overtakes that would start now, per decision
@@ -202,7 +212,13 @@ class NoHesiEnv(gymnasium.Env):
                          if c not in ways and self._passable(i, it, int(c), ok)]
             overtake = bool(cfg.overtakes and self._overtake_options()[i].any())
             a = None if actions is None else int(actions[i])
-            taken = a is not None and ((a >= N_ACTIONS and overtake) or (a < N_ACTIONS and LANE_CMD[a] in ways))
+            if cfg.follow and a == FOLLOW:   # following: the leader's way out is the follower's
+                j = it.follow if it.follow is not None else self.team.intentions.follow_check(snap, i)[0]
+                lead = self.intentions[j] if j is not None else None
+                a_j = int(actions[j]) if j is not None else None
+                taken = lead is not None and (lead.phase != 'keep' or (a_j < N_ACTIONS and LANE_CMD[a_j] != 0))
+            else:
+                taken = a is not None and ((a >= N_ACTIONS and overtake) or (a < N_ACTIONS and LANE_CMD[a] in ways))
             out[i] = (bool(ways) or overtake) and not taken
         return out
 
@@ -281,7 +297,7 @@ class NoHesiEnv(gymnasium.Env):
         if cfg.aux_lean_change:
             aux['lean_change'] = cfg.aux_lean_change*lean_changes
         if cfg.aux_lc_abort:
-            aux['lc_abort'] = cfg.aux_lc_abort*sum(r.kind == 'aborted' for r in records[marks[0]:])
+            aux['lc_abort'] = cfg.aux_lc_abort*sum(r.kind == 'aborted' and r.reason != 'follow' for r in records[marks[0]:])
         reward = sum(terms.values())/cfg.reward_scale+sum(aux.values())
         terminated = bool(run.snap.done)
         truncated = run.done and not terminated
@@ -298,6 +314,8 @@ class NoHesiEnv(gymnasium.Env):
             team = self.team
             ok = np.array([[team.intentions.overtake_check(snap, team.plans, i, side, sc)[0] == ''
                             for side, sc in OVERTAKES] for i in range(TEAM)])
+            if self.cfg.follow:   # that slot is FOLLOW: its overtake never starts
+                ok[:, FOLLOW-N_ACTIONS] = False
             self._options = ((id(self.run), snap.time), ok)
         return self._options[1]
 
@@ -342,8 +360,15 @@ class NoHesiEnv(gymnasium.Env):
             ot = it.overtake
             row = np.r_[self._lane_mask(i, it), options[i]] if ot is None else \
                 np.r_[np.zeros(N_ACTIONS, bool), OT_SIDE == ot.side]
+            if self.cfg.follow:
+                row[FOLLOW] = ot is None and self._can_follow(i)
             out[i] = row if row.any() else keep
         return out.ravel()
+
+    def _can_follow(self, i):
+        """EnvConfig.follow: car i follows now, or follow_check would start one."""
+        return self.intentions[i].follow is not None or \
+            self.team.intentions.follow_check(self.snapshot, i)[0] is not None
 
     def _obs(self):
         cfg, run, team, snap = self.cfg, self.run, self.team, self.snapshot
@@ -393,6 +418,9 @@ class NoHesiEnv(gymnasium.Env):
                 blocks.append(np.r_[stage, ot.side if ot is not None else 0, rel,
                                     (snap.time-ot.since)/5 if ot is not None else 0.0,
                                     float(options[i, left]), float(options[i, right]), float(ready)])
+        if cfg.follow:   # appended after the e5 features (a warm start keeps the other inputs' places)
+            for i, it in enumerate(self.intentions):
+                blocks.append([float(it.follow is not None), float(self._can_follow(i))])
         return np.concatenate(blocks).astype(np.float32)
 
 

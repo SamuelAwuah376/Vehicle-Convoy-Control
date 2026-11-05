@@ -63,7 +63,14 @@ class EnvConfig:
     # Other Planner settings for this env, as (name, value) pairs applied over the defaults (e.g. (('retry_cooldown',
     # 1.0), ('w_lateral', 10.0))). () keeps every default.
     planner_overrides: tuple = ()
+    # Follow mode (e5 only; Planner.follow, intentions.FOLLOW): action FOLLOW (the slot of overtake right while slowing,
+    # which then never starts) follows the teammate directly ahead in the lane; masked unless the car follows or
+    # IntentionManager.follow_check would start one. Two observations per car are appended (following, follow possible
+    # now), so a warm start from an env without them keeps the other inputs' places.
+    follow: bool = False
 
     def __post_init__(self):
         if self.overtakes != (self.version == 'e5'):
             raise ValueError("overtakes=True is env version 'e5' (and e5 has overtakes)")
+        if self.follow and not self.overtakes:
+            raise ValueError('follow needs the e5 action space (its FOLLOW slot is an overtake slot)')

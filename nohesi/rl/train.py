@@ -91,6 +91,11 @@ class TrainConfig:
     resume: str = None               # checkpoint .zip to continue from (its vecnormalize_<t>.pkl alongside)
     init_from: str = None            # model .zip whose policy weights + observation normalisation start a new run
     vf_warmup: int = 0               # new runs: first decisions train only the value network (policy frozen)
+    # init_from: (new action, source actions, bias shift) triples: after the copy, each car's logit of the new action
+    # restarts as the mean of the source actions' logits (weights and bias) plus the shift (e.g. FOLLOW from the nine
+    # lane-keep actions, whose old overtake logit the policy had learned never to pick; a near-deterministic policy
+    # needs a large shift for the new action to be tried: calibrate it on the source's states).
+    init_copy_actions: tuple = ()
     verbose: int = 1
 
     def __post_init__(self):
@@ -127,12 +132,14 @@ class ConstantSchedule:
         return self.value
 
 
-def load_policy_weights(model, source):
+def load_policy_weights(model, source, copy_actions=()):
     """Start `model`'s policy from `source`'s. Same shapes: a plain copy. A source trained on a smaller env (e4 -> e5:
     observations appended, overtake actions appended per car) is grown: the first layers' new input columns start at
     zero, so the new observations change nothing at first; each car's new action logits copy the logits of their
     equivalent lane change (an overtake on `side` at speed command s: encode(side, s, 0)), so the policy starts as the
-    source does, sharing each lane change's probability with its overtake."""
+    source does, sharing each lane change's probability with its overtake. copy_actions: (new, source action or
+    actions, bias shift) triples applied per car afterwards: the mean of the source rows plus the shift on the bias
+    (TrainConfig.init_copy_actions)."""
     from ..intentions import ACTIONS, OVERTAKES, encode
     src, dst = source.policy.state_dict(), model.policy.state_dict()
     n_old, n_new = int(source.action_space.nvec[0]), int(model.action_space.nvec[0])
@@ -154,6 +161,12 @@ def load_policy_weights(model, source):
             dst[key] = grown
         else:
             raise ValueError(f'cannot carry {key} {tuple(value.shape)} into {tuple(target.shape)}')
+    for new, old, shift in copy_actions:
+        old = [int(a) for a in np.atleast_1d(old)]
+        for car in range(cars):
+            src_rows = [car*n_new+a for a in old]
+            dst['action_net.weight'][car*n_new+int(new)] = dst['action_net.weight'][src_rows].mean(0)
+            dst['action_net.bias'][car*n_new+int(new)] = dst['action_net.bias'][src_rows].mean()+float(shift)
     model.policy.load_state_dict(dst)
 
 
@@ -447,7 +460,7 @@ def train(cfg):
                                 verbose=cfg.verbose)
             if cfg.init_from:   # policy weights only: the optimiser and LR schedule start fresh
                 source = MaskablePPO.load(str(cfg.init_from), device=cfg.device)
-                load_policy_weights(model, source)
+                load_policy_weights(model, source, cfg.init_copy_actions)
                 del source
             best, last_eval, wall = -np.inf, None, 0.0
         n_eval = max(1, min(cfg.eval_envs, len(cfg.eval_seeds)))
