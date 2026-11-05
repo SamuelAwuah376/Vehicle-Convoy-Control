@@ -9,7 +9,7 @@ Evaluate afterwards with
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v10_e5_dyn_b8b_10m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v10_e5_dyn_b9_9m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -48,6 +48,11 @@ RUN_ID = 'ppo_v10_e5_dyn_b8b_10m_001'     # folder under runs_rl/; reuse with RE
 # moving into a lane they could pass their leader through), so 10M from batch 7's final model again with: such pass
 # lanes counted as ways out (STUCK_PASS_LANES), the planner's retry cooldown 3.0 -> 1.0 s and quicker lane changes
 # (PLANNER_OVERRIDES), and a value warm-up for the changed reward and dynamics.
+# Batch 9 (the user's call, 2026-11-04): batch 8b stopped at its 1M checkpoint; the remaining 9M continue from it with
+# 8b's settings plus: a cost per lean change while holding the lane and per lane change the policy drops while pending
+# (LEAN_CHANGE_PENALTY, LC_ABORT_PENALTY: batch 7's policy changes lean ~33 times a minute in a lane, only 38 % of its
+# leaning beside a car it passes, and drops ~6 lane changes per car-minute), and the observation's episode clock held
+# at 0 (OBS_CLOCK: decide from what the cars see, not the time left), with a value warm-up for the new reward.
 SCENARIO = 'v8'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1; v8: v7 with
                              # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left)
@@ -62,8 +67,8 @@ GAE_LAMBDA = 0.95            # per decision (5 Hz: 0.98, 0.95 = 0.98^2.5)
 N_STEPS = 512                # rollout per env per update (5 Hz: 1280): 256 s of driving either way; 24 x 512 = 12,288
 ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
 N_ENVS = 24                  # parallel SubprocVecEnv workers (one CPU thread each; 24 = the physical cores)
-TOTAL_TIMESTEPS = 10_000_000  # policy decisions summed over envs (600 per 120 s episode at 5 Hz, 240 at 2 Hz); dynamic,
-                              # 24 envs at 2 Hz: ~50-60/s, ~25 h per 5M
+TOTAL_TIMESTEPS = 9_000_000   # policy decisions summed over envs (600 per 120 s episode at 5 Hz, 240 at 2 Hz); dynamic,
+                              # 24 envs at 2 Hz: ~50-60/s, ~25 h per 5M (9: the rest of 8b's 10M)
 EVAL_ENVS = 10               # parallel eval workers (idle between evals; torch-free workers hold ~0.1 GB each)
 EVAL_EVERY = 500_000         # decisions between evaluations on held-out seeds 1000-1009 (final: 1000-1019 via evaluate)
 CHECKPOINT_EVERY = 250_000    # frequent: train_rl_supervised.py resumes from the latest one after a failure
@@ -90,11 +95,15 @@ PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', W_LATERAL))   # 8b: 
                              # (EnvConfig.planner_overrides). retry_cooldown 3.0 -> 1.0 s: after a forced cancel the car may
                              # re-request that lane sooner (batch 7's final model, 50 seeds: 1,048k vs 924k, +124k +- 69k);
                              # w_lateral 1 -> W_LATERAL: quicker lane changes
+LEAN_CHANGE_PENALTY = -5.0   # 9: training-only reward per lean change while holding the lane (= -500 points; a close pass, which
+                             # needs the lean beside a car centred in the next lane, averages ~17k with the team gains)
+LC_ABORT_PENALTY = -5.0      # 9: training-only reward per lane change the policy drops while pending (the planner's cancels are free)
+OBS_CLOCK = False            # 9: False holds the episode clock input at 0 (and its normalisation mean at 0, so it carries nothing)
 BRAKE_PENALTY = -1.0         # training-only reward per m/s of speed braked away (= -100 points per m/s, -0.1 to 3b; the batch 2 policy
                              # brakes away ~87 m/s per car-minute, ~-5k points per episode): smooth driving, little braking
-LEARNING_RATE = 5e-4         # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
+LEARNING_RATE = 4.51e-4      # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
                              # 2c, 3: 3e-4; 3b, 4: 1e-4; 4b: 8.2e-5, batch 4's at 1M; 5: 5e-4, the user's call;
-                             # 5b: 4.02e-4, batch 5's at 1M; 6, 7, 8: 5e-4, batch 5's fresh cycle)
+                             # 5b: 4.02e-4, batch 5's at 1M; 6, 7, 8: 5e-4, batch 5's fresh cycle; 9: 4.51e-4, 8b's at 1M)
 LR_FINAL = 1e-5
 TARGET_KL = 0.1              # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off.
                              # The stop ends the whole update, the critic's epochs too (until 5: 0.05; 5b: 0.1, the user's call)
@@ -104,9 +113,10 @@ VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value
                              # 4: 100k, the reward reshape; 4b: 100k, the train ramp; 5: 250k at 5 Hz = 100k at 2 Hz,
                              # the new traffic and decision rate; 5b: 250k, the critic had fallen behind, the user asked;
                              # 6: 100k, back to 2 Hz: the critic's per-decision discount and rewards change; 7: 0, the reward, traffic
-                             # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes)
+                             # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes;
+                             # 9: 100k, the lean and abort costs and the clock input)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b7_10m_001/final_model.zip'   # None: from scratch
+INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b8b_10m_001/checkpoints/model_1000032.zip'   # None: from scratch
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
@@ -114,7 +124,8 @@ if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-im
                     vehicle_model=PLANT, mpc=MPC, collision_extra=COLLISION_EXTRA, crash_penalty=CRASH_PENALTY,
                     aux_stuck=STUCK_PENALTY, stuck_escape_only=STUCK_ESCAPE_ONLY, stuck_grace=STUCK_GRACE,
                     stuck_pass_lanes=STUCK_PASS_LANES, planner_overrides=PLANNER_OVERRIDES,
-                    aux_brake=BRAKE_PENALTY, decision_interval=DECISION_INTERVAL,
+                    aux_brake=BRAKE_PENALTY, aux_lean_change=LEAN_CHANGE_PENALTY, aux_lc_abort=LC_ABORT_PENALTY,
+                    obs_clock=OBS_CLOCK, decision_interval=DECISION_INTERVAL,
                     speed_step=SPEED_STEP)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
                       eval_envs=EVAL_ENVS, checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE,

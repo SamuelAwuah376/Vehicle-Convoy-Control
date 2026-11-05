@@ -47,6 +47,15 @@ class EnvConfig:
     # Training-only reward per m/s of speed braked away, summed over the team (x reward_scale game points): a car braking
     # at b m/s^2 for dt seconds costs aux_brake*b*dt (applied acceleration; emergency and safety braking count too).
     aux_brake: float = 0.0
+    # Training-only reward (x reward_scale game points) per lean change while a car holds its lane (keep, no overtake,
+    # a lane command of 0): the lean is needed for close passes (< pass_threshold side clearance), flipping it is not.
+    aux_lean_change: float = 0.0
+    # Training-only reward per lane change the policy drops while pending (intention record 'aborted'; the planner's
+    # cancels are not charged).
+    aux_lc_abort: float = 0.0
+    # False holds the observation's episode clock (time / duration) at 0: decisions from what the car sees, not the time
+    # left. The input stays in place, so a warm start keeps its shape.
+    obs_clock: bool = True
     # Policy decision rate: Planner.decision_interval (s; 0.5 = 2 Hz) and the target speed change per speed action
     # (Planner.speed_step, m/s; 2.0 at 2 Hz is 4 m/s per second of commands).
     decision_interval: float = 0.5

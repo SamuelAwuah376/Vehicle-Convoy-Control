@@ -41,6 +41,7 @@ from .config import EnvConfig
 N_ACTIONS = len(ACTIONS)
 LANE_CMD = np.array([a[0] for a in ACTIONS])
 SPEED_CMD = np.array([a[1] for a in ACTIONS])
+LEAN_CMD = np.array([a[2] for a in ACTIONS])
 OT_SIDE = np.array([o[0] for o in OVERTAKES])
 OT_SPEED = np.array([o[1] for o in OVERTAKES])
 PHASES = ('keep', 'pending', 'committed')
@@ -78,6 +79,11 @@ def merge_possible(snap, road, params, traffic_cfg):
 
 def obs_dim(cfg, lanes=3):
     return TEAM*(EGO+lanes+TRAFFIC*cfg.traffic_k+MATE*(TEAM-1))+TEAM_FEATURES+(TEAM*OT_FEATURES if cfg.overtakes else 0)
+
+
+def clock_index(cfg, lanes=3):
+    """Position of the episode clock (the team block's last feature, EnvConfig.obs_clock) in the observation."""
+    return TEAM*(EGO+lanes+TRAFFIC*cfg.traffic_k+MATE*(TEAM-1))+TEAM_FEATURES-1
 
 
 class External:
@@ -151,6 +157,7 @@ class NoHesiEnv(gymnasium.Env):
                               self.planner, world=self.world)
         self.team.prepare(self.snapshot)
         self.stuck_for, self._stuck_t = np.zeros(TEAM), self.snapshot.time
+        self.lean_changes = 0   # this episode's lean changes while holding the lane (aux_lean_change), all cars
         return self._obs(), {'seed': self.episode_seed, 'team_score': 0.0}
 
     def stuck(self, snap):
@@ -239,6 +246,12 @@ class NoHesiEnv(gymnasium.Env):
         if cfg.aux_stuck and cfg.stuck_escape_only:
             due = self.stuck_for+team.decide_every*self.scenario.timing.dt > cfg.stuck_grace
             charge = self.escapes(self.stuck(run.snap) & due, self.policy.actions)
+        lean_changes = 0   # cars holding their lane (no lane change or overtake started or running) that change lean now
+        for i, it in enumerate(self.intentions):
+            a = int(self.policy.actions[i])
+            lean_changes += bool(it.phase == 'keep' and getattr(it, 'overtake', None) is None and a < N_ACTIONS
+                                 and LANE_CMD[a] == 0 and LEAN_CMD[a] != it.lean)
+        self.lean_changes += lean_changes
         for _ in range(team.decide_every):
             for t, v in run.step().items():
                 terms[t] = terms.get(t, 0.0)+float(v.sum())
@@ -265,12 +278,16 @@ class NoHesiEnv(gymnasium.Env):
             aux['stuck'] = cfg.aux_stuck*stuck
         if cfg.aux_brake:
             aux['brake'] = cfg.aux_brake*braked
+        if cfg.aux_lean_change:
+            aux['lean_change'] = cfg.aux_lean_change*lean_changes
+        if cfg.aux_lc_abort:
+            aux['lc_abort'] = cfg.aux_lc_abort*sum(r.kind == 'aborted' for r in records[marks[0]:])
         reward = sum(terms.values())/cfg.reward_scale+sum(aux.values())
         terminated = bool(run.snap.done)
         truncated = run.done and not terminated
         info = {'score_terms': terms, 'aux': aux, 'team_score': run.scorer.team(), 'seed': self.episode_seed}
         if run.done:
-            info['episode_metrics'] = metrics(run.episode())
+            info['episode_metrics'] = {**metrics(run.episode()), 'lean_changes': self.lean_changes}
         return self._obs(), float(reward), terminated, truncated, info
 
     def _overtake_options(self):
@@ -362,7 +379,7 @@ class NoHesiEnv(gymnasium.Env):
             blocks += [ego, traffic.ravel(), *mates]
         sc = run.scorer
         blocks.append([sc.multiplier/5, min((sc.time-sc.last_pass)/self.scenario.score.combo_window, 1.0),
-                       snap.time/self.scenario.timing.duration])
+                       snap.time/self.scenario.timing.duration if cfg.obs_clock else 0.0])
         if cfg.overtakes:   # e5: appended, so the e4 inputs keep their places (a warm start copies their weights)
             options, ims = self._overtake_options(), team.intentions
             left, right = (int(np.flatnonzero((OT_SIDE == s) & (OT_SPEED == 0))[0]) for s in (1, -1))

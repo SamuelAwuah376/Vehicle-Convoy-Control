@@ -19,7 +19,7 @@ EVAL_SEEDS = tuple(range(1000, 1020))
 RERUNS = 2   # run_policy: reruns of a seed whose worker died
 SUMMARY_FIELDS = ('team_score', 'collision', 'close_passes', 'draft_passes', 'train_passes', 'draft_time_s',
                   'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'braking_mps', 'maneuvers', 'fallbacks',
-                  'rejections', 'decisions', 'duration_s')
+                  'rejections', 'lean_changes', 'lc_aborts', 'decisions', 'duration_s')
 
 
 # ---------------------------------------------------------------------------------------------- metrics
@@ -57,6 +57,7 @@ def summarize(m, decisions=None):
             'draft_time_s': _draft_time(m),
             'maneuvers': _total((m.get('maneuvers') or {}).get('count')),
             'fallbacks': _total(planner.get('fallbacks')), 'rejections': _total(planner.get('rejections')),
+            'lean_changes': m.get('lean_changes'), 'lc_aborts': planner.get('lane_changes_aborted'),
             'decisions': decisions, 'duration_s': float(m.get('duration_s', np.nan))}
 
 

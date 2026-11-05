@@ -41,7 +41,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 EVAL_FIELDS = ('timesteps', 'wall_s', 'team_score_mean', 'team_score_std', 'collision_rate', 'close_passes',
                'draft_time_s', 'maneuvers', 'fallbacks', 'rejections', 'episode_length', 'draft_passes', 'train_passes',
-               'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'braking_mps', 'best')
+               'train_time_s', 'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'braking_mps', 'lean_changes', 'lc_aborts', 'best')
 
 
 def _env_config_default():
@@ -295,7 +295,8 @@ def _make_callback_class():
                     s = summarize(m)
                     for k in ('team_score', 'collision', 'close_passes', 'maneuvers', 'fallbacks', 'rejections',
                               'duration_s', 'draft_time_s', 'draft_passes', 'train_passes', 'train_time_s',
-                              'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'braking_mps'):
+                              'mean_speed_mps', 'top_speed_time_s', 'stuck_time_s', 'braking_mps', 'lean_changes',
+                              'lc_aborts'):
                         if s.get(k) is not None:
                             self.episodes.setdefault(f'episode/{k}', []).append(float(s[k]))
             if self.num_timesteps-self.last_eval >= self.cfg.eval_every:
@@ -348,7 +349,8 @@ def _make_callback_class():
                    'rejections': s['rejections'], 'episode_length': s['decisions'], 'draft_passes': s['draft_passes'],
                    'train_passes': s['train_passes'], 'train_time_s': s['train_time_s'],
                    'mean_speed_mps': s['mean_speed_mps'], 'top_speed_time_s': s['top_speed_time_s'],
-                   'stuck_time_s': s.get('stuck_time_s'), 'braking_mps': s.get('braking_mps'), 'best': int(improved)}
+                   'stuck_time_s': s.get('stuck_time_s'), 'braking_mps': s.get('braking_mps'),
+                   'lean_changes': s.get('lean_changes'), 'lc_aborts': s.get('lc_aborts'), 'best': int(improved)}
             path = self.run_dir/'eval_history.csv'
             new = not path.exists()
             # A resumed run keeps its file's columns (a run started before a field was added omits that field).
@@ -428,6 +430,9 @@ def train(cfg):
                 venv = load_obs_normalisation(_vecnorm_path(Path(cfg.init_from)), venv, cfg)
                 venv.training, venv.norm_reward, venv.clip_reward = True, cfg.norm_reward, cfg.clip_reward
                 venv.ret_rms, venv.returns = RunningMeanStd(shape=()), np.zeros(venv.num_envs)   # new score: new return scale
+                if not cfg.env.obs_clock:   # the clock input is held at 0: with mean 0 it normalises to exactly 0 (no signal)
+                    from .env import clock_index
+                    venv.obs_rms.mean[clock_index(cfg.env)] = 0.0
             else:
                 venv = VecNormalize(venv, norm_obs=cfg.norm_obs, norm_reward=cfg.norm_reward, gamma=cfg.gamma,
                                     clip_obs=cfg.clip_obs, clip_reward=cfg.clip_reward)
