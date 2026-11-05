@@ -225,7 +225,7 @@ class CentralizedTeam:
         follow_k per m of bumper-gap error from follow_gap * v (within follow_max_rel; the intention speed follows
         it); and, while both target the same lane, a lateral target per horizon step = j's path (its driven track,
         then its plan: this cycle's, else the shifted previous) at car i's reference positions along the road, so a
-        lane change of j's is driven where j drove it."""
+        lane change of j's is driven where j drove it; once committed, never back toward car i's origin lane."""
         c, it = self.cfg, self.intentions.intentions[i]
         j = it.follow
         lead = fresh.get(j)
@@ -245,7 +245,11 @@ class CentralizedTeam:
         track = np.array(self.track[j]).reshape(-1, 2)
         s, d = np.r_[track[:, 0], lead.z[:, 0]], np.r_[track[:, 1], lead.z[:, 1]]
         ahead = s > np.maximum.accumulate(np.r_[-np.inf, s[:-1]])   # strictly increasing along the road
-        return replace(target, d_stage=tuple(np.interp(reference.z[:, 0], s[ahead], d[ahead])))
+        path = np.interp(reference.z[:, 0], s[ahead], d[ahead])
+        if it.phase == 'committed':   # across the line: never back toward the origin (a wavering leader's path)
+            side = np.sign(it.lane-it.origin)
+            path = side*np.maximum(side*path, side*snap.team_d[i])
+        return replace(target, d_stage=tuple(path))
 
     def _yield_to(self, snap, j):
         """Teammates changing into car j's lane (middle or destination) within yield_window beyond bumper overlap.

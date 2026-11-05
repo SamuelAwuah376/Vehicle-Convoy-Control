@@ -95,6 +95,17 @@ def test_follower_joins_the_leaders_lane_change():
     im.intentions[0].lane, im.intentions[0].phase = 1, 'keep'      # the leader backs out: so does the follower
     im.update_follow(snap, [None]*3)
     assert (one.phase, one.lane, one.follow) == ('keep', 1, 0) and kinds(im, 'aborted') == ['follow']
+    # Committed and across the line when the leader turns back: it keeps the lane its centre is in (no crossing paths),
+    # still following, then joins the leader's lane from there.
+    leader_changing(im)
+    im.update_follow(snap, [None]*3)
+    one.phase = 'committed'
+    im.intentions[0].lane, im.intentions[0].phase = 1, 'keep'
+    across = snapshot(0.5, [(0, 0, 28), (-15, 2.5, 28), (-300, 0, 28)], [])
+    im.update_follow(across, [None]*3)
+    assert (one.phase, one.lane, one.follow) == ('keep', 2, 0)
+    im.update_follow(across, [None]*3)
+    assert (one.phase, one.origin, one.lane, one.follow) == ('pending', 2, 1, 0)
 
 
 def test_follower_breaks_off_when_the_path_closes():

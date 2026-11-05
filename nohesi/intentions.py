@@ -319,8 +319,8 @@ class IntentionManager:
         """Each replan, front to back (a joined lane change passes down the chain in one cycle): end follows whose
         leader is behind, beyond follow_break s or overtaking; join the leader's lane (its intention lane) through the
         follower's own gap rule, ending the follow once that stays refused for follow_join_time s; a follower's pending
-        join is withdrawn when the leader returns to the follower's lane, and the follow ends when the two go
-        different ways."""
+        join, or a committed one, into a lane the leader no longer targets is dropped for the lane the follower's
+        centre is in (the follow goes on)."""
         c, L = self.cfg, self.params.length
         if not c.follow:
             return
@@ -345,14 +345,11 @@ class IntentionManager:
                         it.follow_wait = t if it.follow_wait is None else it.follow_wait
                         if t-it.follow_wait > c.follow_join_time:
                             reason = f'join_{why}'
-                elif it.phase == 'pending' and it.origin == jt.lane:   # the leader came back: so does the follower
+                else:   # mid a change into a lane the leader no longer targets (it came back or moved on): drop it
+                    # and keep the lane the follower's centre is in (crossing paths with a returning leader stalls
+                    # both); the follow goes on, joining the leader's lane from there
                     self.records.append(Record(t, i, 'aborted', 'follow', it.lane))
-                    self._keep(i, it.origin)
-                elif it.phase == 'pending':   # pending into a lane the leader no longer targets: within the wait
-                    it.follow_wait = t if it.follow_wait is None else it.follow_wait
-                    if t-it.follow_wait > c.follow_join_time:
-                        reason = 'diverged'
-                # committed into a lane the leader has moved on from: finish it, then join (the wait starts then)
+                    self._keep(i, int(self.road.lane_of(snap.team_d[i])))
             elif not reason:
                 it.follow_wait = None
             if reason:
