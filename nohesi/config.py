@@ -280,7 +280,8 @@ class Planner:
     # follow_k per m of gap error, within follow_max_rel), and it joins the leader's lane changes through its own gap
     # rule (the path check). The follow ends when that gap stays refused for follow_join_time s, the follower's change
     # is cancelled (its slot closes, a conflict, a fallback), the leader is beyond follow_break s or overtakes, or the
-    # policy picks another action. While followed, a car's gap rule needs room behind it for its followers.
+    # policy picks another action. A followed car changes lanes on a gap that fits itself (its followers join when
+    # their own gap rule allows, else break off); with follow_train_room its gap rule needs room for them behind it.
     follow: bool = False
     follow_gap: float = 0.35            # s bumper-to-bumper gap a follower keeps (the draft train needs <= 0.5 s)
     follow_window: float = 1.0          # s: a follow starts only with the leader within this bumper gap
@@ -289,6 +290,7 @@ class Planner:
     follow_max_rel: float = 5.0         # m/s: largest gap correction on the leader's speed
     follow_preview: float = 0.5         # s: the leader's planned speed this far ahead
     follow_join_time: float = 1.0       # s: joining the leader's lane change may wait this long for the gap rule
+    follow_train_room: bool = False     # a followed car's gap rule needs room for its followers (False: itself only)
     middle_window_start: float = 0.8    # two-lane change: middle lane must be clear over this crossing window (s)
     middle_window_end: float = 2.5
     commit_progress_eps: float = 0.1    # committed change: lateral progress below this (m) does not count

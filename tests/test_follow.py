@@ -45,11 +45,19 @@ def test_follow_action_and_check():
     assert off.intentions[1].follow is None and 'follow' not in [r.kind for r in off.records]
 
 
-def test_followed_leader_needs_room_for_the_train():
+def test_followed_leader_takes_a_gap_for_itself():
     # Car 0 changes into lane 2 at 28 m/s (end 84 m on); a 28 m/s rear car there ends 10 m behind: enough for car 0
-    # alone (L + margin), not with car 1 following it (one more length and follow_gap * 28 m/s).
+    # alone (L + margin). By default a followed car needs no more (its follower joins later or breaks off).
     team, rear = [(0, 0, 28), (-15, 0, 28), (-300, 0, 28)], [(5, -10, 3.6, 28)]
     im = manager()
+    im.intentions[1].follow = 0
+    assert im.gap_rule(snapshot(0.0, team, rear), [None]*3, 0, 2, 28.0) == ((None, ('traffic', 5)), '')
+
+
+def test_followed_leader_needs_room_for_the_train_with_train_room():
+    # follow_train_room: not with car 1 following it (one more length and follow_gap * 28 m/s).
+    team, rear = [(0, 0, 28), (-15, 0, 28), (-300, 0, 28)], [(5, -10, 3.6, 28)]
+    im = manager(replace(ON, follow_train_room=True))
     assert im.gap_rule(snapshot(0.0, team, rear), [None]*3, 0, 2, 28.0) == ((None, ('traffic', 5)), '')
     im.intentions[1].follow = 0
     assert im.followers(0) == [1]

@@ -20,8 +20,9 @@ Follow (Planner.follow; off by default): with it on, action FOLLOW (the slot of 
 slowing) means follow the teammate directly ahead in the car's lane within follow_window s (follow_check). The
 coordinator's MPC then tracks the leader's path at follow_gap (CentralizedTeam._follow_target), and update_follow joins
 the leader's lane changes through the follower's own gap rule, or ends the follow (Planner.follow docs). The policy
-repeats FOLLOW to continue; any other action ends the follow. While followed, a car's gap rule needs room for its
-followers behind it (and ignores them as gap cars).
+repeats FOLLOW to continue; any other action ends the follow. A followed car's gap rule ignores its followers as gap
+cars and needs room for itself only (they join when their own gap rule allows, else break off back to their policy);
+with Planner.follow_train_room it needs room for them behind it too.
 """
 from dataclasses import dataclass
 import numpy as np
@@ -170,9 +171,10 @@ class IntentionManager:
         end = s+run
         cars = self._lane_vehicles(snap, plans, i, lane, T)
         train = self.followers(i)
-        if train:   # followed: they come along behind, so they are not gap cars, and the rear needs room for them
+        if train:   # followed: they come along behind, so they are not gap cars (follow_train_room: and need room)
             cars = [c for c in cars if c[0] not in {('team', f) for f in train}]
-        extra = sum(self.params.length+self.cfg.follow_gap*snap.team[f, 3] for f in train)
+        extra = sum(self.params.length+self.cfg.follow_gap*snap.team[f, 3] for f in train) if self.cfg.follow_train_room \
+            else 0.0
         ahead = [c for c in cars if c[1] > end]
         behind = [c for c in cars if c[1] <= end]
         front = min(ahead, key=lambda c: c[1]) if ahead else None
