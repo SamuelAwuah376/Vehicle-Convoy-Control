@@ -6,10 +6,11 @@ checkpoints/, best_model.zip + best_vecnormalize.pkl, eval_history.csv). Watch w
 Evaluate afterwards with
     .venv/Scripts/python -m nohesi.rl.evaluate runs_rl/<RUN_ID> [--store] [--mpc nonlinear --vehicle dynamic]
 """
+from nohesi.intentions import ACTIONS, FOLLOW
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v10_e5_dyn_b9_9m_001'     # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v10_e5_dyn_b9b_9m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -53,6 +54,14 @@ RUN_ID = 'ppo_v10_e5_dyn_b9_9m_001'     # folder under runs_rl/; reuse with RESU
 # (LEAN_CHANGE_PENALTY, LC_ABORT_PENALTY: batch 7's policy changes lean ~33 times a minute in a lane, only 38 % of its
 # leaning beside a car it passes, and drops ~6 lane changes per car-minute), and the observation's episode clock held
 # at 0 (OBS_CLOCK: decide from what the cars see, not the time left), with a value warm-up for the new reward.
+# Batch 9b (the user's call, 2026-11-04): batch 9 stopped at step 0 (paused before its first checkpoint) and is replaced:
+# the same 9M from 8b's 1M checkpoint with batch 9's settings plus follow mode (FOLLOW: action 45, overtake right while
+# slowing, which the policy never used, becomes "follow the teammate directly ahead"; the follower's NMPC tracks the
+# leader's path at 0.35 s and joins its lane changes, or breaks off back to the policy when the path closes; while it
+# follows it makes no decisions of its own). 90 % of batch 8b's train breaks followed a lane change; with follow forced
+# on, 20 seeds: 1,579k vs 1,498k, train 41 vs 32 s, 1 vs 2 crashes, fallbacks 5 vs 16 per episode. The FOLLOW logit
+# starts as the mean of the nine lane-keep logits + 8.0 (P(follow | allowed) median 0.12, mean 0.28 on 8b's states;
+# its old overtake logit was never picked), with a value warm-up for the new action and observations.
 SCENARIO = 'v8'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1; v8: v7 with
                              # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left)
@@ -114,9 +123,12 @@ VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value
                              # the new traffic and decision rate; 5b: 250k, the critic had fallen behind, the user asked;
                              # 6: 100k, back to 2 Hz: the critic's per-decision discount and rewards change; 7: 0, the reward, traffic
                              # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes;
-                             # 9: 100k, the lean and abort costs and the clock input)
+                             # 9: 100k, the lean and abort costs and the clock input; 9b: 100k, follow mode)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
 INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b8b_10m_001/checkpoints/model_1000032.zip'   # None: from scratch
+FOLLOW_MODE = True           # 9b: follow mode (EnvConfig.follow: the FOLLOW action, its mask, 6 appended observations)
+INIT_COPY_ACTIONS = ((FOLLOW, tuple(a for a, (lane, _, _) in enumerate(ACTIONS) if lane == 0), 8.0),)   # 9b: FOLLOW's
+                             # starting logit = mean of the lane-keep logits + 8.0 (TrainConfig.init_copy_actions)
 RESUME = None                # e.g. 'runs_rl/ppo_v4_001/checkpoints/model_2000000.zip'
 
 if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-import this file on Windows
@@ -126,9 +138,9 @@ if __name__ == '__main__':   # required: SubprocVecEnv spawns workers that re-im
                     stuck_pass_lanes=STUCK_PASS_LANES, planner_overrides=PLANNER_OVERRIDES,
                     aux_brake=BRAKE_PENALTY, aux_lean_change=LEAN_CHANGE_PENALTY, aux_lc_abort=LC_ABORT_PENALTY,
                     obs_clock=OBS_CLOCK, decision_interval=DECISION_INTERVAL,
-                    speed_step=SPEED_STEP)
+                    speed_step=SPEED_STEP, follow=FOLLOW_MODE)
     train(TrainConfig(run_id=RUN_ID, env=env, n_envs=N_ENVS, total_timesteps=TOTAL_TIMESTEPS, eval_every=EVAL_EVERY,
                       eval_envs=EVAL_ENVS, checkpoint_every=CHECKPOINT_EVERY, seed=SEED, learning_rate=LEARNING_RATE,
                       lr_final=LR_FINAL, clip_reward=CLIP_REWARD, gamma=GAMMA, gae_lambda=GAE_LAMBDA, n_steps=N_STEPS,
                       target_kl=TARGET_KL, ent_coef=ENT_COEF, resume=RESUME, init_from=INIT_FROM, vf_warmup=VF_WARMUP,
-                      device=DEVICE))
+                      init_copy_actions=INIT_COPY_ACTIONS if INIT_FROM else (), device=DEVICE))
