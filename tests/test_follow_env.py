@@ -34,10 +34,10 @@ def test_follow_slot_mask_and_observations():
     assert [it.follow for it in env.intentions] == [None, 0, 1]
     assert obs[-6:].tolist() == [0, 0, 1, 1, 1, 1]
     m = env.action_masks().reshape(3, -1)
-    assert m[1, FOLLOW] and m[1, :N_ACTIONS].any()                 # continue, or any other action to break off
-    env.step([KEEP, KEEP, FOLLOW])
-    assert [it.follow for it in env.intentions] == [None, None, 1]
-    assert [r.reason for r in env.team.intentions.records if r.kind == 'follow_ended'] == ['policy']
+    assert np.flatnonzero(m[1]).tolist() == np.flatnonzero(m[2]).tolist() == [FOLLOW]   # no decisions of their own
+    env.team.intentions.end_follow(env.snapshot.time, 1, 'too_far')   # a break-off: back on the policy
+    m = env.action_masks().reshape(3, -1)
+    assert m[1, :N_ACTIONS].any() and np.flatnonzero(m[2]).tolist() == [FOLLOW]
 
 
 def test_a_follower_takes_its_leaders_way_out():

@@ -65,8 +65,9 @@ class EnvConfig:
     planner_overrides: tuple = ()
     # Follow mode (e5 only; Planner.follow, intentions.FOLLOW): action FOLLOW (the slot of overtake right while slowing,
     # which then never starts) follows the teammate directly ahead in the lane; masked unless the car follows or
-    # IntentionManager.follow_check would start one. Two observations per car are appended (following, follow possible
-    # now), so a warm start from an env without them keeps the other inputs' places.
+    # IntentionManager.follow_check would start one; while it follows it is the only action (no decisions of its own
+    # until a break-off ends the follow). Two observations per car are appended (following, follow possible now), so a
+    # warm start from an env without them keeps the other inputs' places.
     follow: bool = False
 
     def __post_init__(self):

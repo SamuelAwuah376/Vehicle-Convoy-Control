@@ -27,7 +27,9 @@ possible now (margin +6), return possible now. Reward: aux_overtake_abort per ov
 
 Follow (EnvConfig.follow, e5): action FOLLOW (= the overtake right while slowing, which then never starts) follows the
 teammate directly ahead in the lane (Planner.follow); masked unless the car follows already or follow_check would start
-one; it is not masked during a follow, nor are the other actions (any of them ends it). Observation: 2 per car appended
+one. During a follow it is the only action (the follower makes no decisions of its own): the follow ends only on the
+intention layer's break-offs (its join refused for follow_join_time, its lane change cancelled, a fallback, the leader
+beyond follow_break or overtaking), and the car is back on the policy. Observation: 2 per car appended
 after the e5 features: following, follow possible now. Missed escapes: a follower whose leader is changing lanes or
 starts a lane change at this decision takes the leader's way out with it (not charged); a dropped join of a follower
 (record 'aborted', reason 'follow') is not charged as aux_lc_abort.
@@ -361,7 +363,11 @@ class NoHesiEnv(gymnasium.Env):
             row = np.r_[self._lane_mask(i, it), options[i]] if ot is None else \
                 np.r_[np.zeros(N_ACTIONS, bool), OT_SIDE == ot.side]
             if self.cfg.follow:
-                row[FOLLOW] = ot is None and self._can_follow(i)
+                if it.follow is not None:   # following: no decisions of its own until a break-off ends it
+                    row = np.zeros(n_actions(self.cfg), bool)
+                    row[FOLLOW] = True
+                else:
+                    row[FOLLOW] = ot is None and self._can_follow(i)
             out[i] = row if row.any() else keep
         return out.ravel()
 
