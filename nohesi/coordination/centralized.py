@@ -1,4 +1,5 @@
 """Centralized team policy with one MPC per vehicle, solved sequentially in priority order."""
+from collections import deque
 from dataclasses import dataclass, field, replace
 import numpy as np
 from ..dynamics import DynamicPlant, brake_limit
@@ -52,6 +53,9 @@ class CentralizedTeam:
     from its own last plan's. There the stability layer (Planner.stability) carries out every command at 100 Hz within
     grip: the MPC's with its planned motion, the fallbacks' with the car's steady-state response; the MPC replans
     from the state the layer last posted.
+    Follow mode (Planner.follow, intentions.FOLLOW): a follower plans right after its leader (_follow_target: the
+    leader's path and a follow_gap gap); the intention layer joins the leader's lane changes (update_follow, each
+    replan); a follower handed to a fallback stops following.
     """
     name = 'centralized'
 
@@ -78,6 +82,7 @@ class CentralizedTeam:
         self.last_accel = np.zeros(TEAM)   # acceleration last commanded, whatever the mode
         self.log = PlannerLog()
         self.k = 0
+        self.track = [deque(maxlen=int(round(6.0/dt))) for _ in range(TEAM)]   # follow mode: (s, d) of the last 6 s
         self.prepared = None   # step whose phase update already ran (prepare)
         self.name = f'centralized/{getattr(policy, "name", type(policy).__name__)}'
 
@@ -106,6 +111,9 @@ class CentralizedTeam:
         if self.stability is not None:
             for i in range(TEAM):   # the MPC's plan (planned motion) or None: steady-state reference of the command
                 self.stability.post(i, self.plans[i] if self._plan_driven(i) else None)
+        if self.cfg.follow:
+            for i in range(TEAM):
+                self.track[i].append((float(snap.team_s[i]), float(snap.team_d[i])))
         self.k += 1
         return controls
 
@@ -114,10 +122,19 @@ class CentralizedTeam:
         return self.mode[i] in ('qp', 'shifted') or (self.mode[i] == 'emergency' and self.emergency_mpc)
 
     def order(self, snap):
-        """Planning order: cars in an MPC emergency escape first, then cars mid lane change, then front to back."""
+        """Planning order: cars in an MPC emergency escape first, then cars mid lane change, then front to back; a
+        follower right after its leader."""
         busy = [it.phase != 'keep' for it in self.intentions.intentions]
         escaping = [self.mode[i] == 'emergency' and self.emergency_mpc for i in range(TEAM)]
-        return sorted(range(TEAM), key=lambda i: (not escaping[i], not busy[i], -snap.team_s[i]))
+        out = sorted(range(TEAM), key=lambda i: (not escaping[i], not busy[i], -snap.team_s[i]))
+        if self.cfg.follow:
+            for _ in range(TEAM):
+                for i in list(out):
+                    j = self.intentions.intentions[i].follow
+                    if j is not None and out.index(i) < out.index(j):
+                        out.remove(i)
+                        out.insert(out.index(j)+1, i)
+        return out
 
     def _decide(self, snap):
         intents = self.intentions.intentions
@@ -149,7 +166,7 @@ class CentralizedTeam:
             mates.append(Obstacles((('team', j),), plan.z[:, :1], plan.z[:, 1:2], plan.z[:, 3:4]))
         return Obstacles.stack([traffic, *mates], N+1)
 
-    def _solve(self, snap, i, obstacles, reference, attempt, target=None, emergency=False):
+    def _solve(self, snap, i, obstacles, reference, attempt, target=None, emergency=False, fresh=None):
         latest = self.stability.buffer.latest.get(i) if self.stability is not None else None
         if latest is not None:   # the state the stability layer last posted (end of the last sim step)
             _, (x, y, yaw, v, vy, r), _, _ = latest
@@ -163,6 +180,8 @@ class CentralizedTeam:
             release = self.intentions.overtake_release(i)
             if release is not None:
                 target = self._staged(target, release, obstacles, reference)
+            if self.intentions.intentions[i].follow is not None:
+                target = self._follow_target(snap, i, target, reference, fresh or {})
         # lateral passed positionally (solve(..., reference, lateral=None)) so positional solve wrappers keep working.
         # Dynamic plant: start from what the car was last given (a fallback may have braked since the last plan).
         accel = self.last_accel[i] if self.dynamic else self.held[i, 0]
@@ -200,6 +219,33 @@ class CentralizedTeam:
         x = np.clip((t-begin)/duration, 0.0, 1.0)
         blend = x*x*x*(10.0-15.0*x+6.0*x*x)
         return replace(target, d_stage=tuple(start+(end-start)*blend))
+
+    def _follow_target(self, snap, i, target, reference, fresh):
+        """Car i's target while it follows car j (Planner.follow): speed = j's planned speed follow_preview s ahead plus
+        follow_k per m of bumper-gap error from follow_gap * v (within follow_max_rel; the intention speed follows
+        it); and, while both target the same lane, a lateral target per horizon step = j's path (its driven track,
+        then its plan: this cycle's, else the shifted previous) at car i's reference positions along the road, so a
+        lane change of j's is driven where j drove it."""
+        c, it = self.cfg, self.intentions.intentions[i]
+        j = it.follow
+        lead = fresh.get(j)
+        if lead is None and self.plans[j] is not None:
+            lead = self.plans[j].shifted(1)
+        if lead is None:
+            return target
+        v = float(snap.team[i, 3])
+        gap = snap.team_s[j]-snap.team_s[i]-self.params.length
+        k = min(int(round(c.follow_preview/c.step)), len(lead.z)-1)
+        fix = float(np.clip(c.follow_k*(gap-c.follow_gap*v), -c.follow_max_rel, c.follow_max_rel))
+        speed = float(np.clip(lead.z[k, 3]+fix, 0.0, c.speed_max))
+        it.speed = float(np.clip(speed, c.speed_min, c.speed_max))
+        target = replace(target, speed=speed)
+        if it.lane != self.intentions.intentions[j].lane:
+            return target
+        track = np.array(self.track[j]).reshape(-1, 2)
+        s, d = np.r_[track[:, 0], lead.z[:, 0]], np.r_[track[:, 1], lead.z[:, 1]]
+        ahead = s > np.maximum.accumulate(np.r_[-np.inf, s[:-1]])   # strictly increasing along the road
+        return replace(target, d_stage=tuple(np.interp(reference.z[:, 0], s[ahead], d[ahead])))
 
     def _yield_to(self, snap, j):
         """Teammates changing into car j's lane (middle or destination) within yield_window beyond bumper overlap.
@@ -389,10 +435,10 @@ class CentralizedTeam:
         reference = previous.shifted(1) if previous is not None else \
             constant_speed_plan(snap.time, cfg.step, N, snap.team_s[i], snap.team_d[i], snap.team[i, 3])
         it = self.intentions.intentions[i]
-        plan = self._solve(snap, i, obstacles, reference, 'first')
+        plan = self._solve(snap, i, obstacles, reference, 'first', fresh=fresh)
         if plan.status != 'solved' and it.fresh:
             self.intentions.reject_fresh(i, snap.time, f'mpc_{plan.status}')
-            plan = self._solve(snap, i, obstacles, reference, 'retry_keep')
+            plan = self._solve(snap, i, obstacles, reference, 'retry_keep', fresh=fresh)
         it.fresh = False
         if plan.status == 'solved':
             self.mode[i] = 'qp'
@@ -416,6 +462,8 @@ class CentralizedTeam:
         return first_conflict(plans[i].z, others, self.params, cfg.check_margin, substeps=cfg.check_substeps)
 
     def _replan(self, snap):
+        if self.cfg.follow:
+            self.intentions.update_follow(snap, self.plans)
         fresh, order = {}, self.order(snap)
         for n, i in enumerate(order):
             fresh[i] = self._plan_vehicle(snap, i, fresh)
@@ -448,6 +496,10 @@ class CentralizedTeam:
                     self._lane_keep(snap, i, 'emergency', fresh, order[:n])
                 resolution = 'emergency' if self._conflict(snap, i, fresh, order[:n]) is None else 'unresolved'
             self.log.conflicts.append((snap.time, i, hit[0], hit[1], resolution))
+        if self.cfg.follow:
+            for i in range(TEAM):
+                if self.mode[i] not in ('qp', 'shifted'):
+                    self.intentions.end_follow(snap.time, i, f'fallback_{self.mode[i]}')
         for i in order:
             if self._plan_driven(i):
                 self.held[i] = fresh[i].u[0]

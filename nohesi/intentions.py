@@ -15,6 +15,13 @@ lane is tried, and accepted once its gap lies ahead of the passed car), 'return'
 the passing lane until its reference clears the passed car: overtake_release). With no room to return within
 overtake_pass_max s of reaching the passing lane, the overtake ends there ('stayed'): a normal outcome, not an abort. The policy repeats the overtake action to continue; any other action ends the overtake
 (stays where the car is going). The RL env (e5) masks other actions during an overtake, so there it runs to completion.
+
+Follow (Planner.follow; off by default): with it on, action FOLLOW (the slot of OVERTAKES[0], overtake right while
+slowing) means follow the teammate directly ahead in the car's lane within follow_window s (follow_check). The
+coordinator's MPC then tracks the leader's path at follow_gap (CentralizedTeam._follow_target), and update_follow joins
+the leader's lane changes through the follower's own gap rule, or ends the follow (Planner.follow docs). The policy
+repeats FOLLOW to continue; any other action ends the follow. While followed, a car's gap rule needs room for its
+followers behind it (and ignores them as gap cars).
 """
 from dataclasses import dataclass
 import numpy as np
@@ -32,6 +39,9 @@ def encode(lane_cmd, speed_cmd, lean_cmd=0):
 
 def encode_overtake(side, speed_cmd=0):
     return len(ACTIONS)+3*((side+1)//2)+(speed_cmd+1)
+
+
+FOLLOW = encode_overtake(-1, -1)   # with Planner.follow: the follow action, in place of that overtake
 
 
 @dataclass
@@ -64,6 +74,8 @@ class Intention:
     best: float = np.inf       # committed: smallest |d - target lane centre| so far, updated by > commit_progress_eps
     best_time: float = None    # when `best` last improved
     overtake: Overtake = None  # active overtake (OVERTAKES actions), else None
+    follow: int = None         # teammate this car follows (FOLLOW, Planner.follow), else None
+    follow_wait: float = None  # since when joining the leader's lane change has been refused
 
 
 @dataclass(frozen=True)
@@ -157,17 +169,21 @@ class IntentionManager:
         run, v_end = self.reach(v, speed, T)
         end = s+run
         cars = self._lane_vehicles(snap, plans, i, lane, T)
+        train = self.followers(i)
+        if train:   # followed: they come along behind, so they are not gap cars, and the rear needs room for them
+            cars = [c for c in cars if c[0] not in {('team', f) for f in train}]
+        extra = sum(self.params.length+self.cfg.follow_gap*snap.team[f, 3] for f in train)
         ahead = [c for c in cars if c[1] > end]
         behind = [c for c in cars if c[1] <= end]
         front = min(ahead, key=lambda c: c[1]) if ahead else None
         rear = max(behind, key=lambda c: c[1]) if behind else None
         L, m = self.params.length, self.cfg.margin_long
         self.last_gap_margin = min(front[1]-end if front else np.inf, end-rear[1] if rear else np.inf)-L
-        if (front and front[1]-end < L+m) or (rear and end-rear[1] < L+m):
+        if (front and front[1]-end < L+m) or (rear and end-rear[1] < L+m+extra):
             return None, 'gap_too_short'
         if rear:
             closing = max(0.0, rear[3]-v, rear[4]-v_end)
-            if end-rear[1]-L < m+closing*self.cfg.rear_closing_time:
+            if end-rear[1]-L-extra < m+closing*self.cfg.rear_closing_time:
                 return None, 'rear_closing'
         if double and middle and self._middle_blocked(snap, plans, i, origin+side, speed):
             return None, 'middle_blocked'
@@ -189,6 +205,11 @@ class IntentionManager:
     def decide(self, snap, actions, plans, order):
         for i in order:
             a, it = int(actions[i]), self.intentions[i]
+            if self.cfg.follow and a == FOLLOW:
+                self._follow(snap, i)
+                continue
+            if it.follow is not None:
+                self.end_follow(snap.time, i, 'policy')
             if a >= len(ACTIONS):
                 self._overtake(snap, plans, i, *OVERTAKES[a-len(ACTIONS)])
                 continue
@@ -237,6 +258,103 @@ class IntentionManager:
                 self._check_lock(snap, plans, i)
             if it.overtake is not None:
                 self._overtake_step(snap, plans if plans is not None else [None]*TEAM, i)
+
+    # Follow (module docstring, Planner.follow).
+    def followers(self, i):
+        """Cars following car i, directly or down the chain (nearest first)."""
+        out, j = [], i
+        while True:
+            nxt = next((f for f, it in enumerate(self.intentions) if it.follow == j and f not in out and f != i), None)
+            if nxt is None:
+                return out
+            out.append(nxt)
+            j = nxt
+
+    def follow_check(self, snap, i):
+        """Would car i start following now? (leader index, '') or (None, reason): keeping its lane, not overtaking, the
+        nearest teammate ahead in its lane (by the centre's lane) within follow_window s bumper to bumper and not
+        overtaking."""
+        it, c, L = self.intentions[i], self.cfg, self.params.length
+        if not c.follow:
+            return None, 'off'
+        if it.phase != 'keep' or it.overtake is not None:
+            return None, 'busy'
+        lanes = self.road.lane_of(np.asarray(snap.team_d))
+        ahead = [j for j in range(TEAM) if j != i and snap.team_s[j] > snap.team_s[i] and lanes[j] == it.lane]
+        if not ahead:
+            return None, 'no_leader'
+        j = min(ahead, key=lambda j: snap.team_s[j])
+        if snap.team_s[j]-snap.team_s[i]-L > c.follow_window*max(float(snap.team[i, 3]), 1.0):
+            return None, 'too_far'
+        if self.intentions[j].overtake is not None:
+            return None, 'leader_overtaking'
+        return j, ''
+
+    def _follow(self, snap, i):
+        """The FOLLOW action: continue the follow, or start one (follow_check); refused, the car holds its lane and
+        speed (a lane change in progress continues)."""
+        it = self.intentions[i]
+        if it.follow is not None:
+            return
+        if it.overtake is not None:
+            self._end_overtake(snap.time, i, 'overtake_ended' if it.overtake.stage == 'out' else 'stayed', 'policy')
+        j, reason = self.follow_check(snap, i)
+        it.rejected = j is None
+        if j is None:
+            self.records.append(Record(snap.time, i, 'rejected', f'follow_{reason}', it.lane))
+            return
+        it.follow, it.follow_wait, it.lean = j, None, 0
+        self.records.append(Record(snap.time, i, 'follow', str(j), it.lane))
+
+    def end_follow(self, time, i, reason):
+        it = self.intentions[i]
+        if it.follow is None:
+            return
+        self.records.append(Record(time, i, 'follow_ended', reason, it.lane))
+        it.follow, it.follow_wait = None, None
+
+    def update_follow(self, snap, plans):
+        """Each replan, front to back (a joined lane change passes down the chain in one cycle): end follows whose
+        leader is behind, beyond follow_break s or overtaking; join the leader's lane (its intention lane) through the
+        follower's own gap rule, ending the follow once that stays refused for follow_join_time s; a follower's pending
+        join is withdrawn when the leader returns to the follower's lane, and the follow ends when the two go
+        different ways."""
+        c, L = self.cfg, self.params.length
+        if not c.follow:
+            return
+        for i in sorted(range(TEAM), key=lambda i: -snap.team_s[i]):
+            it = self.intentions[i]
+            j = it.follow
+            if j is None:
+                continue
+            jt, t = self.intentions[j], snap.time
+            gap = snap.team_s[j]-snap.team_s[i]-L
+            reason = 'leader_behind' if snap.team_s[j] <= snap.team_s[i] else \
+                'too_far' if gap > c.follow_break*max(float(snap.team[i, 3]), 1.0) else \
+                'leader_overtaking' if jt.overtake is not None else 'overtaking' if it.overtake is not None else ''
+            if not reason and it.lane != jt.lane:
+                if it.phase == 'keep':
+                    g, why = self.gap_rule(snap, plans, i, jt.lane, it.speed)
+                    if g is not None:
+                        it.origin, it.lane, it.phase, it.fresh, it.since = it.lane, jt.lane, 'pending', True, t
+                        (it.front, it.rear), it.follow_wait = g, None
+                        self.records.append(Record(t, i, 'accepted', 'follow', it.lane, self.last_gap_margin))
+                    else:
+                        it.follow_wait = t if it.follow_wait is None else it.follow_wait
+                        if t-it.follow_wait > c.follow_join_time:
+                            reason = f'join_{why}'
+                elif it.phase == 'pending' and it.origin == jt.lane:   # the leader came back: so does the follower
+                    self.records.append(Record(t, i, 'aborted', 'follow', it.lane))
+                    self._keep(i, it.origin)
+                elif it.phase == 'pending':   # pending into a lane the leader no longer targets: within the wait
+                    it.follow_wait = t if it.follow_wait is None else it.follow_wait
+                    if t-it.follow_wait > c.follow_join_time:
+                        reason = 'diverged'
+                # committed into a lane the leader has moved on from: finish it, then join (the wait starts then)
+            elif not reason:
+                it.follow_wait = None
+            if reason:
+                self.end_follow(t, i, reason)
 
     # Overtakes (module docstring).
     def _overtake_keep(self, snap, i):
@@ -468,6 +586,7 @@ class IntentionManager:
 
     def reject_fresh(self, i, time, reason):
         it = self.intentions[i]
+        self.end_follow(time, i, f'rejected_{reason}')
         self.records.append(Record(time, i, 'rejected', reason, it.lane))
         self._keep(i, it.origin)
         it.rejected = True
@@ -478,6 +597,7 @@ class IntentionManager:
         target lane for retry_cooldown s."""
         it = self.intentions[i]
         keep = lane if lane is not None else it.origin if it.phase != 'keep' else it.lane
+        self.end_follow(time, i, f'cancelled_{reason}')
         if it.phase != 'keep':
             self.cooldown[i] = (it.lane, time+self.cfg.retry_cooldown)
         self.records.append(Record(time, i, 'cancelled', reason, keep))
