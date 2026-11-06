@@ -9,9 +9,10 @@ left-handed: it flips the OpenDRIVE y axis, so CARLA (x, y) = (s, -d), its yaw (
 import numpy as np
 
 
-def xodr(road, name='nohesi_straight', speed_limit=None):
+def xodr(road, name='nohesi_straight', speed_limit=None, sidewalk=0.0):
     """OpenDRIVE text for a straight road with road.lanes lanes of road.lane_width, road.length long; dashed lane
-    lines, solid edges; speed_limit (m/s) sets every lane's limit, None leaves it unset."""
+    lines, solid edges; speed_limit (m/s) sets every lane's limit, None leaves it unset; sidewalk > 0 adds a sidewalk
+    lane that wide on each side (scenery for replays: the driving lanes and our frame are unchanged)."""
     width = road.lanes*road.lane_width
     mark = '<roadMark sOffset="0" type="{}" weight="standard" color="standard" width="0.15" laneChange="{}"/>'
     speed = '' if speed_limit is None else f'<speed sOffset="0" max="{speed_limit:.3f}" unit="m/s"/>'
@@ -21,6 +22,9 @@ def xodr(road, name='nohesi_straight', speed_limit=None):
         lanes.append(f'<lane id="{-k}" type="driving" level="false"><link/>'
                      f'<width sOffset="0" a="{road.lane_width:.4f}" b="0" c="0" d="0"/>'
                      + mark.format('solid' if edge else 'broken', 'none' if edge else 'both') + speed + '</lane>')
+    walk = '<lane id="{}" type="sidewalk" level="false"><link/><width sOffset="0" a="{:.4f}" b="0" c="0" d="0"/></lane>'
+    left = f'<left>{walk.format(1, sidewalk)}</left>' if sidewalk > 0 else ''
+    right = walk.format(-(road.lanes+1), sidewalk) if sidewalk > 0 else ''
     return f'''<?xml version="1.0" standalone="yes"?>
 <OpenDRIVE>
   <header revMajor="1" revMinor="4" name="{name}" version="1.0" north="0" south="0" east="0" west="0"/>
@@ -35,9 +39,10 @@ def xodr(road, name='nohesi_straight', speed_limit=None):
     <lanes>
       <laneSection s="0">
         <center><lane id="0" type="none" level="false"><link/>{mark.format('solid', 'none')}</lane></center>
-        <right>
+        {left}<right>
           {"""
           """.join(lanes)}
+          {right}
         </right>
       </laneSection>
     </lanes>

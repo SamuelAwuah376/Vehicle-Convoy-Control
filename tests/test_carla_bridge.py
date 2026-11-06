@@ -23,6 +23,18 @@ def test_xodr_straight_road_lanes():
     assert marks == ['broken', 'broken', 'solid']   # lane lines dashed, right edge solid
 
 
+def test_xodr_sidewalks_leave_the_driving_lanes():
+    road = Road(lanes=3, lane_width=3.6, length=10000.0)
+    root = ET.fromstring(xodr(road, sidewalk=4.0))
+    right = root.findall('road/lanes/laneSection/right/lane')
+    left = root.findall('road/lanes/laneSection/left/lane')
+    assert [(int(l.get('id')), l.get('type')) for l in right] == [(-1, 'driving'), (-2, 'driving'), (-3, 'driving'),
+                                                                   (-4, 'sidewalk')]
+    assert [(int(l.get('id')), l.get('type')) for l in left] == [(1, 'sidewalk')]
+    assert float(root.find('road/planView/geometry').get('y')) == pytest.approx(5.4)   # same reference line
+    assert not ET.fromstring(xodr(road)).findall('road/lanes/laneSection/left/lane')
+
+
 def test_frames_round_trip_and_handedness():
     x, y, yaw = to_carla(100.0, 3.6, 0.2)
     assert (float(x), float(y), float(yaw)) == pytest.approx((100.0, -3.6, -math.degrees(0.2)))

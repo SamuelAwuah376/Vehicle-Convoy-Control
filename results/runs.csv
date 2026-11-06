@@ -46,3 +46,7 @@ run,time,folder,scenario,policy,score,seed,planner,vehicle_model,team_score,coll
 047,2026-10-28T02:21:08,run_047_v7_ppo-b2c_best1.5M_scorev8_seed1001_carla_100fps,v7,ppo-ppo_v8_e5_dyn_b2c_3m_001,v8,1001,m4.3,dynamic,52363.2,0,time
 054,2026-11-04T13:02:05,run_054_v8_ppo-ppo_v10_e5_dyn_b7_10m_scorev10_seed2_dynamic_nmpc,v8,ppo-ppo_v10_e5_dyn_b7_10m,v10,2,m4.3,dynamic,1772321.6,0,time
 055,2026-11-04T13:36:27,run_055_v8_ppo-ppo_v10_e5_dyn_b7_10m_scorev10_seed2_dynamic_nmpc_retry_cooldown1_w_lateral10,v8,ppo-ppo_v10_e5_dyn_b7_10m,v10,2,m4.3,dynamic,1573791.5,0,time
+056,2026-11-04T13:40:39,run_056_v8_ppo-ppo_v10_e5_dyn_b7_10m_scorev10_seed2_dynamic_nmpc_retry_cooldown1_w_lateral10_300s,v8,ppo-ppo_v10_e5_dyn_b7_10m,v10,2,m4.3,dynamic,2928884.2,0,time
+057,2026-11-04T13:45:38,run_057_v8_ppo-ppo_v10_e5_dyn_b7_10m_scorev10_seed2_dynamic_nmpc_retry_cooldown1_w_lateral10_300s_clockcapped,v8,ppo-ppo_v10_e5_dyn_b7_10m,v10,2,m4.3,dynamic,4024794.4,0,time
+058,2026-11-04T18:39:33,run_058_v8_ppo-ppo_v10_e5_dyn_b7_10m_scorev10_seed2_carla_cooldown1_w_lateral10_300s_clockcapped,v8,ppo-ppo_v10_e5_dyn_b7_10m,v10,2,m4.3,dynamic,3094826.8,0,time
+059,2026-11-05T15:19:14,run_059_v8_ppo-b9b_best2.5M_scorev10_seed2_carla_300s,v8,ppo-ppo_v10_e5_dyn_b9b_best2.5M,v10,2,m4.3,dynamic,3217308.1,0,time
