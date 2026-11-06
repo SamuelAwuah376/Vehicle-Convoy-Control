@@ -77,6 +77,7 @@ class Intention:
     overtake: Overtake = None  # active overtake (OVERTAKES actions), else None
     follow: int = None         # teammate this car follows (FOLLOW, Planner.follow), else None
     follow_wait: float = None  # since when joining the leader's lane change has been refused
+    resume: float = None       # gap search: the policy's target speed, restored when the searched change ends
 
 
 @dataclass(frozen=True)
@@ -131,16 +132,18 @@ class IntentionManager:
                 out.append((('team', j), z[0], snap.team_s[j], v, z[3]))
         return out
 
-    def reach(self, v, speed, T, dt=0.1):
-        """Distance and speed after T s tracking `speed` within the plant's accel (power-limited) and brake limits."""
+    def reach(self, v, speed, T, dt=0.1, brake=None):
+        """Distance and speed after T s tracking `speed` within the plant's accel (power-limited) and brake limits
+        (or `brake`, m/s^2)."""
         p, s = self.params, 0.0
         v, speed = float(v), float(speed)
+        b = p.brake_max if brake is None else min(brake, p.brake_max)
         for _ in range(int(round(T/dt))):
-            a = min(max((speed-v)/dt, -p.brake_max), p.accel_max*min(1.0, p.power_speed/max(v, 1e-6)))
+            a = min(max((speed-v)/dt, -b), p.accel_max*min(1.0, p.power_speed/max(v, 1e-6)))
             s, v = s+v*dt+0.5*a*dt*dt, v+a*dt
         return s, v
 
-    def gap_rule(self, snap, plans, i, lane, speed, middle=True):
+    def gap_rule(self, snap, plans, i, lane, speed, middle=True, brake=None):
         """Lock the gap containing the predicted end position: ((front, rear), '') or (None, reason).
 
         The end position uses the reachable speed profile. The gap must hold at the lookahead (double_gap_lookahead
@@ -167,7 +170,7 @@ class IntentionManager:
             if shared and np.sign(it.lane-it.origin) != side:
                 return None, 'teammate_merging'
         T, s, v = self.cfg.double_gap_lookahead if double else self.cfg.gap_lookahead, snap.team_s[i], snap.team[i, 3]
-        run, v_end = self.reach(v, speed, T)
+        run, v_end = self.reach(v, speed, T, brake=brake)
         end = s+run
         cars = self._lane_vehicles(snap, plans, i, lane, T)
         train = self.followers(i)
@@ -187,7 +190,7 @@ class IntentionManager:
             closing = max(0.0, rear[3]-v, rear[4]-v_end)
             if end-rear[1]-L-extra < m+closing*self.cfg.rear_closing_time:
                 return None, 'rear_closing'
-        if double and middle and self._middle_blocked(snap, plans, i, origin+side, speed):
+        if double and middle and self._middle_blocked(snap, plans, i, origin+side, speed, brake=brake):
             return None, 'middle_blocked'
         gap = (front[0] if front else None, rear[0] if rear else None)
         for j, it in enumerate(self.intentions):
@@ -195,11 +198,58 @@ class IntentionManager:
                 return None, 'gap_claimed'
         return gap, ''
 
-    def _middle_blocked(self, snap, plans, i, lane, speed, dt=0.1):
+    def lane_gap(self, snap, plans, i, lane, speed, speed_cmd=0):
+        """gap_rule at `speed`; with Planner.gap_search, a car stuck behind traffic (stuck_now) whose rule fails for
+        lack of room (gap_too_short, rear_closing; gap_claimed and middle_blocked depend on the gap and speed too)
+        tries target speeds up to gap_search_dv lower (a gap behind) and higher (a gap ahead), the smaller change
+        first (behind first at equal change): (gap, reason, target speed) of the first that passes with
+        gap_search_margin of room. Not behind a car entirely behind the ego now (braking to let it pass)."""
+        gap, reason = self.gap_rule(snap, plans, i, lane, speed)
+        c = self.cfg
+        if gap is not None or not c.gap_search or                 reason not in ('gap_too_short', 'rear_closing', 'gap_claimed', 'middle_blocked') or                 not self.stuck_now(snap, i):
+            return gap, reason, speed
+        open_, last = {-1: True, 1: True}, {-1: speed, 1: speed}
+        for dv in np.arange(c.gap_search_step, c.gap_search_dv+1e-9, c.gap_search_step):
+            for way in (-1, 1):
+                if not open_[way]:
+                    continue
+                v = float(np.clip(speed+way*dv, c.speed_min, c.speed_max))
+                if v == last[way]:
+                    open_[way] = False
+                    continue
+                last[way] = v
+                g, why = self.gap_rule(snap, plans, i, lane, v, brake=c.gap_search_brake)
+                if g is not None and way < 0 and g[0] is not None and                         self._s_now(snap, g[0]) < snap.team_s[i]-self.params.length-c.margin_long:
+                    open_[way] = False
+                    continue
+                if g is not None and self.last_gap_margin >= c.gap_search_margin:
+                    return g, '', v
+                if g is None and why not in ('gap_too_short', 'rear_closing', 'gap_claimed', 'middle_blocked'):
+                    open_[way] = False
+            if not any(open_.values()):
+                break
+        return None, reason, speed
+
+    def stuck_now(self, snap, i):
+        """Car i is stuck behind traffic (evaluation.metrics.stuck_mask): its nearest traffic car ahead in its lane is
+        within gap_search_window (CG) and it is less than gap_search_closing faster than it."""
+        from .evaluation.metrics import stuck_mask
+        c = self.cfg
+        return bool(stuck_mask(self.road, snap.team_s[None], snap.team_d[None], snap.team[None, :, 3],
+                               snap.traffic_s[None], snap.traffic_d[None], snap.traffic_v[None],
+                               c.gap_search_window, c.gap_search_closing)[0, i])
+
+    @staticmethod
+    def _s_now(snap, key):
+        if key[0] == 'team':
+            return float(snap.team_s[key[1]])
+        return float(snap.traffic_s[np.flatnonzero(snap.traffic_id == key[1])[0]])
+
+    def _middle_blocked(self, snap, plans, i, lane, speed, dt=0.1, brake=None):
         """Any vehicle in `lane` within length + margin_long of the ego (bumper overlap) during the crossing window."""
         c, s, v, far = self.cfg, snap.team_s[i], snap.team[i, 3], self.params.length+self.cfg.margin_long
         for t in np.arange(c.middle_window_start, c.middle_window_end+dt/2, dt):
-            ego = s+self.reach(v, speed, t, dt)[0]
+            ego = s+self.reach(v, speed, t, dt, brake=brake)[0]
             if any(abs(car[1]-ego) < far for car in self._lane_vehicles(snap, plans, i, lane, t)):
                 return True
         return False
@@ -219,7 +269,11 @@ class IntentionManager:
                 self._end_overtake(snap.time, i, 'overtake_ended' if it.overtake.stage == 'out' else 'stayed', 'policy')
             lane_cmd, speed_cmd, lean_cmd = ACTIONS[a]
             it.lean = lean_cmd
-            it.speed = float(np.clip(it.speed+speed_cmd*self.cfg.speed_step, self.cfg.speed_min, self.cfg.speed_max))
+            step = lambda v: float(np.clip(v+speed_cmd*self.cfg.speed_step, self.cfg.speed_min, self.cfg.speed_max))
+            if it.resume is not None:   # a searched change in progress keeps its speed; the command adjusts the policy's
+                it.resume = step(it.resume)
+            else:
+                it.speed = step(it.speed)
             if it.phase == 'committed':
                 if lane_cmd != it.lane-it.origin:
                     self.records.append(Record(snap.time, i, 'masked', '', it.lane))
@@ -232,14 +286,18 @@ class IntentionManager:
             if lane_cmd == 0:
                 continue
             lane = it.lane+lane_cmd
-            gap, reason = self.gap_rule(snap, plans, i, lane, it.speed)
+            gap, reason, v = self.lane_gap(snap, plans, i, lane, it.speed, speed_cmd)
             it.rejected = gap is None
             if gap is None:
                 self.records.append(Record(snap.time, i, 'rejected', reason, lane))
                 continue
+            searched = v != it.speed
+            if searched:
+                it.resume, it.speed = it.speed, v
             it.origin, it.lane, it.phase, it.fresh, it.since = it.lane, lane, 'pending', True, snap.time
             it.front, it.rear = gap
-            self.records.append(Record(snap.time, i, 'accepted', '', lane, self.last_gap_margin))
+            self.records.append(Record(snap.time, i, 'accepted', ('search_behind' if v < it.resume else 'search_ahead')
+                                       if searched else '', lane, self.last_gap_margin))
 
     def update_phases(self, snap, plans=None):
         half = self.params.width/2
@@ -569,13 +627,14 @@ class IntentionManager:
         it.front, it.rear = (k if k in pos else None for k in (it.front, it.rear))   # recycled traffic: unlocked
         far, s = self.params.length+self.cfg.margin_long, snap.team_s[i]
         T = self.cfg.double_gap_lookahead if abs(it.lane-it.origin) == 2 else self.cfg.gap_lookahead
-        end = s+self.reach(snap.team[i, 3], it.speed, T)[0]
+        brake = self.cfg.gap_search_brake if it.resume is not None else None   # a searched change: as it was found
+        end = s+self.reach(snap.team[i, 3], it.speed, T, brake=brake)[0]
         stale_rear = it.rear is not None and pos[it.rear]-s > far and self._predicted_s(snap, plans, it.rear, T) > end
         stale_front = it.front is not None and s-pos[it.front] > far and self._predicted_s(snap, plans, it.front, T) <= end
         if not (stale_rear or stale_front):
             return
         gap, reason = self.gap_rule(snap, plans if plans is not None else [None]*TEAM, i, it.lane, it.speed,
-                                    middle=it.phase == 'pending')
+                                    middle=it.phase == 'pending', brake=brake)
         if gap is not None:
             if gap != (it.front, it.rear):
                 it.front, it.rear = gap
@@ -608,4 +667,6 @@ class IntentionManager:
     def _keep(self, i, lane):
         it = self.intentions[i]
         it.lane, it.phase, it.origin, it.front, it.rear, it.fresh = lane, 'keep', None, None, None, False
+        if it.resume is not None:   # a searched change ended: the policy's target speed back
+            it.speed, it.resume = it.resume, None
         it.since, it.best, it.best_time = None, np.inf, None

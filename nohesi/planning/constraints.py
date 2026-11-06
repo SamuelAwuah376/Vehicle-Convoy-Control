@@ -101,10 +101,21 @@ def obstacle_constraints(cfg, params, road, zr, obstacles, target, s0=0.0):
     jj = np.broadcast_to(np.arange(len(keys))[None, :], ds.shape)
     full = lambda x: np.broadcast_to(x, ds.shape)
     parts = []
-    for kind, mask, coef, lo, hi in (('left', code == 1, 'cd', od+lat_gap, np.inf),
-                                     ('right', code == -1, 'cd', -np.inf, od-lat_gap),
-                                     ('behind', behind, 'cs', -np.inf, os_-long_gap),
-                                     ('ahead', ahead, 'cs', os_+long_gap, np.inf)):
+    # Planner.yaw_margin: the bounds treat both cars as road-aligned boxes; a yawed ego's corners reach
+    # length/2*|sin psi| further sideways (and width/2*|sin psi| further along the road): add that at the reference's
+    # largest |psi| over the horizon (the reference, the previous plan, lags a fresh lane change's heading).
+    if getattr(c, 'yaw_margin', False):
+        sin = np.abs(np.sin(zr[1:, 2])).max()
+        if abs(target.d-zr[0, 1]) > c.yaw_margin_offset:   # moving across (the first solve's reference is still straight)
+            sin = max(sin, np.sin(c.yaw_margin_psi))
+        scope = (front | rear) if getattr(c, 'yaw_margin_scope', 'all') == 'gap' else np.ones_like(front)
+        lat_b, long_b = lat_gap+p.length/2*sin*scope, long_gap+p.width/2*sin*scope
+    else:
+        lat_b, long_b = lat_gap, long_gap
+    for kind, mask, coef, lo, hi in (('left', code == 1, 'cd', full(od+lat_b), np.inf),
+                                     ('right', code == -1, 'cd', -np.inf, full(od-lat_b)),
+                                     ('behind', behind, 'cs', -np.inf, full(os_-long_b)),
+                                     ('ahead', ahead, 'cs', full(os_+long_b), np.inf)):
         if mask.any():
             parts.append(rows(kind, kk[mask], full(lo)[mask], full(hi)[mask], j=jj[mask], **{coef: 1.0}))
     # Soft headway only for cars the reference shares a lane with, tau per obstacle:

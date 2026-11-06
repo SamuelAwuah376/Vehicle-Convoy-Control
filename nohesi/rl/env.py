@@ -147,7 +147,7 @@ class NoHesiEnv(gymnasium.Env):
     def gap_check(self, i, lane):
         """CentralizedTeam's bind_gap_check callable for the current decision."""
         team = self.team
-        return team.intentions.gap_rule(self.snapshot, team.plans, i, lane, self.intentions[i].speed)
+        return team.intentions.lane_gap(self.snapshot, team.plans, i, lane, self.intentions[i].speed)[:2]
 
     def episode(self):
         return self.run.episode()
@@ -237,7 +237,7 @@ class NoHesiEnv(gymnasium.Env):
             if not (ok & (LANE_CMD == c) & (SPEED_CMD == sc)).any():
                 continue
             speed = float(np.clip(it.speed+sc*pc.speed_step, pc.speed_min, pc.speed_max))
-            gap = im.gap_rule(snap, self.team.plans, i, it.lane+c, speed)[0]
+            gap = im.lane_gap(snap, self.team.plans, i, it.lane+c, speed, sc)[0]
             if gap is not None and im._corridor(snap, self.team.plans, i, pc.speed_max, lead, gap[0]):
                 return True
         return False
@@ -347,7 +347,7 @@ class NoHesiEnv(gymnasium.Env):
                 for sc in (-1, 0, 1):
                     # The speed the decision would set, as IntentionManager.decide applies it before the gap rule.
                     speed = float(np.clip(it.speed+sc*pc.speed_step, pc.speed_min, pc.speed_max))
-                    if team.intentions.gap_rule(self.snapshot, team.plans, i, base+int(c), speed)[0] is None:
+                    if team.intentions.lane_gap(self.snapshot, team.plans, i, base+int(c), speed, sc)[0] is None:
                         ok &= ~((LANE_CMD == c) & (SPEED_CMD == sc))
         return ok
 

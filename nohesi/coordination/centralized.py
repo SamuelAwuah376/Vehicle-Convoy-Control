@@ -140,7 +140,7 @@ class CentralizedTeam:
         intents = self.intentions.intentions
         if hasattr(self.policy, 'bind_gap_check'):
             # Read-only: lets a scripted policy ask whether a lane change would be accepted right now.
-            self.policy.bind_gap_check(lambda i, lane: self.intentions.gap_rule(snap, self.plans, i, lane, intents[i].speed))
+            self.policy.bind_gap_check(lambda i, lane: self.intentions.lane_gap(snap, self.plans, i, lane, intents[i].speed)[:2])
         actions = self.policy(snap, intents)
         stuck = [it.phase == 'keep' and hasattr(self.policy, 'stuck') and self.policy.stuck(snap, i, it) is not None
                  for i, it in enumerate(intents)]
@@ -148,7 +148,7 @@ class CentralizedTeam:
         for i, it in enumerate(intents):
             # Missed opportunity: stuck, still keeping lane, yet the gap rule would accept a change.
             if stuck[i] and it.phase == 'keep' and any(
-                    self.intentions.gap_rule(snap, self.plans, i, it.lane+c, it.speed)[0] is not None for c in (-1, 1)):
+                    self.intentions.lane_gap(snap, self.plans, i, it.lane+c, it.speed)[0] is not None for c in (-1, 1)):
                 self.log.missed[i] += self.cfg.decision_interval
 
     def _obstacles(self, snap, i, fresh):
@@ -482,6 +482,12 @@ class CentralizedTeam:
                 fresh[i] = self._plan_vehicle(snap, i, fresh)
         for n, i in enumerate(order):
             hit = self._conflict(snap, i, fresh, order[:n])
+            if hit is not None and self.cfg.yaw_margin and self.intentions.intentions[i].phase != 'keep':
+                # The obstacle bounds' yaw allowance comes from the reference (the previous plan): re-solve once
+                # around this plan (its own heading) before backing out.
+                self.plans[i] = fresh[i]
+                fresh[i] = self._plan_vehicle(snap, i, fresh)
+                hit = self._conflict(snap, i, fresh, order[:n])
             if hit is None:
                 continue
             # Yield: abandon any lane change for the nearby lane (CG lane first: still reversible there) whose

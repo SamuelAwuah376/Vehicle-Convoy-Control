@@ -291,6 +291,23 @@ class Planner:
     follow_preview: float = 0.5         # s: the leader's planned speed this far ahead
     follow_join_time: float = 1.0       # s: joining the leader's lane change may wait this long for the gap rule
     follow_train_room: bool = False     # a followed car's gap rule needs room for its followers (False: itself only)
+    # Gap search (IntentionManager.lane_gap): a lane change of a car stuck behind traffic whose gap rule fails for lack
+    # of room tries target speeds up to gap_search_dv lower and higher in gap_search_step steps (smaller change first,
+    # lower first): the first that passes the gap rule with gap_search_margin of room locks that gap (behind / ahead of
+    # the blocking car) and sets the target speed; the MPC's gap-car constraints keep the car beside the front gap car
+    # until its reference has dropped behind it (or the rear gap car until ahead), then let it in. The policy's own
+    # target speed comes back when the change ends.
+    gap_search: bool = False
+    yaw_margin: bool = False            # obstacle bounds widen by the ego's yawed corner reach (constraints.obstacle_constraints)
+    yaw_margin_psi: float = 0.06        # rad: heading assumed at least while the target is yaw_margin_offset m or more across
+    yaw_margin_offset: float = 0.5      # m
+    yaw_margin_scope: str = 'all'       # 'all' obstacles or only the locked 'gap' cars
+    gap_search_dv: float = 8.0          # m/s: largest change of the target speed the search adds
+    gap_search_step: float = 1.0        # m/s
+    gap_search_margin: float = 3.0      # m: a searched gap needs this bumper margin to its nearer gap car (beyond margin_long)
+    gap_search_brake: float = 4.0       # m/s^2: the search's end-position prediction brakes at most this (the MPC's pace)
+    gap_search_window: float = 100.0    # m (CG): stuck = slower traffic ahead in the lane within this (metrics.stuck_mask)
+    gap_search_closing: float = 2.0     # m/s: ... and the car less than this faster than it
     middle_window_start: float = 0.8    # two-lane change: middle lane must be clear over this crossing window (s)
     middle_window_end: float = 2.5
     commit_progress_eps: float = 0.1    # committed change: lateral progress below this (m) does not count
@@ -361,7 +378,7 @@ class Planner:
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time', 'mpc', 'nmpc_steer_cap',
-                                                             'qp_reuse', 'nmpc_levenberg_marquardt', 'nmpc_verify_budget')
+                                                             'qp_reuse', 'nmpc_levenberg_marquardt', 'nmpc_verify_budget', 'yaw_margin_scope')
                           and not isinstance(getattr(self, k), bool)))   # on/off switches may be False
         if not isfinite(self.nmpc_verify_budget) or self.nmpc_verify_budget < 0:
             raise ValueError('nmpc_verify_budget must be non-negative (0 disables the wall-clock budget)')
