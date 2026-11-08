@@ -132,16 +132,41 @@ class IntentionManager:
                 out.append((('team', j), z[0], snap.team_s[j], v, z[3]))
         return out
 
-    def reach(self, v, speed, T, dt=0.1, brake=None):
+    def reach(self, v, speed, T, dt=0.1, brake=None, cap=None):
         """Distance and speed after T s tracking `speed` within the plant's accel (power-limited) and brake limits
-        (or `brake`, m/s^2)."""
+        (or `brake`, m/s^2). cap = (room, v_lead, until) (Planner.gap_lead, _lead_cap): for the first `until` s the
+        car stays at most room m plus v_lead*t ahead of its start (held behind a lead at v_lead)."""
         p, s = self.params, 0.0
         v, speed = float(v), float(speed)
         b = p.brake_max if brake is None else min(brake, p.brake_max)
-        for _ in range(int(round(T/dt))):
+        for n in range(int(round(T/dt))):
             a = min(max((speed-v)/dt, -b), p.accel_max*min(1.0, p.power_speed/max(v, 1e-6)))
             s, v = s+v*dt+0.5*a*dt*dt, v+a*dt
+            if cap is not None and (n+1)*dt <= cap[2]+1e-9 and s > cap[0]+cap[1]*(n+1)*dt:
+                s, v = cap[0]+cap[1]*(n+1)*dt, min(v, cap[1])
         return s, v
+
+    def _lead_cap(self, snap, i, lane):
+        """Planner.gap_lead: reach's cap for car i changing into `lane`, from the nearest vehicle ahead (CG) that
+        overlaps it sideways (closer than the side gap, width + margin_lat) and is not in `lane`: (room, v_lead, until)
+        = its bumper room now beyond margin_long and the headway at its speed (at least 0), its speed, and
+        gap_lead_time s pro rata to the side distance car i still has to cover. None without one or with gap_lead
+        off."""
+        c, p = self.cfg, self.params
+        if not c.gap_lead:
+            return None
+        s, d, side_gap = snap.team_s[i], snap.team_d[i], p.width+c.margin_lat
+        cars = [(snap.traffic_s[j], snap.traffic_d[j], snap.traffic_v[j], c.headway) for j in range(len(snap.traffic_s))]
+        cars += [(snap.team_s[j], snap.team_d[j], snap.team[j, 3], c.teammate_headway) for j in range(TEAM) if j != i]
+        lead = None
+        for s_o, d_o, v_o, tau in cars:
+            need = side_gap-abs(d_o-d)
+            if s_o > s and need > 0 and int(self.road.lane_of(d_o)) != lane and (lead is None or s_o < lead[0]):
+                lead = (s_o, v_o, need, tau)
+        if lead is None:
+            return None
+        s_o, v_o, need, tau = lead
+        return max(s_o-s-p.length-c.margin_long-tau*v_o, 0.0), float(v_o), c.gap_lead_time*need/side_gap
 
     def gap_rule(self, snap, plans, i, lane, speed, middle=True, brake=None):
         """Lock the gap containing the predicted end position: ((front, rear), '') or (None, reason).
@@ -170,7 +195,8 @@ class IntentionManager:
             if shared and np.sign(it.lane-it.origin) != side:
                 return None, 'teammate_merging'
         T, s, v = self.cfg.double_gap_lookahead if double else self.cfg.gap_lookahead, snap.team_s[i], snap.team[i, 3]
-        run, v_end = self.reach(v, speed, T, brake=brake)
+        cap = self._lead_cap(snap, i, lane)
+        run, v_end = self.reach(v, speed, T, brake=brake, cap=cap)
         end = s+run
         cars = self._lane_vehicles(snap, plans, i, lane, T)
         train = self.followers(i)
@@ -190,7 +216,7 @@ class IntentionManager:
             closing = max(0.0, rear[3]-v, rear[4]-v_end)
             if end-rear[1]-L-extra < m+closing*self.cfg.rear_closing_time:
                 return None, 'rear_closing'
-        if double and middle and self._middle_blocked(snap, plans, i, origin+side, speed, brake=brake):
+        if double and middle and self._middle_blocked(snap, plans, i, origin+side, speed, brake=brake, cap=cap):
             return None, 'middle_blocked'
         gap = (front[0] if front else None, rear[0] if rear else None)
         for j, it in enumerate(self.intentions):
@@ -245,11 +271,11 @@ class IntentionManager:
             return float(snap.team_s[key[1]])
         return float(snap.traffic_s[np.flatnonzero(snap.traffic_id == key[1])[0]])
 
-    def _middle_blocked(self, snap, plans, i, lane, speed, dt=0.1, brake=None):
+    def _middle_blocked(self, snap, plans, i, lane, speed, dt=0.1, brake=None, cap=None):
         """Any vehicle in `lane` within length + margin_long of the ego (bumper overlap) during the crossing window."""
         c, s, v, far = self.cfg, snap.team_s[i], snap.team[i, 3], self.params.length+self.cfg.margin_long
         for t in np.arange(c.middle_window_start, c.middle_window_end+dt/2, dt):
-            ego = s+self.reach(v, speed, t, dt, brake=brake)[0]
+            ego = s+self.reach(v, speed, t, dt, brake=brake, cap=cap)[0]
             if any(abs(car[1]-ego) < far for car in self._lane_vehicles(snap, plans, i, lane, t)):
                 return True
         return False
@@ -628,7 +654,7 @@ class IntentionManager:
         far, s = self.params.length+self.cfg.margin_long, snap.team_s[i]
         T = self.cfg.double_gap_lookahead if abs(it.lane-it.origin) == 2 else self.cfg.gap_lookahead
         brake = self.cfg.gap_search_brake if it.resume is not None else None   # a searched change: as it was found
-        end = s+self.reach(snap.team[i, 3], it.speed, T, brake=brake)[0]
+        end = s+self.reach(snap.team[i, 3], it.speed, T, brake=brake, cap=self._lead_cap(snap, i, it.lane))[0]
         stale_rear = it.rear is not None and pos[it.rear]-s > far and self._predicted_s(snap, plans, it.rear, T) > end
         stale_front = it.front is not None and s-pos[it.front] > far and self._predicted_s(snap, plans, it.front, T) <= end
         if not (stale_rear or stale_front):

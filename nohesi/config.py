@@ -308,6 +308,14 @@ class Planner:
     gap_search_brake: float = 4.0       # m/s^2: the search's end-position prediction brakes at most this (the MPC's pace)
     gap_search_window: float = 100.0    # m (CG): stuck = slower traffic ahead in the lane within this (metrics.stuck_mask)
     gap_search_closing: float = 2.0     # m/s: ... and the car less than this faster than it
+    # Lead-held gap rule (gap_lead; off by default): the gap rule's end position (IntentionManager.reach) stays behind
+    # the nearest vehicle ahead that overlaps the car sideways outside the target lane (bumper margin_long plus the
+    # headway at its speed, then its speed) until the car has moved clear of it: gap_lead_time s for the full side gap
+    # (width + margin_lat), pro rata for less. Without it the prediction assumes a free road ahead and accepts a gap
+    # ahead of a car alongside that the car cannot reach while held behind its own lead (it stalls at the lane line,
+    # is cancelled and retries).
+    gap_lead: bool = False
+    gap_lead_time: float = 1.25         # s to move the full side gap across (median of completed lane changes)
     middle_window_start: float = 0.8    # two-lane change: middle lane must be clear over this crossing window (s)
     middle_window_end: float = 2.5
     commit_progress_eps: float = 0.1    # committed change: lateral progress below this (m) does not count
