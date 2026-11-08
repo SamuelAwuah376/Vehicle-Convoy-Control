@@ -1,0 +1,8171 @@
+{
+  "overtakes": [
+    {
+      "time": 2.3000000000000003,
+      "vehicle": 0,
+      "traffic_id": 6,
+      "min_clearance": 2.0466527031933657,
+      "speed": 34.83463943863033
+    },
+    {
+      "time": 2.5,
+      "vehicle": 1,
+      "traffic_id": 12,
+      "min_clearance": 1.305953396438582,
+      "speed": 37.57230945912902
+    },
+    {
+      "time": 3.25,
+      "vehicle": 0,
+      "traffic_id": 15,
+      "min_clearance": 1.3223926916430777,
+      "speed": 36.88616780041149
+    },
+    {
+      "time": 3.7,
+      "vehicle": 1,
+      "traffic_id": 6,
+      "min_clearance": 2.043637850817344,
+      "speed": 38.62269789083782
+    },
+    {
+      "time": 4.2,
+      "vehicle": 2,
+      "traffic_id": 12,
+      "min_clearance": 2.114809938694419,
+      "speed": 41.82496624218064
+    },
+    {
+      "time": 4.65,
+      "vehicle": 0,
+      "traffic_id": 22,
+      "min_clearance": 2.2400082852897536,
+      "speed": 37.477044553815865
+    },
+    {
+      "time": 4.800000000000001,
+      "vehicle": 1,
+      "traffic_id": 15,
+      "min_clearance": 1.1726983849169024,
+      "speed": 38.16077973837661
+    },
+    {
+      "time": 5.0,
+      "vehicle": 2,
+      "traffic_id": 6,
+      "min_clearance": 1.6613730292224096,
+      "speed": 40.25489837164544
+    },
+    {
+      "time": 5.800000000000001,
+      "vehicle": 1,
+      "traffic_id": 22,
+      "min_clearance": 2.297214424187868,
+      "speed": 38.804213761431306
+    },
+    {
+      "time": 6.15,
+      "vehicle": 2,
+      "traffic_id": 15,
+      "min_clearance": 1.0650359827387144,
+      "speed": 39.515095773178494
+    },
+    {
+      "time": 6.4,
+      "vehicle": 0,
+      "traffic_id": 27,
+      "min_clearance": 1.1539749553506633,
+      "speed": 38.17748762745188
+    },
+    {
+      "time": 6.95,
+      "vehicle": 2,
+      "traffic_id": 22,
+      "min_clearance": 2.1609824580456998,
+      "speed": 38.61286900523181
+    },
+    {
+      "time": 7.2,
+      "vehicle": 0,
+      "traffic_id": 7,
+      "min_clearance": 1.761975306090473,
+      "speed": 36.74044895526411
+    },
+    {
+      "time": 7.65,
+      "vehicle": 1,
+      "traffic_id": 27,
+      "min_clearance": 1.449406291372386,
+      "speed": 38.31584929698071
+    },
+    {
+      "time": 8.25,
+      "vehicle": 1,
+      "traffic_id": 7,
+      "min_clearance": 1.8399556278141105,
+      "speed": 40.58095823200364
+    },
+    {
+      "time": 8.75,
+      "vehicle": 0,
+      "traffic_id": 29,
+      "min_clearance": 0.5804568521469866,
+      "speed": 35.82317314308971
+    },
+    {
+      "time": 8.950000000000001,
+      "vehicle": 2,
+      "traffic_id": 27,
+      "min_clearance": 1.3536704312086765,
+      "speed": 36.39281347842741
+    },
+    {
+      "time": 9.5,
+      "vehicle": 2,
+      "traffic_id": 7,
+      "min_clearance": 2.1239711799082217,
+      "speed": 35.52633247519708
+    },
+    {
+      "time": 9.9,
+      "vehicle": 0,
+      "traffic_id": 17,
+      "min_clearance": 3.0903711385577375,
+      "speed": 34.53214746355556
+    },
+    {
+      "time": 9.950000000000001,
+      "vehicle": 1,
+      "traffic_id": 29,
+      "min_clearance": 0.4760229893964782,
+      "speed": 37.06966922752425
+    },
+    {
+      "time": 10.65,
+      "vehicle": 1,
+      "traffic_id": 17,
+      "min_clearance": 3.4506530337148975,
+      "speed": 33.27195680351443
+    },
+    {
+      "time": 10.9,
+      "vehicle": 0,
+      "traffic_id": 10,
+      "min_clearance": 0.9501092718400023,
+      "speed": 36.83549069405324
+    },
+    {
+      "time": 11.350000000000001,
+      "vehicle": 2,
+      "traffic_id": 29,
+      "min_clearance": 0.27069199754664097,
+      "speed": 41.963780935367915
+    },
+    {
+      "time": 11.8,
+      "vehicle": 2,
+      "traffic_id": 17,
+      "min_clearance": 3.4745323554392096,
+      "speed": 38.373243837224045
+    },
+    {
+      "time": 12.05,
+      "vehicle": 1,
+      "traffic_id": 10,
+      "min_clearance": 1.1909427589631327,
+      "speed": 34.23361332797841
+    },
+    {
+      "time": 13.200000000000001,
+      "vehicle": 2,
+      "traffic_id": 10,
+      "min_clearance": 1.108864598620668,
+      "speed": 30.402568227790475
+    },
+    {
+      "time": 15.200000000000001,
+      "vehicle": 0,
+      "traffic_id": 14,
+      "min_clearance": 0.3841973305953126,
+      "speed": 32.113454110624296
+    },
+    {
+      "time": 16.150000000000002,
+      "vehicle": 1,
+      "traffic_id": 14,
+      "min_clearance": 0.28446983993816616,
+      "speed": 35.74582125300076
+    },
+    {
+      "time": 17.2,
+      "vehicle": 0,
+      "traffic_id": 4,
+      "min_clearance": 1.021893163041007,
+      "speed": 29.485753387370796
+    },
+    {
+      "time": 17.5,
+      "vehicle": 2,
+      "traffic_id": 14,
+      "min_clearance": 0.31541443903905075,
+      "speed": 34.436912609027004
+    },
+    {
+      "time": 25.8,
+      "vehicle": 0,
+      "traffic_id": 24,
+      "min_clearance": 0.49537575858191574,
+      "speed": 33.89766056230233
+    },
+    {
+      "time": 26.700000000000003,
+      "vehicle": 0,
+      "traffic_id": 4,
+      "min_clearance": 3.4200736291769,
+      "speed": 32.21257606178633
+    },
+    {
+      "time": 27.0,
+      "vehicle": 1,
+      "traffic_id": 24,
+      "min_clearance": 0.3491882641096208,
+      "speed": 36.41886966962892
+    },
+    {
+      "time": 28.0,
+      "vehicle": 1,
+      "traffic_id": 4,
+      "min_clearance": 2.6073162171910367,
+      "speed": 33.81639475234923
+    },
+    {
+      "time": 28.05,
+      "vehicle": 0,
+      "traffic_id": 18,
+      "min_clearance": 1.0314058097426337,
+      "speed": 37.29847192869592
+    },
+    {
+      "time": 28.35,
+      "vehicle": 2,
+      "traffic_id": 24,
+      "min_clearance": 0.30353206006036415,
+      "speed": 40.57515085195109
+    },
+    {
+      "time": 29.150000000000002,
+      "vehicle": 1,
+      "traffic_id": 18,
+      "min_clearance": 1.3594751100688058,
+      "speed": 36.002260967142675
+    },
+    {
+      "time": 29.25,
+      "vehicle": 2,
+      "traffic_id": 4,
+      "min_clearance": 2.18648318619732,
+      "speed": 35.26127724304024
+    },
+    {
+      "time": 30.150000000000002,
+      "vehicle": 2,
+      "traffic_id": 18,
+      "min_clearance": 1.494737161298579,
+      "speed": 34.99419315663665
+    },
+    {
+      "time": 30.85,
+      "vehicle": 0,
+      "traffic_id": 2,
+      "min_clearance": 2.46228320491946,
+      "speed": 38.55990794730448
+    },
+    {
+      "time": 31.6,
+      "vehicle": 0,
+      "traffic_id": 30,
+      "min_clearance": 1.2459234234937229,
+      "speed": 38.66333224200834
+    },
+    {
+      "time": 32.15,
+      "vehicle": 1,
+      "traffic_id": 2,
+      "min_clearance": 1.6370352152407588,
+      "speed": 38.563208426280994
+    },
+    {
+      "time": 32.75,
+      "vehicle": 1,
+      "traffic_id": 30,
+      "min_clearance": 1.8515463996722603,
+      "speed": 37.99698035996797
+    },
+    {
+      "time": 33.45,
+      "vehicle": 2,
+      "traffic_id": 2,
+      "min_clearance": 1.2972535127492015,
+      "speed": 37.84280693094051
+    },
+    {
+      "time": 33.9,
+      "vehicle": 2,
+      "traffic_id": 30,
+      "min_clearance": 2.0910151529097614,
+      "speed": 39.46644299613879
+    },
+    {
+      "time": 34.35,
+      "vehicle": 0,
+      "traffic_id": 8,
+      "min_clearance": 0.2721513174171311,
+      "speed": 39.50206252298692
+    },
+    {
+      "time": 34.95,
+      "vehicle": 0,
+      "traffic_id": 19,
+      "min_clearance": 3.186285970695595,
+      "speed": 38.426891302949045
+    },
+    {
+      "time": 35.300000000000004,
+      "vehicle": 1,
+      "traffic_id": 8,
+      "min_clearance": 0.3407011773047668,
+      "speed": 40.58213894531829
+    },
+    {
+      "time": 35.75,
+      "vehicle": 1,
+      "traffic_id": 19,
+      "min_clearance": 3.120474251545195,
+      "speed": 37.59269399817539
+    },
+    {
+      "time": 36.050000000000004,
+      "vehicle": 0,
+      "traffic_id": 9,
+      "min_clearance": 0.8256757108690415,
+      "speed": 40.46222881902363
+    },
+    {
+      "time": 36.800000000000004,
+      "vehicle": 2,
+      "traffic_id": 8,
+      "min_clearance": 0.308699666357289,
+      "speed": 40.54991211431919
+    },
+    {
+      "time": 36.95,
+      "vehicle": 1,
+      "traffic_id": 9,
+      "min_clearance": 0.7163397404158219,
+      "speed": 39.94347511734829
+    },
+    {
+      "time": 37.25,
+      "vehicle": 2,
+      "traffic_id": 19,
+      "min_clearance": 3.0469704540146187,
+      "speed": 37.716675871024734
+    },
+    {
+      "time": 38.400000000000006,
+      "vehicle": 2,
+      "traffic_id": 9,
+      "min_clearance": 0.4827553590496134,
+      "speed": 42.866535593161494
+    },
+    {
+      "time": 39.800000000000004,
+      "vehicle": 0,
+      "traffic_id": 31,
+      "min_clearance": 1.7284012608308752,
+      "speed": 32.73015572028757
+    },
+    {
+      "time": 41.45,
+      "vehicle": 1,
+      "traffic_id": 31,
+      "min_clearance": 2.3432570664268506,
+      "speed": 33.393417146757486
+    },
+    {
+      "time": 42.25,
+      "vehicle": 0,
+      "traffic_id": 5,
+      "min_clearance": 0.737945978393563,
+      "speed": 35.713093049254404
+    },
+    {
+      "time": 43.45,
+      "vehicle": 1,
+      "traffic_id": 5,
+      "min_clearance": 0.5163474103025967,
+      "speed": 41.49118079823754
+    },
+    {
+      "time": 44.550000000000004,
+      "vehicle": 2,
+      "traffic_id": 5,
+      "min_clearance": 0.25789128470862477,
+      "speed": 42.021851870858534
+    },
+    {
+      "time": 45.150000000000006,
+      "vehicle": 0,
+      "traffic_id": 11,
+      "min_clearance": 1.2745247240126973,
+      "speed": 31.652059550228948
+    },
+    {
+      "time": 46.6,
+      "vehicle": 1,
+      "traffic_id": 11,
+      "min_clearance": 1.963973526934306,
+      "speed": 29.85756482076949
+    },
+    {
+      "time": 47.95,
+      "vehicle": 0,
+      "traffic_id": 37,
+      "min_clearance": 0.8257430425534251,
+      "speed": 35.8494162472177
+    },
+    {
+      "time": 49.0,
+      "vehicle": 1,
+      "traffic_id": 37,
+      "min_clearance": 0.760589819654985,
+      "speed": 38.58536518210076
+    },
+    {
+      "time": 50.1,
+      "vehicle": 2,
+      "traffic_id": 37,
+      "min_clearance": 0.34576779532802726,
+      "speed": 43.710091815536806
+    },
+    {
+      "time": 50.5,
+      "vehicle": 0,
+      "traffic_id": 32,
+      "min_clearance": 0.8399736887659035,
+      "speed": 39.95142040728778
+    },
+    {
+      "time": 50.85,
+      "vehicle": 0,
+      "traffic_id": 34,
+      "min_clearance": 2.419614049089849,
+      "speed": 38.02727266028587
+    },
+    {
+      "time": 51.400000000000006,
+      "vehicle": 1,
+      "traffic_id": 32,
+      "min_clearance": 0.6328393634986578,
+      "speed": 41.434072758345906
+    },
+    {
+      "time": 51.650000000000006,
+      "vehicle": 1,
+      "traffic_id": 34,
+      "min_clearance": 2.519810720900075,
+      "speed": 40.98229225193324
+    },
+    {
+      "time": 52.2,
+      "vehicle": 2,
+      "traffic_id": 32,
+      "min_clearance": 0.366113987305955,
+      "speed": 41.69230054658567
+    },
+    {
+      "time": 52.400000000000006,
+      "vehicle": 0,
+      "traffic_id": 33,
+      "min_clearance": 1.1258250658432887,
+      "speed": 40.46946185839111
+    },
+    {
+      "time": 52.400000000000006,
+      "vehicle": 2,
+      "traffic_id": 34,
+      "min_clearance": 2.815550723700412,
+      "speed": 40.04394561953582
+    },
+    {
+      "time": 53.300000000000004,
+      "vehicle": 1,
+      "traffic_id": 33,
+      "min_clearance": 1.005570070283631,
+      "speed": 36.556867495392936
+    },
+    {
+      "time": 54.300000000000004,
+      "vehicle": 0,
+      "traffic_id": 38,
+      "min_clearance": 2.0744597156519893,
+      "speed": 38.15052756610345
+    },
+    {
+      "time": 54.300000000000004,
+      "vehicle": 2,
+      "traffic_id": 33,
+      "min_clearance": 0.6238318534698207,
+      "speed": 38.57930133630642
+    },
+    {
+      "time": 54.95,
+      "vehicle": 0,
+      "traffic_id": 35,
+      "min_clearance": 1.311966887262318,
+      "speed": 36.50058692975395
+    },
+    {
+      "time": 55.300000000000004,
+      "vehicle": 1,
+      "traffic_id": 38,
+      "min_clearance": 1.9337508372076602,
+      "speed": 34.13566060878267
+    },
+    {
+      "time": 56.150000000000006,
+      "vehicle": 1,
+      "traffic_id": 35,
+      "min_clearance": 0.649725583448345,
+      "speed": 36.159093736874176
+    },
+    {
+      "time": 56.5,
+      "vehicle": 2,
+      "traffic_id": 38,
+      "min_clearance": 2.0486630462274213,
+      "speed": 36.8954241301178
+    },
+    {
+      "time": 57.150000000000006,
+      "vehicle": 2,
+      "traffic_id": 35,
+      "min_clearance": 0.26984158642043365,
+      "speed": 39.67904580457272
+    },
+    {
+      "time": 57.300000000000004,
+      "vehicle": 0,
+      "traffic_id": 39,
+      "min_clearance": 0.8256745680996088,
+      "speed": 40.08458153034352
+    },
+    {
+      "time": 58.1,
+      "vehicle": 0,
+      "traffic_id": 36,
+      "min_clearance": 3.3847025753170503,
+      "speed": 39.001837401181675
+    },
+    {
+      "time": 58.1,
+      "vehicle": 1,
+      "traffic_id": 39,
+      "min_clearance": 0.869735056192597,
+      "speed": 39.38806296461217
+    },
+    {
+      "time": 58.85,
+      "vehicle": 1,
+      "traffic_id": 36,
+      "min_clearance": 2.9356969980652594,
+      "speed": 39.87217688469931
+    },
+    {
+      "time": 58.900000000000006,
+      "vehicle": 2,
+      "traffic_id": 39,
+      "min_clearance": 0.5492704380013261,
+      "speed": 40.98489360522409
+    },
+    {
+      "time": 59.400000000000006,
+      "vehicle": 0,
+      "traffic_id": 41,
+      "min_clearance": 0.8799782355439749,
+      "speed": 39.61557529210613
+    },
+    {
+      "time": 59.650000000000006,
+      "vehicle": 2,
+      "traffic_id": 36,
+      "min_clearance": 3.107269220127242,
+      "speed": 36.55144834761544
+    },
+    {
+      "time": 60.2,
+      "vehicle": 1,
+      "traffic_id": 41,
+      "min_clearance": 0.5116222928636925,
+      "speed": 39.486738184981995
+    },
+    {
+      "time": 61.35,
+      "vehicle": 0,
+      "traffic_id": 43,
+      "min_clearance": 1.2695494420722953,
+      "speed": 34.19096868291386
+    },
+    {
+      "time": 61.75,
+      "vehicle": 2,
+      "traffic_id": 41,
+      "min_clearance": 0.7341873904292189,
+      "speed": 37.16356142783314
+    },
+    {
+      "time": 62.5,
+      "vehicle": 1,
+      "traffic_id": 43,
+      "min_clearance": 0.8666695242146787,
+      "speed": 37.2277527182989
+    },
+    {
+      "time": 63.400000000000006,
+      "vehicle": 2,
+      "traffic_id": 43,
+      "min_clearance": 0.4358501820408577,
+      "speed": 39.57804291927239
+    },
+    {
+      "time": 63.7,
+      "vehicle": 0,
+      "traffic_id": 44,
+      "min_clearance": 1.2319898651885375,
+      "speed": 37.45216285061797
+    },
+    {
+      "time": 64.35000000000001,
+      "vehicle": 0,
+      "traffic_id": 45,
+      "min_clearance": 2.5604329835888566,
+      "speed": 39.81469042020992
+    },
+    {
+      "time": 64.5,
+      "vehicle": 1,
+      "traffic_id": 44,
+      "min_clearance": 0.5180868690213777,
+      "speed": 39.605446560835205
+    },
+    {
+      "time": 64.95,
+      "vehicle": 1,
+      "traffic_id": 45,
+      "min_clearance": 3.1494004908743154,
+      "speed": 35.97070351267438
+    },
+    {
+      "time": 65.4,
+      "vehicle": 0,
+      "traffic_id": 28,
+      "min_clearance": 1.2006388037771223,
+      "speed": 34.149170750132605
+    },
+    {
+      "time": 65.55,
+      "vehicle": 2,
+      "traffic_id": 44,
+      "min_clearance": 0.4516730437845493,
+      "speed": 35.07430220883559
+    },
+    {
+      "time": 66.5,
+      "vehicle": 2,
+      "traffic_id": 45,
+      "min_clearance": 2.967225243998138,
+      "speed": 28.96808687094822
+    },
+    {
+      "time": 67.10000000000001,
+      "vehicle": 1,
+      "traffic_id": 28,
+      "min_clearance": 1.3205601600821948,
+      "speed": 32.51517144802964
+    },
+    {
+      "time": 68.2,
+      "vehicle": 2,
+      "traffic_id": 28,
+      "min_clearance": 0.40595180602354014,
+      "speed": 36.67746486297062
+    },
+    {
+      "time": 68.8,
+      "vehicle": 0,
+      "traffic_id": 46,
+      "min_clearance": 1.0050597015127132,
+      "speed": 34.97225435607252
+    },
+    {
+      "time": 69.45,
+      "vehicle": 0,
+      "traffic_id": 42,
+      "min_clearance": 2.1457239087947886,
+      "speed": 34.22027247538007
+    },
+    {
+      "time": 69.8,
+      "vehicle": 1,
+      "traffic_id": 46,
+      "min_clearance": 0.4243120658392989,
+      "speed": 35.66797399853387
+    },
+    {
+      "time": 70.2,
+      "vehicle": 1,
+      "traffic_id": 42,
+      "min_clearance": 2.9885689359158607,
+      "speed": 34.17855152743576
+    },
+    {
+      "time": 70.7,
+      "vehicle": 0,
+      "traffic_id": 47,
+      "min_clearance": 1.1196222035608776,
+      "speed": 34.66836328446238
+    },
+    {
+      "time": 70.9,
+      "vehicle": 2,
+      "traffic_id": 46,
+      "min_clearance": 0.3877217747165248,
+      "speed": 37.15105084055768
+    },
+    {
+      "time": 71.75,
+      "vehicle": 1,
+      "traffic_id": 47,
+      "min_clearance": 1.045436070286468,
+      "speed": 34.09339143321503
+    },
+    {
+      "time": 72.85000000000001,
+      "vehicle": 2,
+      "traffic_id": 47,
+      "min_clearance": 0.5398193796494924,
+      "speed": 38.150411855040666
+    },
+    {
+      "time": 73.25,
+      "vehicle": 0,
+      "traffic_id": 48,
+      "min_clearance": 1.0066057578517131,
+      "speed": 38.73741563689638
+    },
+    {
+      "time": 74.15,
+      "vehicle": 1,
+      "traffic_id": 48,
+      "min_clearance": 0.5878418395331088,
+      "speed": 38.16249690032397
+    },
+    {
+      "time": 75.25,
+      "vehicle": 0,
+      "traffic_id": 50,
+      "min_clearance": 0.8702603434707209,
+      "speed": 36.409152343039636
+    },
+    {
+      "time": 75.3,
+      "vehicle": 2,
+      "traffic_id": 48,
+      "min_clearance": 0.4046849585571318,
+      "speed": 39.394469234888206
+    },
+    {
+      "time": 76.2,
+      "vehicle": 1,
+      "traffic_id": 50,
+      "min_clearance": 0.9614476887486841,
+      "speed": 38.02013282180831
+    },
+    {
+      "time": 77.35000000000001,
+      "vehicle": 2,
+      "traffic_id": 50,
+      "min_clearance": 0.5361812966460471,
+      "speed": 39.73596470192378
+    },
+    {
+      "time": 77.65,
+      "vehicle": 0,
+      "traffic_id": 51,
+      "min_clearance": 1.2016701389517161,
+      "speed": 39.46382640263523
+    },
+    {
+      "time": 78.60000000000001,
+      "vehicle": 0,
+      "traffic_id": 52,
+      "min_clearance": 2.1473717721660894,
+      "speed": 37.59415713822318
+    },
+    {
+      "time": 78.60000000000001,
+      "vehicle": 1,
+      "traffic_id": 51,
+      "min_clearance": 0.7616723387272061,
+      "speed": 39.447953883437265
+    },
+    {
+      "time": 79.25,
+      "vehicle": 1,
+      "traffic_id": 52,
+      "min_clearance": 3.3162894122834192,
+      "speed": 39.79372392313007
+    },
+    {
+      "time": 79.45,
+      "vehicle": 2,
+      "traffic_id": 51,
+      "min_clearance": 0.4202198900739481,
+      "speed": 41.508906435577586
+    },
+    {
+      "time": 79.7,
+      "vehicle": 0,
+      "traffic_id": 53,
+      "min_clearance": 1.0698894751837618,
+      "speed": 42.84591297841796
+    },
+    {
+      "time": 80.5,
+      "vehicle": 1,
+      "traffic_id": 53,
+      "min_clearance": 0.6813995378503711,
+      "speed": 40.457595503062215
+    },
+    {
+      "time": 81.35000000000001,
+      "vehicle": 2,
+      "traffic_id": 53,
+      "min_clearance": 0.48458638304534324,
+      "speed": 41.30934207675284
+    },
+    {
+      "time": 81.7,
+      "vehicle": 0,
+      "traffic_id": 54,
+      "min_clearance": 1.4017701708914003,
+      "speed": 39.03984916359518
+    },
+    {
+      "time": 82.60000000000001,
+      "vehicle": 1,
+      "traffic_id": 54,
+      "min_clearance": 0.6678000423766651,
+      "speed": 38.68098393161757
+    },
+    {
+      "time": 83.55000000000001,
+      "vehicle": 0,
+      "traffic_id": 56,
+      "min_clearance": 1.2548736247311332,
+      "speed": 41.3196616015633
+    },
+    {
+      "time": 83.55000000000001,
+      "vehicle": 2,
+      "traffic_id": 54,
+      "min_clearance": 0.35804147037164324,
+      "speed": 40.866695869156906
+    },
+    {
+      "time": 84.4,
+      "vehicle": 1,
+      "traffic_id": 56,
+      "min_clearance": 0.9667461932026208,
+      "speed": 39.96579889865172
+    },
+    {
+      "time": 85.25,
+      "vehicle": 2,
+      "traffic_id": 56,
+      "min_clearance": 0.6068392001698453,
+      "speed": 40.81184111894855
+    },
+    {
+      "time": 85.35000000000001,
+      "vehicle": 0,
+      "traffic_id": 49,
+      "min_clearance": 1.8427679726870696,
+      "speed": 39.81484623685413
+    },
+    {
+      "time": 86.0,
+      "vehicle": 0,
+      "traffic_id": 58,
+      "min_clearance": 0.936558391383646,
+      "speed": 40.91081993358927
+    },
+    {
+      "time": 86.45,
+      "vehicle": 1,
+      "traffic_id": 49,
+      "min_clearance": 2.007515906701749,
+      "speed": 41.57045285311232
+    },
+    {
+      "time": 86.80000000000001,
+      "vehicle": 1,
+      "traffic_id": 58,
+      "min_clearance": 0.5698208997313653,
+      "speed": 41.74283924985773
+    },
+    {
+      "time": 87.55000000000001,
+      "vehicle": 2,
+      "traffic_id": 49,
+      "min_clearance": 2.334935996873068,
+      "speed": 42.194969687653824
+    },
+    {
+      "time": 87.7,
+      "vehicle": 2,
+      "traffic_id": 58,
+      "min_clearance": 0.3928398127215839,
+      "speed": 41.29421180797517
+    },
+    {
+      "time": 88.0,
+      "vehicle": 0,
+      "traffic_id": 59,
+      "min_clearance": 1.1269530128765104,
+      "speed": 37.923067236115614
+    },
+    {
+      "time": 89.05000000000001,
+      "vehicle": 1,
+      "traffic_id": 59,
+      "min_clearance": 0.684343716934124,
+      "speed": 37.232974192019604
+    },
+    {
+      "time": 90.05000000000001,
+      "vehicle": 2,
+      "traffic_id": 59,
+      "min_clearance": 0.31956072236686095,
+      "speed": 40.027589117999085
+    },
+    {
+      "time": 90.10000000000001,
+      "vehicle": 0,
+      "traffic_id": 60,
+      "min_clearance": 1.2405941960213114,
+      "speed": 39.90795521433581
+    },
+    {
+      "time": 90.9,
+      "vehicle": 0,
+      "traffic_id": 57,
+      "min_clearance": 2.6516622912750454,
+      "speed": 36.405256909326276
+    },
+    {
+      "time": 91.0,
+      "vehicle": 1,
+      "traffic_id": 60,
+      "min_clearance": 0.8494617989200209,
+      "speed": 37.65813728405926
+    },
+    {
+      "time": 91.7,
+      "vehicle": 1,
+      "traffic_id": 57,
+      "min_clearance": 2.9705182051402437,
+      "speed": 39.22646281906624
+    },
+    {
+      "time": 91.85000000000001,
+      "vehicle": 2,
+      "traffic_id": 60,
+      "min_clearance": 0.4361330688875227,
+      "speed": 40.000986250343225
+    },
+    {
+      "time": 92.15,
+      "vehicle": 0,
+      "traffic_id": 62,
+      "min_clearance": 0.8294715819660868,
+      "speed": 41.80417983751352
+    },
+    {
+      "time": 92.45,
+      "vehicle": 2,
+      "traffic_id": 57,
+      "min_clearance": 3.1975436700630073,
+      "speed": 37.11099798960558
+    },
+    {
+      "time": 92.9,
+      "vehicle": 1,
+      "traffic_id": 62,
+      "min_clearance": 0.5140929064511603,
+      "speed": 41.281102263034164
+    },
+    {
+      "time": 93.45,
+      "vehicle": 0,
+      "traffic_id": 61,
+      "min_clearance": 2.3121517400321268,
+      "speed": 37.47624340300619
+    },
+    {
+      "time": 93.9,
+      "vehicle": 2,
+      "traffic_id": 62,
+      "min_clearance": 0.5485135743454093,
+      "speed": 37.44880914107623
+    },
+    {
+      "time": 94.0,
+      "vehicle": 0,
+      "traffic_id": 63,
+      "min_clearance": 0.9819215897348259,
+      "speed": 33.3867715535711
+    },
+    {
+      "time": 94.65,
+      "vehicle": 1,
+      "traffic_id": 61,
+      "min_clearance": 1.8853437037983314,
+      "speed": 33.24504335405537
+    },
+    {
+      "time": 95.35000000000001,
+      "vehicle": 1,
+      "traffic_id": 63,
+      "min_clearance": 1.2039875731753833,
+      "speed": 35.57662818880347
+    },
+    {
+      "time": 95.80000000000001,
+      "vehicle": 2,
+      "traffic_id": 61,
+      "min_clearance": 2.3419508647426976,
+      "speed": 36.49793819117151
+    },
+    {
+      "time": 96.4,
+      "vehicle": 2,
+      "traffic_id": 63,
+      "min_clearance": 0.40953203591236187,
+      "speed": 38.854274033704655
+    },
+    {
+      "time": 96.75,
+      "vehicle": 0,
+      "traffic_id": 65,
+      "min_clearance": 1.162747302662935,
+      "speed": 35.261472573422054
+    },
+    {
+      "time": 97.80000000000001,
+      "vehicle": 1,
+      "traffic_id": 65,
+      "min_clearance": 0.9154528559533074,
+      "speed": 36.19987164084617
+    },
+    {
+      "time": 98.4,
+      "vehicle": 1,
+      "traffic_id": 64,
+      "min_clearance": 3.143403921370112,
+      "speed": 38.1263705501913
+    },
+    {
+      "time": 98.7,
+      "vehicle": 2,
+      "traffic_id": 65,
+      "min_clearance": 0.44762430206982545,
+      "speed": 38.96991268089144
+    },
+    {
+      "time": 98.95,
+      "vehicle": 0,
+      "traffic_id": 66,
+      "min_clearance": 1.1194854863207104,
+      "speed": 38.975185042069675
+    },
+    {
+      "time": 99.45,
+      "vehicle": 2,
+      "traffic_id": 64,
+      "min_clearance": 2.6214631849881407,
+      "speed": 34.54635097762297
+    },
+    {
+      "time": 99.95,
+      "vehicle": 1,
+      "traffic_id": 66,
+      "min_clearance": 1.1916864051046636,
+      "speed": 33.88662216192081
+    },
+    {
+      "time": 101.05000000000001,
+      "vehicle": 2,
+      "traffic_id": 66,
+      "min_clearance": 0.6667918602764724,
+      "speed": 37.532990743513054
+    },
+    {
+      "time": 101.7,
+      "vehicle": 0,
+      "traffic_id": 67,
+      "min_clearance": 0.9832027244492465,
+      "speed": 39.07854988328124
+    },
+    {
+      "time": 102.65,
+      "vehicle": 0,
+      "traffic_id": 70,
+      "min_clearance": 2.927560725614908,
+      "speed": 37.04366230939357
+    },
+    {
+      "time": 102.65,
+      "vehicle": 1,
+      "traffic_id": 67,
+      "min_clearance": 0.7701947444104725,
+      "speed": 37.85172495599272
+    },
+    {
+      "time": 103.60000000000001,
+      "vehicle": 2,
+      "traffic_id": 67,
+      "min_clearance": 0.37874353685069634,
+      "speed": 38.8416642887221
+    },
+    {
+      "time": 103.85000000000001,
+      "vehicle": 0,
+      "traffic_id": 68,
+      "min_clearance": 1.308330220757243,
+      "speed": 34.435452960200095
+    },
+    {
+      "time": 104.2,
+      "vehicle": 1,
+      "traffic_id": 70,
+      "min_clearance": 1.8578005969268099,
+      "speed": 32.629120514132964
+    },
+    {
+      "time": 107.85000000000001,
+      "vehicle": 1,
+      "traffic_id": 68,
+      "min_clearance": 1.4602785103030327,
+      "speed": 27.03114246997689
+    },
+    {
+      "time": 108.80000000000001,
+      "vehicle": 0,
+      "traffic_id": 69,
+      "min_clearance": 1.0245203599684825,
+      "speed": 29.688561259031086
+    },
+    {
+      "time": 115.15,
+      "vehicle": 1,
+      "traffic_id": 69,
+      "min_clearance": 1.000887943365917,
+      "speed": 28.244801799506224
+    },
+    {
+      "time": 117.55000000000001,
+      "vehicle": 0,
+      "traffic_id": 71,
+      "min_clearance": 1.3563905564557035,
+      "speed": 33.94997555762979
+    },
+    {
+      "time": 118.95,
+      "vehicle": 1,
+      "traffic_id": 71,
+      "min_clearance": 0.5814785099706984,
+      "speed": 39.31497803549225
+    }
+  ],
+  "close_passes": [
+    {
+      "time": 2.5,
+      "vehicle": 1,
+      "traffic_id": 12,
+      "min_clearance": 1.305953396438582,
+      "speed": 37.57230945912902,
+      "points": 2273.1872581141447
+    },
+    {
+      "time": 3.25,
+      "vehicle": 0,
+      "traffic_id": 15,
+      "min_clearance": 1.3223926916430777,
+      "speed": 36.88616780041149,
+      "points": 292.08603034273
+    },
+    {
+      "time": 4.800000000000001,
+      "vehicle": 1,
+      "traffic_id": 15,
+      "min_clearance": 1.1726983849169024,
+      "speed": 38.16077973837661,
+      "points": 15925.406371790858
+    },
+    {
+      "time": 6.15,
+      "vehicle": 2,
+      "traffic_id": 15,
+      "min_clearance": 1.0650359827387144,
+      "speed": 39.515095773178494,
+      "points": 19423.123560569962
+    },
+    {
+      "time": 6.4,
+      "vehicle": 0,
+      "traffic_id": 27,
+      "min_clearance": 1.1539749553506633,
+      "speed": 38.17748762745188,
+      "points": 21716.641300063144
+    },
+    {
+      "time": 7.65,
+      "vehicle": 1,
+      "traffic_id": 27,
+      "min_clearance": 1.449406291372386,
+      "speed": 38.31584929698071,
+      "points": 24248.034020687184
+    },
+    {
+      "time": 8.75,
+      "vehicle": 0,
+      "traffic_id": 29,
+      "min_clearance": 0.5804568521469866,
+      "speed": 35.82317314308971,
+      "points": 35665.88245195596
+    },
+    {
+      "time": 8.950000000000001,
+      "vehicle": 2,
+      "traffic_id": 27,
+      "min_clearance": 1.3536704312086765,
+      "speed": 36.39281347842741,
+      "points": 24220.115387106747
+    },
+    {
+      "time": 9.950000000000001,
+      "vehicle": 1,
+      "traffic_id": 29,
+      "min_clearance": 0.4760229893964782,
+      "speed": 37.06966922752425,
+      "points": 42752.91929690567
+    },
+    {
+      "time": 10.9,
+      "vehicle": 0,
+      "traffic_id": 10,
+      "min_clearance": 0.9501092718400023,
+      "speed": 36.83549069405324,
+      "points": 35240.50514120485
+    },
+    {
+      "time": 11.350000000000001,
+      "vehicle": 2,
+      "traffic_id": 29,
+      "min_clearance": 0.27069199754664097,
+      "speed": 41.963780935367915,
+      "points": 56368.618387868286
+    },
+    {
+      "time": 12.05,
+      "vehicle": 1,
+      "traffic_id": 10,
+      "min_clearance": 1.1909427589631327,
+      "speed": 34.23361332797841,
+      "points": 32607.67111638858
+    },
+    {
+      "time": 13.200000000000001,
+      "vehicle": 2,
+      "traffic_id": 10,
+      "min_clearance": 1.108864598620668,
+      "speed": 30.402568227790475,
+      "points": 20822.365494074453
+    },
+    {
+      "time": 15.200000000000001,
+      "vehicle": 0,
+      "traffic_id": 14,
+      "min_clearance": 0.3841973305953126,
+      "speed": 32.113454110624296,
+      "points": 33259.780338834375
+    },
+    {
+      "time": 16.150000000000002,
+      "vehicle": 1,
+      "traffic_id": 14,
+      "min_clearance": 0.28446983993816616,
+      "speed": 35.74582125300076,
+      "points": 57996.69445286459
+    },
+    {
+      "time": 17.2,
+      "vehicle": 0,
+      "traffic_id": 4,
+      "min_clearance": 1.021893163041007,
+      "speed": 29.485753387370796,
+      "points": 18531.400134523887
+    },
+    {
+      "time": 17.5,
+      "vehicle": 2,
+      "traffic_id": 14,
+      "min_clearance": 0.31541443903905075,
+      "speed": 34.436912609027004,
+      "points": 23020.64089050267
+    },
+    {
+      "time": 25.8,
+      "vehicle": 0,
+      "traffic_id": 24,
+      "min_clearance": 0.49537575858191574,
+      "speed": 33.89766056230233,
+      "points": 7053.598380103509
+    },
+    {
+      "time": 27.0,
+      "vehicle": 1,
+      "traffic_id": 24,
+      "min_clearance": 0.3491882641096208,
+      "speed": 36.41886966962892,
+      "points": 15541.864559266338
+    },
+    {
+      "time": 28.05,
+      "vehicle": 0,
+      "traffic_id": 18,
+      "min_clearance": 1.0314058097426337,
+      "speed": 37.29847192869592,
+      "points": 14440.473325846591
+    },
+    {
+      "time": 28.35,
+      "vehicle": 2,
+      "traffic_id": 24,
+      "min_clearance": 0.30353206006036415,
+      "speed": 40.57515085195109,
+      "points": 28412.68685724583
+    },
+    {
+      "time": 29.150000000000002,
+      "vehicle": 1,
+      "traffic_id": 18,
+      "min_clearance": 1.3594751100688058,
+      "speed": 36.002260967142675,
+      "points": 21437.71554172111
+    },
+    {
+      "time": 30.150000000000002,
+      "vehicle": 2,
+      "traffic_id": 18,
+      "min_clearance": 1.494737161298579,
+      "speed": 34.99419315663665,
+      "points": 19277.868203615904
+    },
+    {
+      "time": 31.6,
+      "vehicle": 0,
+      "traffic_id": 30,
+      "min_clearance": 1.2459234234937229,
+      "speed": 38.66333224200834,
+      "points": 28513.279501800633
+    },
+    {
+      "time": 33.45,
+      "vehicle": 2,
+      "traffic_id": 2,
+      "min_clearance": 1.2972535127492015,
+      "speed": 37.84280693094051,
+      "points": 29899.722577576198
+    },
+    {
+      "time": 34.35,
+      "vehicle": 0,
+      "traffic_id": 8,
+      "min_clearance": 0.2721513174171311,
+      "speed": 39.50206252298692,
+      "points": 54613.89033085229
+    },
+    {
+      "time": 35.300000000000004,
+      "vehicle": 1,
+      "traffic_id": 8,
+      "min_clearance": 0.3407011773047668,
+      "speed": 40.58213894531829,
+      "points": 62008.567809394735
+    },
+    {
+      "time": 36.050000000000004,
+      "vehicle": 0,
+      "traffic_id": 9,
+      "min_clearance": 0.8256757108690415,
+      "speed": 40.46222881902363,
+      "points": 46595.457878513225
+    },
+    {
+      "time": 36.800000000000004,
+      "vehicle": 2,
+      "traffic_id": 8,
+      "min_clearance": 0.308699666357289,
+      "speed": 40.54991211431919,
+      "points": 54852.16117073169
+    },
+    {
+      "time": 36.95,
+      "vehicle": 1,
+      "traffic_id": 9,
+      "min_clearance": 0.7163397404158219,
+      "speed": 39.94347511734829,
+      "points": 53239.031462238454
+    },
+    {
+      "time": 38.400000000000006,
+      "vehicle": 2,
+      "traffic_id": 9,
+      "min_clearance": 0.4827553590496134,
+      "speed": 42.866535593161494,
+      "points": 54979.000493886626
+    },
+    {
+      "time": 42.25,
+      "vehicle": 0,
+      "traffic_id": 5,
+      "min_clearance": 0.737945978393563,
+      "speed": 35.713093049254404,
+      "points": 35900.180846260766
+    },
+    {
+      "time": 43.45,
+      "vehicle": 1,
+      "traffic_id": 5,
+      "min_clearance": 0.5163474103025967,
+      "speed": 41.49118079823754,
+      "points": 60826.29745183068
+    },
+    {
+      "time": 44.550000000000004,
+      "vehicle": 2,
+      "traffic_id": 5,
+      "min_clearance": 0.25789128470862477,
+      "speed": 42.021851870858534,
+      "points": 61515.116291045815
+    },
+    {
+      "time": 45.150000000000006,
+      "vehicle": 0,
+      "traffic_id": 11,
+      "min_clearance": 1.2745247240126973,
+      "speed": 31.652059550228948,
+      "points": 23180.17259003369
+    },
+    {
+      "time": 47.95,
+      "vehicle": 0,
+      "traffic_id": 37,
+      "min_clearance": 0.8257430425534251,
+      "speed": 35.8494162472177,
+      "points": 34591.38148741029
+    },
+    {
+      "time": 49.0,
+      "vehicle": 1,
+      "traffic_id": 37,
+      "min_clearance": 0.760589819654985,
+      "speed": 38.58536518210076,
+      "points": 52173.07996634846
+    },
+    {
+      "time": 50.1,
+      "vehicle": 2,
+      "traffic_id": 37,
+      "min_clearance": 0.34576779532802726,
+      "speed": 43.710091815536806,
+      "points": 65399.43188722913
+    },
+    {
+      "time": 50.5,
+      "vehicle": 0,
+      "traffic_id": 32,
+      "min_clearance": 0.8399736887659035,
+      "speed": 39.95142040728778,
+      "points": 49039.67567978743
+    },
+    {
+      "time": 51.400000000000006,
+      "vehicle": 1,
+      "traffic_id": 32,
+      "min_clearance": 0.6328393634986578,
+      "speed": 41.434072758345906,
+      "points": 60873.57913442755
+    },
+    {
+      "time": 52.2,
+      "vehicle": 2,
+      "traffic_id": 32,
+      "min_clearance": 0.366113987305955,
+      "speed": 41.69230054658567,
+      "points": 63457.14586786904
+    },
+    {
+      "time": 52.400000000000006,
+      "vehicle": 0,
+      "traffic_id": 33,
+      "min_clearance": 1.1258250658432887,
+      "speed": 40.46946185839111,
+      "points": 43792.63877269787
+    },
+    {
+      "time": 53.300000000000004,
+      "vehicle": 1,
+      "traffic_id": 33,
+      "min_clearance": 1.005570070283631,
+      "speed": 36.556867495392936,
+      "points": 42899.40155744804
+    },
+    {
+      "time": 54.300000000000004,
+      "vehicle": 2,
+      "traffic_id": 33,
+      "min_clearance": 0.6238318534698207,
+      "speed": 38.57930133630642,
+      "points": 53626.05260313313
+    },
+    {
+      "time": 54.95,
+      "vehicle": 0,
+      "traffic_id": 35,
+      "min_clearance": 1.311966887262318,
+      "speed": 36.50058692975395,
+      "points": 30871.505039260308
+    },
+    {
+      "time": 56.150000000000006,
+      "vehicle": 1,
+      "traffic_id": 35,
+      "min_clearance": 0.649725583448345,
+      "speed": 36.159093736874176,
+      "points": 47251.700063143246
+    },
+    {
+      "time": 57.150000000000006,
+      "vehicle": 2,
+      "traffic_id": 35,
+      "min_clearance": 0.26984158642043365,
+      "speed": 39.67904580457272,
+      "points": 63016.964082038816
+    },
+    {
+      "time": 57.300000000000004,
+      "vehicle": 0,
+      "traffic_id": 39,
+      "min_clearance": 0.8256745680996088,
+      "speed": 40.08458153034352,
+      "points": 50667.96883741777
+    },
+    {
+      "time": 58.1,
+      "vehicle": 1,
+      "traffic_id": 39,
+      "min_clearance": 0.869735056192597,
+      "speed": 39.38806296461217,
+      "points": 52166.468558346554
+    },
+    {
+      "time": 58.900000000000006,
+      "vehicle": 2,
+      "traffic_id": 39,
+      "min_clearance": 0.5492704380013261,
+      "speed": 40.98489360522409,
+      "points": 57930.16324473739
+    },
+    {
+      "time": 59.400000000000006,
+      "vehicle": 0,
+      "traffic_id": 41,
+      "min_clearance": 0.8799782355439749,
+      "speed": 39.61557529210613,
+      "points": 48064.09189573695
+    },
+    {
+      "time": 60.2,
+      "vehicle": 1,
+      "traffic_id": 41,
+      "min_clearance": 0.5116222928636925,
+      "speed": 39.486738184981995,
+      "points": 52878.94438409495
+    },
+    {
+      "time": 61.35,
+      "vehicle": 0,
+      "traffic_id": 43,
+      "min_clearance": 1.2695494420722953,
+      "speed": 34.19096868291386,
+      "points": 24132.34201674797
+    },
+    {
+      "time": 61.75,
+      "vehicle": 2,
+      "traffic_id": 41,
+      "min_clearance": 0.7341873904292189,
+      "speed": 37.16356142783314,
+      "points": 40013.19037803627
+    },
+    {
+      "time": 62.5,
+      "vehicle": 1,
+      "traffic_id": 43,
+      "min_clearance": 0.8666695242146787,
+      "speed": 37.2277527182989,
+      "points": 46396.95189758958
+    },
+    {
+      "time": 63.400000000000006,
+      "vehicle": 2,
+      "traffic_id": 43,
+      "min_clearance": 0.4358501820408577,
+      "speed": 39.57804291927239,
+      "points": 58909.48283802296
+    },
+    {
+      "time": 63.7,
+      "vehicle": 0,
+      "traffic_id": 44,
+      "min_clearance": 1.2319898651885375,
+      "speed": 37.45216285061797,
+      "points": 38492.66097748648
+    },
+    {
+      "time": 64.5,
+      "vehicle": 1,
+      "traffic_id": 44,
+      "min_clearance": 0.5180868690213777,
+      "speed": 39.605446560835205,
+      "points": 60339.78943273146
+    },
+    {
+      "time": 65.4,
+      "vehicle": 0,
+      "traffic_id": 28,
+      "min_clearance": 1.2006388037771223,
+      "speed": 34.149170750132605,
+      "points": 28428.129523943135
+    },
+    {
+      "time": 65.55,
+      "vehicle": 2,
+      "traffic_id": 44,
+      "min_clearance": 0.4516730437845493,
+      "speed": 35.07430220883559,
+      "points": 38424.895274275776
+    },
+    {
+      "time": 67.10000000000001,
+      "vehicle": 1,
+      "traffic_id": 28,
+      "min_clearance": 1.3205601600821948,
+      "speed": 32.51517144802964,
+      "points": 18530.23382914033
+    },
+    {
+      "time": 68.2,
+      "vehicle": 2,
+      "traffic_id": 28,
+      "min_clearance": 0.40595180602354014,
+      "speed": 36.67746486297062,
+      "points": 53439.50434910906
+    },
+    {
+      "time": 68.8,
+      "vehicle": 0,
+      "traffic_id": 46,
+      "min_clearance": 1.0050597015127132,
+      "speed": 34.97225435607252,
+      "points": 32361.36399819439
+    },
+    {
+      "time": 69.8,
+      "vehicle": 1,
+      "traffic_id": 46,
+      "min_clearance": 0.4243120658392989,
+      "speed": 35.66797399853387,
+      "points": 49986.30610208672
+    },
+    {
+      "time": 70.7,
+      "vehicle": 0,
+      "traffic_id": 47,
+      "min_clearance": 1.1196222035608776,
+      "speed": 34.66836328446238,
+      "points": 35133.758576305125
+    },
+    {
+      "time": 70.9,
+      "vehicle": 2,
+      "traffic_id": 46,
+      "min_clearance": 0.3877217747165248,
+      "speed": 37.15105084055768,
+      "points": 52051.2590913158
+    },
+    {
+      "time": 71.75,
+      "vehicle": 1,
+      "traffic_id": 47,
+      "min_clearance": 1.045436070286468,
+      "speed": 34.09339143321503,
+      "points": 34012.81327904316
+    },
+    {
+      "time": 72.85000000000001,
+      "vehicle": 2,
+      "traffic_id": 47,
+      "min_clearance": 0.5398193796494924,
+      "speed": 38.150411855040666,
+      "points": 54770.9201520877
+    },
+    {
+      "time": 73.25,
+      "vehicle": 0,
+      "traffic_id": 48,
+      "min_clearance": 1.0066057578517131,
+      "speed": 38.73741563689638,
+      "points": 44752.941660099874
+    },
+    {
+      "time": 74.15,
+      "vehicle": 1,
+      "traffic_id": 48,
+      "min_clearance": 0.5878418395331088,
+      "speed": 38.16249690032397,
+      "points": 54655.97903450297
+    },
+    {
+      "time": 75.25,
+      "vehicle": 0,
+      "traffic_id": 50,
+      "min_clearance": 0.8702603434707209,
+      "speed": 36.409152343039636,
+      "points": 44890.071797450364
+    },
+    {
+      "time": 75.3,
+      "vehicle": 2,
+      "traffic_id": 48,
+      "min_clearance": 0.4046849585571318,
+      "speed": 39.394469234888206,
+      "points": 58985.19139564161
+    },
+    {
+      "time": 76.2,
+      "vehicle": 1,
+      "traffic_id": 50,
+      "min_clearance": 0.9614476887486841,
+      "speed": 38.02013282180831,
+      "points": 44086.373531014644
+    },
+    {
+      "time": 77.35000000000001,
+      "vehicle": 2,
+      "traffic_id": 50,
+      "min_clearance": 0.5361812966460471,
+      "speed": 39.73596470192378,
+      "points": 55298.2923314308
+    },
+    {
+      "time": 77.65,
+      "vehicle": 0,
+      "traffic_id": 51,
+      "min_clearance": 1.2016701389517161,
+      "speed": 39.46382640263523,
+      "points": 40249.25814914258
+    },
+    {
+      "time": 78.60000000000001,
+      "vehicle": 1,
+      "traffic_id": 51,
+      "min_clearance": 0.7616723387272061,
+      "speed": 39.447953883437265,
+      "points": 54783.46652643026
+    },
+    {
+      "time": 79.45,
+      "vehicle": 2,
+      "traffic_id": 51,
+      "min_clearance": 0.4202198900739481,
+      "speed": 41.508906435577586,
+      "points": 61831.72632301011
+    },
+    {
+      "time": 79.7,
+      "vehicle": 0,
+      "traffic_id": 53,
+      "min_clearance": 1.0698894751837618,
+      "speed": 42.84591297841796,
+      "points": 47497.285110675024
+    },
+    {
+      "time": 80.5,
+      "vehicle": 1,
+      "traffic_id": 53,
+      "min_clearance": 0.6813995378503711,
+      "speed": 40.457595503062215,
+      "points": 57935.78118005379
+    },
+    {
+      "time": 81.35000000000001,
+      "vehicle": 2,
+      "traffic_id": 53,
+      "min_clearance": 0.48458638304534324,
+      "speed": 41.30934207675284,
+      "points": 59860.11624496253
+    },
+    {
+      "time": 81.7,
+      "vehicle": 0,
+      "traffic_id": 54,
+      "min_clearance": 1.4017701708914003,
+      "speed": 39.03984916359518,
+      "points": 35914.83665670518
+    },
+    {
+      "time": 82.60000000000001,
+      "vehicle": 1,
+      "traffic_id": 54,
+      "min_clearance": 0.6678000423766651,
+      "speed": 38.68098393161757,
+      "points": 56057.403737884066
+    },
+    {
+      "time": 83.55000000000001,
+      "vehicle": 0,
+      "traffic_id": 56,
+      "min_clearance": 1.2548736247311332,
+      "speed": 41.3196616015633,
+      "points": 41390.52258679677
+    },
+    {
+      "time": 83.55000000000001,
+      "vehicle": 2,
+      "traffic_id": 54,
+      "min_clearance": 0.35804147037164324,
+      "speed": 40.866695869156906,
+      "points": 61904.7215239948
+    },
+    {
+      "time": 84.4,
+      "vehicle": 1,
+      "traffic_id": 56,
+      "min_clearance": 0.9667461932026208,
+      "speed": 39.96579889865172,
+      "points": 49997.294981434505
+    },
+    {
+      "time": 85.25,
+      "vehicle": 2,
+      "traffic_id": 56,
+      "min_clearance": 0.6068392001698453,
+      "speed": 40.81184111894855,
+      "points": 56368.16819960387
+    },
+    {
+      "time": 86.0,
+      "vehicle": 0,
+      "traffic_id": 58,
+      "min_clearance": 0.936558391383646,
+      "speed": 40.91081993358927,
+      "points": 48147.247587952865
+    },
+    {
+      "time": 86.80000000000001,
+      "vehicle": 1,
+      "traffic_id": 58,
+      "min_clearance": 0.5698208997313653,
+      "speed": 41.74283924985773,
+      "points": 62136.81288742838
+    },
+    {
+      "time": 87.7,
+      "vehicle": 2,
+      "traffic_id": 58,
+      "min_clearance": 0.3928398127215839,
+      "speed": 41.29421180797517,
+      "points": 61448.65683791965
+    },
+    {
+      "time": 88.0,
+      "vehicle": 0,
+      "traffic_id": 59,
+      "min_clearance": 1.1269530128765104,
+      "speed": 37.923067236115614,
+      "points": 40893.846110047074
+    },
+    {
+      "time": 89.05000000000001,
+      "vehicle": 1,
+      "traffic_id": 59,
+      "min_clearance": 0.684343716934124,
+      "speed": 37.232974192019604,
+      "points": 50764.000689283064
+    },
+    {
+      "time": 90.05000000000001,
+      "vehicle": 2,
+      "traffic_id": 59,
+      "min_clearance": 0.31956072236686095,
+      "speed": 40.027589117999085,
+      "points": 61998.38684319076
+    },
+    {
+      "time": 90.10000000000001,
+      "vehicle": 0,
+      "traffic_id": 60,
+      "min_clearance": 1.2405941960213114,
+      "speed": 39.90795521433581,
+      "points": 40591.065535405505
+    },
+    {
+      "time": 91.0,
+      "vehicle": 1,
+      "traffic_id": 60,
+      "min_clearance": 0.8494617989200209,
+      "speed": 37.65813728405926,
+      "points": 50536.078580050154
+    },
+    {
+      "time": 91.85000000000001,
+      "vehicle": 2,
+      "traffic_id": 60,
+      "min_clearance": 0.4361330688875227,
+      "speed": 40.000986250343225,
+      "points": 59624.77273158448
+    },
+    {
+      "time": 92.15,
+      "vehicle": 0,
+      "traffic_id": 62,
+      "min_clearance": 0.8294715819660868,
+      "speed": 41.80417983751352,
+      "points": 52258.093515259374
+    },
+    {
+      "time": 92.9,
+      "vehicle": 1,
+      "traffic_id": 62,
+      "min_clearance": 0.5140929064511603,
+      "speed": 41.281102263034164,
+      "points": 62882.39779935946
+    },
+    {
+      "time": 93.9,
+      "vehicle": 2,
+      "traffic_id": 62,
+      "min_clearance": 0.5485135743454093,
+      "speed": 37.44880914107623,
+      "points": 44786.30282947738
+    },
+    {
+      "time": 94.0,
+      "vehicle": 0,
+      "traffic_id": 63,
+      "min_clearance": 0.9819215897348259,
+      "speed": 33.3867715535711,
+      "points": 31414.381411715778
+    },
+    {
+      "time": 95.35000000000001,
+      "vehicle": 1,
+      "traffic_id": 63,
+      "min_clearance": 1.2039875731753833,
+      "speed": 35.57662818880347,
+      "points": 34598.26313835303
+    },
+    {
+      "time": 96.4,
+      "vehicle": 2,
+      "traffic_id": 63,
+      "min_clearance": 0.40953203591236187,
+      "speed": 38.854274033704655,
+      "points": 58376.5241949026
+    },
+    {
+      "time": 96.75,
+      "vehicle": 0,
+      "traffic_id": 65,
+      "min_clearance": 1.162747302662935,
+      "speed": 35.261472573422054,
+      "points": 36578.51080693185
+    },
+    {
+      "time": 97.80000000000001,
+      "vehicle": 1,
+      "traffic_id": 65,
+      "min_clearance": 0.9154528559533074,
+      "speed": 36.19987164084617,
+      "points": 46577.116538701004
+    },
+    {
+      "time": 98.7,
+      "vehicle": 2,
+      "traffic_id": 65,
+      "min_clearance": 0.44762430206982545,
+      "speed": 38.96991268089144,
+      "points": 58061.12127462302
+    },
+    {
+      "time": 98.95,
+      "vehicle": 0,
+      "traffic_id": 66,
+      "min_clearance": 1.1194854863207104,
+      "speed": 38.975185042069675,
+      "points": 42611.104418420495
+    },
+    {
+      "time": 99.95,
+      "vehicle": 1,
+      "traffic_id": 66,
+      "min_clearance": 1.1916864051046636,
+      "speed": 33.88662216192081,
+      "points": 30847.410557746793
+    },
+    {
+      "time": 101.05000000000001,
+      "vehicle": 2,
+      "traffic_id": 66,
+      "min_clearance": 0.6667918602764724,
+      "speed": 37.532990743513054,
+      "points": 51156.4921788536
+    },
+    {
+      "time": 101.7,
+      "vehicle": 0,
+      "traffic_id": 67,
+      "min_clearance": 0.9832027244492465,
+      "speed": 39.07854988328124,
+      "points": 41993.5224643907
+    },
+    {
+      "time": 102.65,
+      "vehicle": 1,
+      "traffic_id": 67,
+      "min_clearance": 0.7701947444104725,
+      "speed": 37.85172495599272,
+      "points": 52226.676663909544
+    },
+    {
+      "time": 103.60000000000001,
+      "vehicle": 2,
+      "traffic_id": 67,
+      "min_clearance": 0.37874353685069634,
+      "speed": 38.8416642887221,
+      "points": 58998.86852288312
+    },
+    {
+      "time": 103.85000000000001,
+      "vehicle": 0,
+      "traffic_id": 68,
+      "min_clearance": 1.308330220757243,
+      "speed": 34.435452960200095,
+      "points": 31096.83384485964
+    },
+    {
+      "time": 107.85000000000001,
+      "vehicle": 1,
+      "traffic_id": 68,
+      "min_clearance": 1.4602785103030327,
+      "speed": 27.03114246997689,
+      "points": 833.9426941716289
+    },
+    {
+      "time": 108.80000000000001,
+      "vehicle": 0,
+      "traffic_id": 69,
+      "min_clearance": 1.0245203599684825,
+      "speed": 29.688561259031086,
+      "points": 984.0591468274807
+    },
+    {
+      "time": 115.15,
+      "vehicle": 1,
+      "traffic_id": 69,
+      "min_clearance": 1.000887943365917,
+      "speed": 28.244801799506224,
+      "points": 134.4393424157927
+    },
+    {
+      "time": 117.55000000000001,
+      "vehicle": 0,
+      "traffic_id": 71,
+      "min_clearance": 1.3563905564557035,
+      "speed": 33.94997555762979,
+      "points": 199.28750155220845
+    },
+    {
+      "time": 118.95,
+      "vehicle": 1,
+      "traffic_id": 71,
+      "min_clearance": 0.5814785099706984,
+      "speed": 39.31497803549225,
+      "points": 6791.7228042048555
+    }
+  ],
+  "maneuvers": [
+    {
+      "time": 11.800000000000033,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 7.6000000000000005,
+      "lane_change_time": 10.65,
+      "from_lane": 1,
+      "to_lane": 2,
+      "size": 1,
+      "pass_time": 8.75,
+      "follow_up_time": null
+    },
+    {
+      "time": 13.00000000000005,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 8.75,
+      "lane_change_time": 11.4,
+      "from_lane": 1,
+      "to_lane": 2,
+      "size": 1,
+      "pass_time": 9.950000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 14.40000000000007,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 10.65,
+      "lane_change_time": 12.5,
+      "from_lane": 1,
+      "to_lane": 2,
+      "size": 1,
+      "pass_time": 11.350000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 18.250000000000124,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 14.350000000000001,
+      "lane_change_time": 16.35,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 15.200000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 19.200000000000138,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 15.200000000000001,
+      "lane_change_time": 17.400000000000002,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 16.150000000000002,
+      "follow_up_time": null
+    },
+    {
+      "time": 20.550000000000157,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 16.05,
+      "lane_change_time": 18.650000000000002,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 17.5,
+      "follow_up_time": null
+    },
+    {
+      "time": 28.850000000000275,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 180.0,
+      "start_time": 25.1,
+      "lane_change_time": 27.6,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 25.8,
+      "follow_up_time": null
+    },
+    {
+      "time": 30.050000000000292,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 210.0,
+      "start_time": 25.85,
+      "lane_change_time": 28.400000000000002,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 27.0,
+      "follow_up_time": null
+    },
+    {
+      "time": 31.40000000000031,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 240.0,
+      "start_time": 27.650000000000002,
+      "lane_change_time": 29.400000000000002,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 28.35,
+      "follow_up_time": null
+    },
+    {
+      "time": 37.40000000000001,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 32.9,
+      "lane_change_time": 35.95,
+      "from_lane": 1,
+      "to_lane": 2,
+      "size": 1,
+      "pass_time": 34.35,
+      "follow_up_time": null
+    },
+    {
+      "time": 39.099999999999916,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 36.0,
+      "lane_change_time": 38.300000000000004,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 36.050000000000004,
+      "follow_up_time": null
+    },
+    {
+      "time": 43.74999999999965,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 39.7,
+      "lane_change_time": 41.2,
+      "from_lane": 1,
+      "to_lane": 2,
+      "size": 1,
+      "pass_time": 42.25,
+      "follow_up_time": null
+    },
+    {
+      "time": 46.499999999999496,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 43.0,
+      "lane_change_time": 44.800000000000004,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 43.45,
+      "follow_up_time": null
+    },
+    {
+      "time": 46.79999999999948,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 41.95,
+      "lane_change_time": 43.75,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 45.150000000000006,
+      "follow_up_time": 46.800000000000004
+    },
+    {
+      "time": 47.59999999999943,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 43.85,
+      "lane_change_time": 45.75,
+      "from_lane": 2,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 44.550000000000004,
+      "follow_up_time": null
+    },
+    {
+      "time": 49.9499999999993,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 45.25,
+      "lane_change_time": 46.800000000000004,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 47.95,
+      "follow_up_time": 49.95
+    },
+    {
+      "time": 52.04999999999918,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 48.7,
+      "lane_change_time": 50.5,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 49.0,
+      "follow_up_time": null
+    },
+    {
+      "time": 52.149999999999174,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 48.5,
+      "lane_change_time": 49.95,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 50.5,
+      "follow_up_time": null
+    },
+    {
+      "time": 53.14999999999912,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 49.400000000000006,
+      "lane_change_time": 51.5,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 50.1,
+      "follow_up_time": null
+    },
+    {
+      "time": 54.249999999999055,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 50.35,
+      "lane_change_time": 52.150000000000006,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 52.400000000000006,
+      "follow_up_time": 54.25
+    },
+    {
+      "time": 54.449999999999044,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 51.1,
+      "lane_change_time": 52.75,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 51.400000000000006,
+      "follow_up_time": null
+    },
+    {
+      "time": 55.249999999999,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 51.6,
+      "lane_change_time": 53.650000000000006,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 52.2,
+      "follow_up_time": null
+    },
+    {
+      "time": 56.349999999998936,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 53.2,
+      "lane_change_time": 54.900000000000006,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 53.300000000000004,
+      "follow_up_time": null
+    },
+    {
+      "time": 56.84999999999891,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 52.650000000000006,
+      "lane_change_time": 54.25,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 54.95,
+      "follow_up_time": 56.85
+    },
+    {
+      "time": 57.34999999999888,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 53.900000000000006,
+      "lane_change_time": 55.6,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 54.300000000000004,
+      "follow_up_time": null
+    },
+    {
+      "time": 58.89999999999879,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 55.1,
+      "lane_change_time": 56.85,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 57.300000000000004,
+      "follow_up_time": null
+    },
+    {
+      "time": 59.199999999998774,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 55.800000000000004,
+      "lane_change_time": 57.45,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 56.150000000000006,
+      "follow_up_time": null
+    },
+    {
+      "time": 60.19999999999872,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 56.5,
+      "lane_change_time": 58.5,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 57.150000000000006,
+      "follow_up_time": null
+    },
+    {
+      "time": 60.749999999998685,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 57.050000000000004,
+      "lane_change_time": 58.900000000000006,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 59.400000000000006,
+      "follow_up_time": null
+    },
+    {
+      "time": 61.14999999999866,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 57.900000000000006,
+      "lane_change_time": 59.5,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 58.1,
+      "follow_up_time": null
+    },
+    {
+      "time": 61.94999999999862,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 58.5,
+      "lane_change_time": 60.550000000000004,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 58.900000000000006,
+      "follow_up_time": null
+    },
+    {
+      "time": 63.199999999998546,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 59.2,
+      "lane_change_time": 60.75,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 61.35,
+      "follow_up_time": 63.2
+    },
+    {
+      "time": 63.24999999999854,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 59.75,
+      "lane_change_time": 61.400000000000006,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 60.2,
+      "follow_up_time": null
+    },
+    {
+      "time": 64.99999999999845,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 61.6,
+      "lane_change_time": 63.2,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 63.7,
+      "follow_up_time": null
+    },
+    {
+      "time": 65.54999999999842,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 62.300000000000004,
+      "lane_change_time": 63.800000000000004,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 62.5,
+      "follow_up_time": null
+    },
+    {
+      "time": 67.19999999999833,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 61.5,
+      "lane_change_time": 67.2,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 61.75,
+      "follow_up_time": null
+    },
+    {
+      "time": 67.5499999999983,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 64.10000000000001,
+      "lane_change_time": 65.65,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 64.5,
+      "follow_up_time": null
+    },
+    {
+      "time": 68.19999999999827,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 63.650000000000006,
+      "lane_change_time": 65.0,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 65.4,
+      "follow_up_time": 68.2
+    },
+    {
+      "time": 70.19999999999816,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 66.65,
+      "lane_change_time": 68.2,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 68.8,
+      "follow_up_time": null
+    },
+    {
+      "time": 70.94999999999811,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 67.15,
+      "lane_change_time": 68.65,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 69.8,
+      "follow_up_time": null
+    },
+    {
+      "time": 71.2499999999981,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 67.7,
+      "lane_change_time": 69.45,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 68.2,
+      "follow_up_time": null
+    },
+    {
+      "time": 72.69999999999801,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 68.65,
+      "lane_change_time": 70.2,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 70.7,
+      "follow_up_time": 72.7
+    },
+    {
+      "time": 73.24999999999798,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 69.3,
+      "lane_change_time": 70.95,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 71.75,
+      "follow_up_time": null
+    },
+    {
+      "time": 74.99999999999788,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 71.15,
+      "lane_change_time": 72.7,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 73.25,
+      "follow_up_time": null
+    },
+    {
+      "time": 75.59999999999785,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 71.65,
+      "lane_change_time": 73.25,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 74.15,
+      "follow_up_time": null
+    },
+    {
+      "time": 77.09999999999776,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 73.15,
+      "lane_change_time": 75.0,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 75.25,
+      "follow_up_time": 77.10000000000001
+    },
+    {
+      "time": 77.69999999999773,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 73.8,
+      "lane_change_time": 75.60000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 76.2,
+      "follow_up_time": null
+    },
+    {
+      "time": 79.34999999999764,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 75.5,
+      "lane_change_time": 77.10000000000001,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 77.65,
+      "follow_up_time": 79.35000000000001
+    },
+    {
+      "time": 79.9999999999976,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 76.10000000000001,
+      "lane_change_time": 77.7,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 78.60000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 81.19999999999753,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 77.65,
+      "lane_change_time": 79.35000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 79.7,
+      "follow_up_time": null
+    },
+    {
+      "time": 81.7999999999975,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 78.35000000000001,
+      "lane_change_time": 80.0,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 80.5,
+      "follow_up_time": null
+    },
+    {
+      "time": 83.19999999999742,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 79.60000000000001,
+      "lane_change_time": 81.2,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 81.7,
+      "follow_up_time": 83.2
+    },
+    {
+      "time": 83.84999999999738,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 80.15,
+      "lane_change_time": 81.80000000000001,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 82.60000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 85.2499999999973,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 81.75,
+      "lane_change_time": 83.2,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 83.55000000000001,
+      "follow_up_time": 85.25
+    },
+    {
+      "time": 85.84999999999727,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 82.30000000000001,
+      "lane_change_time": 83.85000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 84.4,
+      "follow_up_time": null
+    },
+    {
+      "time": 87.54999999999717,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 83.7,
+      "lane_change_time": 85.25,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 86.0,
+      "follow_up_time": null
+    },
+    {
+      "time": 88.14999999999714,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 84.25,
+      "lane_change_time": 85.85000000000001,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 86.80000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 89.64999999999705,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 85.9,
+      "lane_change_time": 87.55000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 88.0,
+      "follow_up_time": 89.65
+    },
+    {
+      "time": 90.29999999999701,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 86.45,
+      "lane_change_time": 88.15,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 89.05000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 90.74999999999699,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 87.15,
+      "lane_change_time": 89.15,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 87.7,
+      "follow_up_time": null
+    },
+    {
+      "time": 93.14999999999685,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 88.05000000000001,
+      "lane_change_time": 89.65,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 90.10000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 94.0499999999968,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 88.7,
+      "lane_change_time": 90.30000000000001,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 91.0,
+      "follow_up_time": null
+    },
+    {
+      "time": 95.64999999999671,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 89.5,
+      "lane_change_time": 95.65,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 90.05000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 98.39999999999655,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 95.35000000000001,
+      "lane_change_time": 96.80000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 95.35000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 98.64999999999654,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 94.55000000000001,
+      "lane_change_time": 96.25,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 96.75,
+      "follow_up_time": 98.65
+    },
+    {
+      "time": 99.44999999999649,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 95.85000000000001,
+      "lane_change_time": 97.60000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 96.4,
+      "follow_up_time": null
+    },
+    {
+      "time": 100.84999999999641,
+      "vehicle": 0,
+      "kind": "chain_single",
+      "points": 750.0,
+      "start_time": 97.10000000000001,
+      "lane_change_time": 98.65,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 98.95,
+      "follow_up_time": 100.85000000000001
+    },
+    {
+      "time": 100.84999999999641,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 97.65,
+      "lane_change_time": 99.15,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 97.80000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 101.74999999999636,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 98.25,
+      "lane_change_time": 99.9,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 98.7,
+      "follow_up_time": null
+    },
+    {
+      "time": 103.19999999999628,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 99.2,
+      "lane_change_time": 100.85000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 101.7,
+      "follow_up_time": null
+    },
+    {
+      "time": 103.89999999999624,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 100.15,
+      "lane_change_time": 101.7,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 102.65,
+      "follow_up_time": null
+    },
+    {
+      "time": 104.09999999999623,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 100.75,
+      "lane_change_time": 102.35000000000001,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": 101.05000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 106.64999999999608,
+      "vehicle": 2,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 103.05000000000001,
+      "lane_change_time": 104.75,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 103.60000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 106.89999999999607,
+      "vehicle": 0,
+      "kind": "pass_single",
+      "points": 300.0,
+      "start_time": 101.55000000000001,
+      "lane_change_time": 103.2,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": 103.85000000000001,
+      "follow_up_time": null
+    },
+    {
+      "time": 106.94999999999607,
+      "vehicle": 1,
+      "kind": "base",
+      "points": -300.0,
+      "start_time": 102.4,
+      "lane_change_time": 103.9,
+      "from_lane": 0,
+      "to_lane": 1,
+      "size": 1,
+      "pass_time": null,
+      "follow_up_time": null
+    },
+    {
+      "time": 118.19999999999543,
+      "vehicle": 1,
+      "kind": "pass_single",
+      "points": 120.0,
+      "start_time": 111.60000000000001,
+      "lane_change_time": 113.55000000000001,
+      "from_lane": 1,
+      "to_lane": 2,
+      "size": 1,
+      "pass_time": 115.15,
+      "follow_up_time": null
+    }
+  ],
+  "collisions": [],
+  "intentions": [
+    {
+      "time": 0.0,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 3.5,
+      "vehicle": 2,
+      "kind": "follow",
+      "reason": "1",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 7.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 14.967204529550564
+    },
+    {
+      "time": 7.4,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 3.1397947004010893
+    },
+    {
+      "time": 7.4,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 4.247342980415417
+    },
+    {
+      "time": 7.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 7.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 7.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 23.65622341824595
+    },
+    {
+      "time": 9.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 10.826946784860489
+    },
+    {
+      "time": 9.05,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.05,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.700000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 1.091348344274329
+    },
+    {
+      "time": 10.100000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 10.700000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.9415415650969043
+    },
+    {
+      "time": 11.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.600000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 4.695785436879837
+    },
+    {
+      "time": 11.600000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.700000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 7.358137761495036
+    },
+    {
+      "time": 11.700000000000001,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.75,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.8,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.8,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 13.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 12.775510652128865
+    },
+    {
+      "time": 13.8,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.0457840690738385
+    },
+    {
+      "time": 13.8,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.023304398669517
+    },
+    {
+      "time": 14.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 14.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 14.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 14.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 12.32719420437521
+    },
+    {
+      "time": 14.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 7.146997781971058
+    },
+    {
+      "time": 14.55,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 14.700000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.0407794479461563
+    },
+    {
+      "time": 15.25,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 15.850000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 16.1,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 17.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 3.1383373265938053
+    },
+    {
+      "time": 17.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 17.0,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 17.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 2.073435389919914
+    },
+    {
+      "time": 17.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.307505823379265
+    },
+    {
+      "time": 17.5,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 17.6,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 12.209634076096528
+    },
+    {
+      "time": 18.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 6.025810224242796
+    },
+    {
+      "time": 18.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.2,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 5.337864726281018
+    },
+    {
+      "time": 18.2,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.2,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "cancelled_slot_margin",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.2,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.3,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.5,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 0.3093483663670531
+    },
+    {
+      "time": 19.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 5.392729056418225
+    },
+    {
+      "time": 19.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.285817490635586
+    },
+    {
+      "time": 19.0,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "cancelled_slot_margin",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.0,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.400000000000002,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 15.627545428299833
+    },
+    {
+      "time": 19.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.55,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 20.85,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 21.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 4.073354386453921
+    },
+    {
+      "time": 21.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 21.5,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 22.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 8.589484750974144
+    },
+    {
+      "time": 22.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.98907267021601
+    },
+    {
+      "time": 22.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 5.591351930333949
+    },
+    {
+      "time": 22.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 22.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 22.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 23.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 10.432480403067721
+    },
+    {
+      "time": 23.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 22.3354447342385
+    },
+    {
+      "time": 23.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.508431929311732
+    },
+    {
+      "time": 23.05,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 23.450000000000003,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 24.0,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 24.0,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 24.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 23.887233513423972
+    },
+    {
+      "time": 24.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 24.700000000000003,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 3.7714204673305494
+    },
+    {
+      "time": 24.700000000000003,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 24.8,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 4.8097605442363465
+    },
+    {
+      "time": 24.85,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 25.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 25.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 25.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 26.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 35.48207977691819
+    },
+    {
+      "time": 26.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 6.9805245088707215
+    },
+    {
+      "time": 26.05,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 26.05,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 26.700000000000003,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 0.4743003593632329
+    },
+    {
+      "time": 27.05,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 27.700000000000003,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 28.400000000000002,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 29.25,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 29.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 11.878457589565379
+    },
+    {
+      "time": 29.8,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.122792024489363
+    },
+    {
+      "time": 29.8,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 9.239190116421206
+    },
+    {
+      "time": 30.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 30.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 30.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 32.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 15.82462998677871
+    },
+    {
+      "time": 32.95,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 33.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 0.4780515777935852
+    },
+    {
+      "time": 33.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 4.827136655780541
+    },
+    {
+      "time": 33.4,
+      "vehicle": 2,
+      "kind": "follow_ended",
+      "reason": "cancelled_slot_margin",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 33.4,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 33.5,
+      "vehicle": 2,
+      "kind": "follow",
+      "reason": "1",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 34.2,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 34.6,
+      "vehicle": 2,
+      "kind": "follow_ended",
+      "reason": "join_gap_too_short",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 35.0,
+      "vehicle": 2,
+      "kind": "follow",
+      "reason": "1",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 35.1,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 1.9652411076160297
+    },
+    {
+      "time": 35.4,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 35.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 27.373674333154177
+    },
+    {
+      "time": 35.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 35.6,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 11.33882463578967
+    },
+    {
+      "time": 35.6,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 35.65,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 1.9414501650434977
+    },
+    {
+      "time": 36.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 21.394435427937843
+    },
+    {
+      "time": 36.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 7.042026662874796
+    },
+    {
+      "time": 36.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.550000000000004,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 37.75,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 38.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 25.95694094675897
+    },
+    {
+      "time": 38.5,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 8.556938857727765
+    },
+    {
+      "time": 39.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.2,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 1.3665194242680263
+    },
+    {
+      "time": 39.2,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 8.876365287409463
+    },
+    {
+      "time": 39.2,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "cancelled_slot_margin",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.2,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.25,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.300000000000004,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.5,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 40.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 11.764599582261745
+    },
+    {
+      "time": 40.050000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 40.2,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 14.678053934812361
+    },
+    {
+      "time": 40.2,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 7.485097810314719
+    },
+    {
+      "time": 40.6,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 40.650000000000006,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 22.771629747158578
+    },
+    {
+      "time": 41.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 10.043892356614798
+    },
+    {
+      "time": 41.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 13.228657700467203
+    },
+    {
+      "time": 41.550000000000004,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.550000000000004,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 42.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 10.950252604749231
+    },
+    {
+      "time": 42.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 42.050000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 42.1,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.725536565893627
+    },
+    {
+      "time": 42.1,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 42.300000000000004,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.3076682666064334
+    },
+    {
+      "time": 43.050000000000004,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 43.2,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 43.900000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 44.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 13.64142907190395
+    },
+    {
+      "time": 44.900000000000006,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 44.900000000000006,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 19.47070437218482
+    },
+    {
+      "time": 45.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 45.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 45.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 14.90718121517758
+    },
+    {
+      "time": 45.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 27.94944831071026
+    },
+    {
+      "time": 45.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 45.550000000000004,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 45.6,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.270942626400447
+    },
+    {
+      "time": 45.800000000000004,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.2,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.300000000000004,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 17.59114273135716
+    },
+    {
+      "time": 46.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.8759872210429966
+    },
+    {
+      "time": 46.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.75,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.800000000000004,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.458918940735167
+    },
+    {
+      "time": 46.85,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 47.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 47.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 47.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 47.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 17.60491552652794
+    },
+    {
+      "time": 47.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 10.940573713492277
+    },
+    {
+      "time": 47.7,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.3029068316181656
+    },
+    {
+      "time": 48.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 48.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 48.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 48.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 25.79125234561885
+    },
+    {
+      "time": 48.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 16.101271006316857
+    },
+    {
+      "time": 48.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.685160429765311
+    },
+    {
+      "time": 48.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 48.75,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 49.45,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 49.45,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 49.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 7.552240727735771
+    },
+    {
+      "time": 49.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 50.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 50.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 24.369174281285687
+    },
+    {
+      "time": 50.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.999808374785252
+    },
+    {
+      "time": 50.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 50.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 50.6,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 3.2608057803565407
+    },
+    {
+      "time": 50.650000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 51.150000000000006,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 51.6,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 15.196944879662134
+    },
+    {
+      "time": 52.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.1,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 0.8878827151158566
+    },
+    {
+      "time": 52.1,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.150000000000006,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.150000000000006,
+      "vehicle": 1,
+      "kind": "unlocked",
+      "reason": "gap_too_short",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.6307703125791795
+    },
+    {
+      "time": 52.550000000000004,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 53.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 0.5083406745120191
+    },
+    {
+      "time": 53.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 13.57129797465992
+    },
+    {
+      "time": 53.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 53.050000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 53.1,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 5.369118087630304
+    },
+    {
+      "time": 53.25,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 53.7,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 53.95,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 54.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 21.625211432343313
+    },
+    {
+      "time": 54.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 54.800000000000004,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 5.78423930584082
+    },
+    {
+      "time": 54.800000000000004,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 55.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 55.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 55.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 21.82270348979406
+    },
+    {
+      "time": 55.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 12.575810650968343
+    },
+    {
+      "time": 55.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.0227831294291354
+    },
+    {
+      "time": 55.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 55.85,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 56.300000000000004,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 56.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 13.829865272625248
+    },
+    {
+      "time": 56.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 56.550000000000004,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 57.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 57.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 10.513348686018126
+    },
+    {
+      "time": 57.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.219873360846996
+    },
+    {
+      "time": 57.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 57.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 57.6,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 6.1781003069090366
+    },
+    {
+      "time": 57.650000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 57.95,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 58.35,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 58.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 18.217823195180664
+    },
+    {
+      "time": 58.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 58.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 1.9590992072512199
+    },
+    {
+      "time": 58.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 58.75,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 58.75,
+      "vehicle": 1,
+      "kind": "relocked",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 2.0074043561916914
+    },
+    {
+      "time": 59.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 59.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 59.1,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.6364764591730454
+    },
+    {
+      "time": 59.150000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 59.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 0.905642004576257
+    },
+    {
+      "time": 59.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 14.137760081355701
+    },
+    {
+      "time": 59.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 59.550000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 59.800000000000004,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 60.550000000000004,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 60.7,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.7998609936530192
+    },
+    {
+      "time": 61.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 10.97098000612501
+    },
+    {
+      "time": 61.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 61.300000000000004,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.4528993666399037
+    },
+    {
+      "time": 61.300000000000004,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 61.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 61.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 61.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.421775288782519
+    },
+    {
+      "time": 61.550000000000004,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 62.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 6.141760044994007
+    },
+    {
+      "time": 62.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.95419042841828
+    },
+    {
+      "time": 62.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 62.050000000000004,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 62.1,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 0.9158733590388328
+    },
+    {
+      "time": 62.150000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 62.35,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 62.650000000000006,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 63.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 22.56042867141874
+    },
+    {
+      "time": 63.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 63.1,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.5275278648063795
+    },
+    {
+      "time": 63.1,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 63.150000000000006,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 63.25,
+      "vehicle": 1,
+      "kind": "relocked",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 4.2505217576699215
+    },
+    {
+      "time": 63.7,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 64.55,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 65.60000000000001,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 66.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.986660508180612
+    },
+    {
+      "time": 66.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.9669310007788772
+    },
+    {
+      "time": 66.3,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 4.057003524345382
+    },
+    {
+      "time": 66.35000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 66.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 66.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 66.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 67.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 6.406573468825136
+    },
+    {
+      "time": 67.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.558323506782891
+    },
+    {
+      "time": 67.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 7.050155516393679
+    },
+    {
+      "time": 67.05,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 67.2,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 67.65,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 67.75,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 68.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 15.967894507883976
+    },
+    {
+      "time": 68.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 68.3,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 3.0772294477441937
+    },
+    {
+      "time": 68.3,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 68.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 68.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 68.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 5.295802576822061
+    },
+    {
+      "time": 68.55,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 69.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 15.676773384153385
+    },
+    {
+      "time": 69.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 15.651038752832356
+    },
+    {
+      "time": 69.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 69.05,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 69.3,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.411201773565117
+    },
+    {
+      "time": 69.35000000000001,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 69.65,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 70.35000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 70.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 18.843258730521903
+    },
+    {
+      "time": 70.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 70.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 0.36519705716087625
+    },
+    {
+      "time": 70.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.122066438251259
+    },
+    {
+      "time": 71.05,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 7.962571243696366
+    },
+    {
+      "time": 71.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 11.770444158746123
+    },
+    {
+      "time": 71.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.55,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.60000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 6.351782483771749
+    },
+    {
+      "time": 71.65,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 71.7,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 72.2,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 72.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 17.657852538136886
+    },
+    {
+      "time": 72.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 72.8,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.402791646336445
+    },
+    {
+      "time": 72.8,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 73.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 73.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 73.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.464099208522348
+    },
+    {
+      "time": 73.05,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 73.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 15.36574959784408
+    },
+    {
+      "time": 73.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 17.586379370527503
+    },
+    {
+      "time": 73.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 73.55,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 73.8,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 1.4620091133469577
+    },
+    {
+      "time": 73.85000000000001,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 74.45,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 74.8,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 75.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 26.57228574360166
+    },
+    {
+      "time": 75.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 75.3,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 6.2950383379529375
+    },
+    {
+      "time": 75.3,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 75.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 75.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 75.60000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.361279842892109
+    },
+    {
+      "time": 75.65,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 76.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 13.94301225917203
+    },
+    {
+      "time": 76.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 7.822122930138867
+    },
+    {
+      "time": 76.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 76.05,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 76.10000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 5.140238561606529
+    },
+    {
+      "time": 76.15,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 76.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 76.60000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 77.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 20.57969946436966
+    },
+    {
+      "time": 77.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 77.30000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.308610684427058
+    },
+    {
+      "time": 77.30000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 77.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 77.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 77.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 6.08708168612744
+    },
+    {
+      "time": 77.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 78.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 12.184713833379611
+    },
+    {
+      "time": 78.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 17.940365701075244
+    },
+    {
+      "time": 78.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 78.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 78.10000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 1.9761603242722776
+    },
+    {
+      "time": 78.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 78.4,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 78.80000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 79.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 19.34991370843496
+    },
+    {
+      "time": 79.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 79.2,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.159231066033917
+    },
+    {
+      "time": 79.2,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 79.25,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 79.25,
+      "vehicle": 1,
+      "kind": "relocked",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 3.431868777497548
+    },
+    {
+      "time": 79.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 79.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 79.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.767857609009261
+    },
+    {
+      "time": 79.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 80.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.9436968148815685
+    },
+    {
+      "time": 80.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 10.293633211824691
+    },
+    {
+      "time": 80.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 80.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 80.10000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.6806267542051136
+    },
+    {
+      "time": 80.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 80.2,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 80.65,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 81.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 24.745593892347152
+    },
+    {
+      "time": 81.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 81.2,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.462473199724136
+    },
+    {
+      "time": 81.2,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 81.25,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 81.25,
+      "vehicle": 1,
+      "kind": "relocked",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 4.739288431242094
+    },
+    {
+      "time": 81.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 81.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 81.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.5428452157265928
+    },
+    {
+      "time": 81.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 82.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 4.595666572025457
+    },
+    {
+      "time": 82.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 18.725691473404787
+    },
+    {
+      "time": 82.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 82.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 82.10000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.3607159423345001
+    },
+    {
+      "time": 82.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 82.35000000000001,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 82.65,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 83.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 22.017802610087948
+    },
+    {
+      "time": 83.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 83.30000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 5.563003422382699
+    },
+    {
+      "time": 83.30000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 83.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 83.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 83.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.643273551016555
+    },
+    {
+      "time": 83.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 84.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 10.836711670101487
+    },
+    {
+      "time": 84.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 15.230463641847528
+    },
+    {
+      "time": 84.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 84.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 84.10000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 4.313903006148812
+    },
+    {
+      "time": 84.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 84.30000000000001,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 84.7,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 85.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 23.8710211917141
+    },
+    {
+      "time": 85.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 85.30000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.77601225400982
+    },
+    {
+      "time": 85.30000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 85.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 85.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 85.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 8.758291128380698
+    },
+    {
+      "time": 85.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 86.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 17.138368247667096
+    },
+    {
+      "time": 86.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 8.87645280284638
+    },
+    {
+      "time": 86.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 86.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 86.10000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.596302697464089
+    },
+    {
+      "time": 86.15,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 86.5,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 87.0,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 87.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 13.965710100439502
+    },
+    {
+      "time": 87.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 87.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.880915177342522
+    },
+    {
+      "time": 87.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 87.75,
+      "vehicle": 1,
+      "kind": "relocked",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.4907134373997541
+    },
+    {
+      "time": 88.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 88.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 88.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.639031510900586
+    },
+    {
+      "time": 88.05000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 88.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.3479954661929332
+    },
+    {
+      "time": 88.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 17.665229381019763
+    },
+    {
+      "time": 88.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 88.55000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 88.7,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.161797183999588
+    },
+    {
+      "time": 88.75,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 89.15,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 89.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 6.163480034391305
+    },
+    {
+      "time": 89.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 89.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 89.80000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 4.4989009197642735
+    },
+    {
+      "time": 89.80000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 0.4271324604046276
+    },
+    {
+      "time": 90.05000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 1.5640790970528178
+    },
+    {
+      "time": 90.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 12.20321257104748
+    },
+    {
+      "time": 90.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.55000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.60000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 6.129397810718237
+    },
+    {
+      "time": 90.65,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 90.85000000000001,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 91.45,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 91.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 22.113240189444205
+    },
+    {
+      "time": 91.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 91.60000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 0.8453057210267252
+    },
+    {
+      "time": 91.60000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 91.65,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 91.75,
+      "vehicle": 1,
+      "kind": "relocked",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 2.209823476436177
+    },
+    {
+      "time": 92.0,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 93.55000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 94.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 12.338447029005657
+    },
+    {
+      "time": 94.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 94.2,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 1.52672210402985
+    },
+    {
+      "time": 94.4,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.5199278754339138
+    },
+    {
+      "time": 94.45,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 94.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 94.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 94.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 95.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 9.265789325657316
+    },
+    {
+      "time": 95.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 12.956956245202456
+    },
+    {
+      "time": 95.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.4864376300224285
+    },
+    {
+      "time": 95.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 95.05000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 95.4,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 96.05000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 96.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 12.41072919475615
+    },
+    {
+      "time": 96.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 96.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.1750680415215902
+    },
+    {
+      "time": 96.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 96.9,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 4.5111310607798805
+    },
+    {
+      "time": 96.95,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 97.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 97.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 97.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 97.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 12.992614266626298
+    },
+    {
+      "time": 97.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 16.936837050218365
+    },
+    {
+      "time": 97.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 5.891176112112098
+    },
+    {
+      "time": 97.55000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 97.7,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.10000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.30000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 15.40111711380083
+    },
+    {
+      "time": 98.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.60000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.6562384826124434
+    },
+    {
+      "time": 98.60000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.65,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "cancelled_stale_gap",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.65,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "stale_gap",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 98.7,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.053764215243482
+    },
+    {
+      "time": 98.75,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 99.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 99.0,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 99.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 6.927287923183903
+    },
+    {
+      "time": 99.55000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 99.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 13.489000885368078
+    },
+    {
+      "time": 99.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 99.80000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 5.990904421641935
+    },
+    {
+      "time": 100.2,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 100.30000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 100.80000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 101.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 16.7058326734627
+    },
+    {
+      "time": 101.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 101.30000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.893339438619896
+    },
+    {
+      "time": 101.30000000000001,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 101.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 101.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 102.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 2.714906369048058
+    },
+    {
+      "time": 102.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 12.159759694321075
+    },
+    {
+      "time": 102.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 1.4336028068068662
+    },
+    {
+      "time": 102.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 102.45,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 102.7,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 103.10000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 103.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 6.2697952718512715
+    },
+    {
+      "time": 103.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 103.7,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 0.43299916395695615
+    },
+    {
+      "time": 103.7,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 103.7,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 103.80000000000001,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 103.80000000000001,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "fallback_emergency",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 104.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 20.022302787509908
+    },
+    {
+      "time": 104.0,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 104.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 105.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 12.0895884546862
+    },
+    {
+      "time": 105.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 106.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 9.428709820338518
+    },
+    {
+      "time": 106.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 106.60000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 3.9780964973369555
+    },
+    {
+      "time": 106.60000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 8.801472655187318
+    },
+    {
+      "time": 107.15,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 107.2,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 107.5,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 109.85000000000001,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "cancelled_stalled",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 109.85000000000001,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "stalled",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 109.9,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 111.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 3.866516153107077
+    },
+    {
+      "time": 111.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 1.9281183433544902
+    },
+    {
+      "time": 111.05000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 111.5,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 111.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 16.87813863299467
+    },
+    {
+      "time": 111.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 112.0,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 112.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 2.1876336686754803
+    },
+    {
+      "time": 112.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": 1.7538504768681014
+    },
+    {
+      "time": 112.55000000000001,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 112.55000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 113.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 14.931997610768086
+    },
+    {
+      "time": 113.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 113.05000000000001,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 113.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.3177455678760088
+    },
+    {
+      "time": 113.5,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 113.60000000000001,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": 2.189253285689083
+    },
+    {
+      "time": 113.65,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 114.0,
+      "vehicle": 1,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 114.0,
+      "vehicle": 2,
+      "kind": "aborted",
+      "reason": "follow",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 114.55000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 115.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 14.14005458478183
+    },
+    {
+      "time": 116.2,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 116.60000000000001,
+      "vehicle": 2,
+      "kind": "follow_ended",
+      "reason": "join_gap_too_short",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 116.9,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 117.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 17.818764196485027
+    },
+    {
+      "time": 117.0,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 117.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 1.0930755174330988
+    },
+    {
+      "time": 117.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 2.9547582066834
+    },
+    {
+      "time": 117.10000000000001,
+      "vehicle": 1,
+      "kind": "follow_ended",
+      "reason": "cancelled_slot_margin",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 117.10000000000001,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "slot_margin",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 117.5,
+      "vehicle": 0,
+      "kind": "aborted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 117.5,
+      "vehicle": 1,
+      "kind": "follow",
+      "reason": "0",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 117.65,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 118.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 26.802561805849983
+    },
+    {
+      "time": 118.05000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 118.10000000000001,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "follow",
+      "lane": 0,
+      "gap_margin": 3.374172353779577
+    },
+    {
+      "time": 118.55000000000001,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 118.65,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 119.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 9.006497274904142
+    },
+    {
+      "time": 119.2,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 119.75,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    }
+  ],
+  "fallbacks": [
+    {
+      "time": 103.80000000000001,
+      "vehicle": 1,
+      "level": "emergency"
+    }
+  ],
+  "plan_conflicts": [
+    {
+      "time": 18.5,
+      "vehicle": 2,
+      "other": [
+        "team",
+        1
+      ],
+      "step": 23,
+      "resolution": "replanned"
+    },
+    {
+      "time": 101.60000000000001,
+      "vehicle": 2,
+      "other": [
+        "team",
+        1
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 103.80000000000001,
+      "vehicle": 1,
+      "other": [
+        "team",
+        0
+      ],
+      "step": 18,
+      "resolution": "emergency"
+    }
+  ]
+}

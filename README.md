@@ -49,7 +49,8 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 | No Hesi M4 | Safety layer m3.7, team-play scores v7–v8, the v8 world (BMW M3s, faster traffic without walls), and a new 10M-decision model trained on all of it. |
 | No Hesi M4, part 2 | The stack on the dynamic car: realistic M3 braking physics, a grip budget, an MPC with grip hard and contact soft, a 100 Hz stability layer, an MPC emergency mode and plan verification (planner m4.2). |
 | No Hesi M5 | The policy trained on the dynamic car in batches: an overtake action, traffic that always leaves a gap, training that survives hangs and crashes, and a CARLA bridge. |
-| **No Hesi M6** | Team play on the dynamic car: scores v9–v10, lane-speed traffic (scenario v8), 2 Hz decisions with a smaller entropy bonus, a missed-escape stuck penalty and quicker lane changes. On 50 seeds: 457k → 924k (batch 7), and 1,449k with the new planner settings. |
+| No Hesi M6 | Team play on the dynamic car: scores v9–v10, lane-speed traffic (scenario v8), 2 Hz decisions with a smaller entropy bonus, a missed-escape stuck penalty and quicker lane changes. On 50 seeds: 457k → 924k (batch 7), and 1,449k with the new planner settings. |
+| **No Hesi M7** | Quicker lane changes trained in, a cost for restless in-lane moves, no episode clock, follow mode (a car can follow its teammate's lane changes), the gap search and the lead-held gap rule, and a CARLA replay renderer. On 50 seeds: 1,449k → 4,192k with 0 crashes (batch 9b). |
 
 **Milestone 1** builds the game world:
 - **Road and traffic:** a straight 3-lane road, with seeded traffic that follows the car ahead and is recycled ahead of the team.
@@ -281,7 +282,7 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
    - About half of what batch 8 charged as missed escapes was the car moving into a slower lane through which it could still pass its leader.
 10. **Planner settings per run** (`EnvConfig.planner_overrides`): with the policy unchanged, a 1 s retry cooldown (from 3 s) and a lateral-error weight of 10 (from 1, `Planner.w_lateral`) make lane changes about 25 % quicker (about 1.5 s). The MPC weights are runtime values, so the acados solver isn't rebuilt.
 11. **Pass lanes** (`EnvConfig.stuck_pass_lanes`): a lane through which the car can pass its leader also counts as a way out. The test is the overtake corridor at the team's top speed: 2 m clear of the leader within 8 s, with that lane's car ahead still clear.
-12. **Batch 8b** (running): 10M decisions from batch 7's final model, with pass lanes, the 1 s cooldown and the lateral weight 10.
+12. **Batch 8b:** 10M decisions from batch 7's final model, with pass lanes, the 1 s cooldown and the lateral weight 10. It stopped at its 1M checkpoint (milestone 7).
 
 **Results (milestone 6):** 50 seeds (1000–1049), scenario v8, score v10, dynamic car with the nonlinear MPC (`models/ppo_v10_e5_dyn_b7_10m/eval_50seeds_*.json`). These scores aren't comparable with milestone 5's (score v8, scenario v7).
 
@@ -301,6 +302,37 @@ Each run is saved to its own numbered folder, `results/run_NNN_<scenario>_<polic
 - **Its 4 crashes in 50** all follow the same chain: a car backs out of a closing gap, retries it soon after, then cancels again or falls back to the emergency mode, and hits traffic. With 50 seeds, 4 crashes isn't distinguishable from 2. Batch 8b trains with the crash penalty on this planner.
 - **Seed 1500,** a hard seed: batch 7's final model scores 258k with its own planner and 1,357k with the 8b planner (`results/run_053_...`); the PPO v8 model scores 212k (`results/run_052_...`).
 
+**Milestone 7** trains the team to follow each other through lane changes and finds where the gap rule went wrong. In the order it happened:
+
+1. **Batch 8b** (see milestone 6) was stopped at its 1M checkpoint (1,476k on seeds 1000–1009) to add the next changes.
+2. **Restless in-lane moves and the clock** (batch 9): batch 7's policy changed its lean in the lane about 33 times a minute and dropped about 6 pending lane changes per car-minute. Batch 9 charged −5 reward units (−500 points) per lean change while holding the lane (`LEAN_CHANGE_PENALTY`) and per lane change it drops while pending (`LC_ABORT_PENALTY`). It also held the observation's episode clock at 0 (`OBS_CLOCK`), so the policy decides from what the cars see, not the time left. Batch 9 was replaced by 9b before its first checkpoint.
+3. **Follow mode** (`Planner.follow`, `EnvConfig.follow`): about 90 % of batch 8b's train breaks came right after a lane change. Action 45 (overtake right while slowing, which the policy never used) became "follow the teammate directly ahead". The follower's NMPC tracks the leader's path 0.35 s behind and joins its lane changes, or breaks off back to the policy when the path closes. While it follows, it makes no decisions of its own. With follow forced on whenever allowed, 8b's 1M model on 20 seeds: train time 32 → 41 s, fallbacks 16 → 5 per episode. The new action's logit started at the mean of the nine lane-keep logits + 8.0 (`TrainConfig.init_copy_actions`).
+4. **Batch 9b:** 9M decisions from 8b's 1M checkpoint with batch 9's costs and follow mode. It rose from 1,966k to 4,237k by 6.5M on seeds 1000–1009 (train time 44 → 80 s) and was stopped at 8.26M. **Its 6.5M best is milestone 7's model.**
+5. **Gap search** (`Planner.gap_search`, off by default): a car stuck behind traffic whose lane change finds no room at its target speed tries target speeds up to 8 m/s lower and higher, smaller changes first. It locks the gap behind or ahead of the blocking car with 3 m of room, predicted at 4 m/s² braking. It never drops behind a car that is already entirely behind it, and the policy's target speed comes back when the change ends. An MPC heading allowance (`Planner.yaw_margin`, scope `'gap'`) widens the bounds of the locked gap cars by a yawed car's corner reach. Applied to every obstacle (`'all'`), it caused crashes.
+6. **Batch 9c:** 3M decisions from 9b's 8.25M checkpoint with the gap search and the heading allowance, and a fresh learning-rate cycle. It gained nothing on 50 seeds (table below). The search fired only about 1.8 times per episode. The heading allowance adds about 1.5 fallbacks per episode: 9b's 6.5M model with it scores −295k ± 274k.
+7. **Lead-held gap rule** (`Planner.gap_lead`, off by default; `gap_lead_time` 1.25 s): the gap rule predicted a free-road speed-up into a gap ahead of a car alongside. The car's own lead held it back, so it stalled at the lane line, was cancelled (`'stalled'`) and retried, in a loop (seed 2). Now the predicted end position stays behind the nearest car ahead that overlaps sideways outside the target lane, until the car has moved clear of it. The same cap is used by the two-lane middle check and the lock check. Scripted overtaker, 50 seeds: 92k → 112k against the gap search (+20.5k ± 9.5k, stuck −10.4 s), and the search adds nothing on top of it. 9b's 6.5M model, not trained with it: −60k ± 260k (noise).
+8. **CARLA replay renderer** (`python -m nohesi.carla.replay <run>`): re-renders a saved run with every actor's physics off, placed frame by frame from its trajectory. This CARLA build's `world.tick()` advances 1–3 frames irregularly while rendering, which made live teleports jerk. Chase, team and car cameras; detailed car models; a HUD. The OpenDRIVE road can have sidewalks.
+9. **Batch 10** (next): 3M decisions from milestone 7's model with the lead-held gap rule, the gap search and heading allowance off, a 2 s pending limit (from 4 s), the LR continuing from 9b's 6.5M value (1.34e-4), and 25 evaluation seeds instead of 10. The 10-seed best picked noise: 9c's 3.0M scored 4,533k on 1000–1009 and 4,099k on 50 seeds.
+
+**Results (milestone 7):** 50 seeds (1000–1049), scenario v8, score v10, dynamic car with the nonlinear MPC, the 8b planner (1 s cooldown, lateral weight 10) in every column (`models/ppo_v10_e5_dyn_b9b_6.5m/eval_50seeds_*.json`).
+
+| | Milestone 6 model | **Batch 9b 6.5M** | 9b 6.5M + lead-held gap rule | Batch 9c best (3.0M) | Batch 9c final |
+|---|---|---|---|---|---|
+| Team score | 1,448,735 | **4,192k** | 4,132k | 4,099k | 3,987k |
+| Crashes | 4/50 | **0/50** | 0/50 | 0/50 | 1/50 |
+| Close passes | 73.0 | 106.5 | **106.8** | 105.8 | 105.1 |
+| Draft passes | 44.7 | **96.9** | 96.2 | 96.3 | 94.8 |
+| Train passes | 35.5 | 91.8 | 90.2 | **92.1** | 90.2 |
+| Train time (s) | 30.6 | **79.7** | 77.6 | 79.5 | 78.7 |
+| Stuck behind traffic (car-s per episode) | 67.4 | **37.7** | 39.8 | 40.3 | 38.9 |
+| Mean speed (m/s) | 31.6 | **33.8** | 33.6 | 33.6 | 33.6 |
+| Fallbacks per episode | 13.9 | **2.7** | 2.9 | 4.3 | 4.2 |
+
+- **Batch 9b's 6.5M model** (saved as `models/ppo_v10_e5_dyn_b9b_6.5m`; `run_sim.py`'s default) scores +2,743k ± 209k over milestone 6's model, better on 46 of 50 seeds. Train time is 2.6× and stuck time −44 %, with no crashes.
+- **Batch 9c and the lead-held gap rule** are within noise of it (−93k ± 248k and −60k ± 260k paired).
+- **Seed 2, 120 s** (`run_sim.py`): 5,173k, 0 collisions (`results/run_064_...`). Over 300 s: 12,851k (`results/run_060_...`); under CARLA physics 3,298k with 0 crashes and 0 contacts (`results/run_061_...`), against batch 7's 3,095k (`run_058`).
+- **Dense traffic** (45 cars, seed 1002): 1,257k against 428k for the PPO v8 model (`results/run_062_...`).
+
 ## Training (milestone 3)
 
 Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE = 'cuda'` in `train_rl.py`), install the CUDA build: `pip install --force-reinstall --no-deps torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130`. `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run; `--init-from <model>.zip` starts a new run from a trained model, for fine-tuning; `--vf-warmup N` then trains only the value network for the first N decisions, so its estimates fit the new score before the policy changes). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
@@ -309,7 +341,7 @@ Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE 
 - **Threads:** each worker uses one thread (`OMP/MKL/OPENBLAS_NUM_THREADS=1`), and the learner uses 1 torch thread while collecting rollouts and 4 during PPO updates. With 16 envs, training runs at about 80 timesteps/s; the environment (mostly the MPC) is the bottleneck.
 - **Dynamic-car batches (milestone 5):** run with `train_rl_supervised.py`, which resumes from the latest checkpoint after a failure. 24 torch-free workers (`rl/vec_worker.py`) run at about 63 decisions/s; a dead worker is replaced, and the step watchdog ends a hung solve. `train_rl.py` holds the current batch's settings, with the history of each batch in its comments.
 - **Milestone 6 batches:** 2 Hz decisions (0.5 s), 24 workers × 512 steps, LR 5e-4 decaying to 1e-5, KL limit 0.1, entropy 0.001, and a 100k-decision value warm-up when the reward or the dynamics change. Training-only terms: a fixed −10,000 reward units for a crash (1M points; reward clip 50) and the missed-escape stuck penalty (`STUCK_*`). `PLANNER_OVERRIDES` (`EnvConfig.planner_overrides`) sets planner values such as the retry cooldown or MPC weights for a run; they are saved in its `config.json`.
-- **Evaluation:** every 500k timesteps on held-out seeds 1000–1009 (`--seeds` for the final evaluation, default 1000–1019), with deterministic actions and masks applied. The model with the best mean team score is saved as `best_model.zip` + `best_vecnormalize.pkl`.
+- **Evaluation:** every 500k timesteps on held-out seeds 1000–1009 (batch 10: 1000–1024, `EVAL_SEEDS`; `--seeds` for the final evaluation, default 1000–1019), with deterministic actions and masks applied. The model with the best mean team score is saved as `best_model.zip` + `best_vecnormalize.pkl`.
 - **Saved models:** `models/<name>/` holds the trained models kept in git: best and final models with their `vecnormalize` files, `config.json`, `eval_history.csv` and the 20-seed evaluations. `run_sim.py` (`POLICY = 'ppo'`, `PPO_RUN`) and `nohesi.rl.evaluate` accept these folders like a run folder.
 - **Outputs:** everything goes to `runs_rl/<run_id>/` (git-ignored): `config.json` (configs, library versions, git commit), TensorBoard logs in `tb/` (per-term reward, aux penalties, episode and eval metrics; view with `.venv\Scripts\tensorboard --logdir runs_rl`), `checkpoints/`, and `eval_history.csv`.
 

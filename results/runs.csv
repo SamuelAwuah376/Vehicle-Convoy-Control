@@ -52,3 +52,5 @@ run,time,folder,scenario,policy,score,seed,planner,vehicle_model,team_score,coll
 059,2026-11-05T15:19:14,run_059_v8_ppo-b9b_best2.5M_scorev10_seed2_carla_300s,v8,ppo-ppo_v10_e5_dyn_b9b_best2.5M,v10,2,m4.3,dynamic,3217308.1,0,time
 060,2026-11-06T08:31:02,run_060_v8_ppo-b9b_best6.5M_scorev10_seed2_dynamic_nmpc_300s,v8,ppo-ppo_v10_e5_dyn_b9b_best6.5M,v10,2,m4.3,dynamic,12851234.8,0,time
 061,2026-11-06T10:18:24,run_061_v8_ppo-ppo_v10_e5_dyn_b9b_9m_6.5M_scorev10_seed2_carla_300s,v8,ppo-ppo_v10_e5_dyn_b9b_9m_001@6500208,v10,2,m4.3,dynamic,3298157.3,0,time
+063,2026-11-07T04:13:24,run_063_v8_ppo-b9c_best1M_scorev10_seed2_dynamic_nmpc_300s,v8,ppo-ppo_v10_e5_dyn_b9c_best1M,v10,2,m4.3,dynamic,6433938.7,0,time
+064,2026-11-07T23:31:17,run_064_v8_ppo-ppo_v10_e5_dyn_b9b_6.5m_scorev10_seed2_dynamic_nmpc_retry_cooldown1_w_lateral10,v8,ppo-ppo_v10_e5_dyn_b9b_6.5m,v10,2,m4.3,dynamic,5173396.0,0,time
