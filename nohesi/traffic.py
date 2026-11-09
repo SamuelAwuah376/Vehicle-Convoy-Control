@@ -389,15 +389,26 @@ class Traffic:
             self.lc_end[done] = self.time
 
     def recycle(self, team_s):
-        """Respawn cars that fell behind the team at a free spot ahead (skipped if none is free)."""
-        rear, front = np.min(team_s), np.max(team_s)
-        for i in np.flatnonzero(self.s < rear-self.cfg.recycle_behind):
-            s = front+self.cfg.respawn_ahead+self.rng.uniform(0, 50)
-            lanes = [l for l in self.rng.permutation(self.road.cfg.lanes) if self._free(s, l, skip=i)]
-            if lanes:
-                v0 = self._speed(lanes[0])
-                self.s[i], self.lane[i], self.v[i], self.v0[i] = s, lanes[0], v0, v0
-                self.target[i], self.lc_t[i], self.lc_end[i] = lanes[0], np.nan, -np.inf
+        """Respawn cars that fell behind the team at a free spot ahead (skipped if none is free): one spot in a random
+        free lane, or with respawn_spread the emptiest lane near the team first at several spots (Traffic config)."""
+        c, rear, front = self.cfg, np.min(team_s), np.max(team_s)
+        for i in np.flatnonzero(self.s < rear-c.recycle_behind):
+            if c.respawn_spread:
+                spots = front+c.respawn_ahead+self.rng.uniform(0, c.respawn_spot_gap)+c.respawn_spot_gap*np.arange(c.respawn_spots)
+                near = (self.s > rear-c.respawn_count_behind) & (self.s < front+c.respawn_count_ahead)
+                near[i] = False
+                count = [int(np.sum(self._occupies(l) & near)) for l in range(self.road.cfg.lanes)]
+                lanes = sorted(self.rng.permutation(self.road.cfg.lanes), key=lambda l: count[l])
+                place = next(((s, l) for l in lanes for s in spots if self._free(s, l, skip=i)), None)
+            else:
+                s = front+c.respawn_ahead+self.rng.uniform(0, 50)
+                lanes = [l for l in self.rng.permutation(self.road.cfg.lanes) if self._free(s, l, skip=i)]
+                place = (s, lanes[0]) if lanes else None
+            if place is not None:
+                s, lane = place
+                v0 = self._speed(lane)
+                self.s[i], self.lane[i], self.v[i], self.v0[i] = s, lane, v0, v0
+                self.target[i], self.lc_t[i], self.lc_end[i] = lane, np.nan, -np.inf
                 self.id[i] = self.next_id; self.next_id += 1
 
     def predict(self, horizon):

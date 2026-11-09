@@ -125,10 +125,22 @@ class Traffic:
     blockade_gap: float = 10.6
     blockade_buffer: float = 10.0
     blockade_headway: float = 0.5
+    # Spread respawns (off by default; off, a recycled car tries one spot respawn_ahead + U(0, 50) m ahead in a random
+    # free lane, with the same rng draws as before). On, it tries the lane with the fewest traffic cars from
+    # respawn_count_behind behind the rearmost teammate to respawn_count_ahead ahead of the front one first (ties
+    # random), at respawn_spots spots respawn_spot_gap apart from respawn_ahead + U(0, respawn_spot_gap) m ahead, nearest
+    # first. With one spot, dense traffic in two lanes left no spot in the third that would not close a blockade
+    # (no_blockades): at 45 cars the right lane stayed empty for a minute (seed 1000).
+    respawn_spread: bool = False
+    respawn_spots: int = 10
+    respawn_spot_gap: float = 20.0
+    respawn_count_behind: float = 150.0
+    respawn_count_ahead: float = 500.0
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('lane_changes', 'mobil_politeness', 'mobil_threshold',
-                                                             'keep_right_bias', 'no_walls', 'no_blockades', 'lane_speeds')))
+                                                             'keep_right_bias', 'no_walls', 'no_blockades', 'lane_speeds',
+                                                             'respawn_spread')))
         if not all(isfinite(lo) and isfinite(hi) and 0 < lo <= hi for lo, hi in self.lane_speeds):
             raise ValueError('lane_speeds needs a (min, max) range per lane with 0 < min <= max')
         if any(not isfinite(getattr(self, k)) or getattr(self, k) < 0 for k in ('mobil_politeness', 'mobil_threshold')):
@@ -489,8 +501,20 @@ def scenario_v8():
                                                     lane_speeds=(slow, slow, fast)))
 
 
+def scenario_v9():
+    """v8 with denser, more mixed traffic (the user's call, 2026-11-08): 45 traffic cars instead of 30 (min_gap 15 m),
+    three lane speeds (right 55-62 mph, middle 62-68 mph, left 70-80 mph; v8: 60-65 / 60-65 / 70-80), traffic lane
+    changes 3x as often (lane_change_prob 0.3; v8: 0.1), and spread respawns (Traffic.respawn_spread: with one respawn
+    spot, the no-blockade rule kept the right lane empty for a minute at this density). Spawned from 150 m behind to
+    400 m ahead of the team (v8: 350; at 350, 4.6 % of seeds could not place all 45 cars; at 400, none of 6000)."""
+    s, mph = scenario_v8(), 0.44704
+    return replace(s, version='v9', traffic=replace(s.traffic, count=45, min_gap=15.0, spawn_ahead=400.0, speed_min=55*mph,
+                                                    speed_max=80*mph, lane_change_prob=0.3, respawn_spread=True,
+                                                    lane_speeds=((55*mph, 62*mph), (62*mph, 68*mph), (70*mph, 80*mph))))
+
+
 SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4,
-             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7, 'v8': scenario_v8}
+             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7, 'v8': scenario_v8, 'v9': scenario_v9}
 
 
 def score_v1():
