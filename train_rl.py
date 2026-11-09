@@ -10,7 +10,7 @@ from nohesi.intentions import ACTIONS, FOLLOW
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v10_e5_dyn_b11_5m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v10_e5_dyn_b11b_5m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -80,6 +80,11 @@ RUN_ID = 'ppo_v10_e5_dyn_b11_5m_001'    # folder under runs_rl/; reuse with RESU
 # cars, lane speeds 55-62 / 62-68 / 70-80 mph, traffic lane changes 3x as often, spread respawns; 10 seeds 1000-1009:
 # batch 10's final 1,050k, 2/10 crashes, 9b's 6.5M 933k), batch 10's other settings, the LR again from 1.34e-4, the
 # evaluations on v9, and a value warm-up for the new traffic.
+# Batch 11b (the user's call, 2026-11-08): batch 11 stopped at 307k (STOPPED.md) for two planner faults behind batch 10's
+# v9 crashes, now fixed (V9_FIXES): a lane-keeping lead car could not brake early for a jam, boxed in from behind by its
+# follower's plan (seed 1002), and a committed follower was dropped back behind slower traffic when its leader turned
+# back (seed 1004); with both fixes, batch 10's final finishes both seeds without a collision. The same 5M from batch
+# 10's final model with batch 11's settings plus the fixes.
 SCENARIO = 'v9'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1; v8: v7 with
                              # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left; v9: v8 with 45
@@ -124,7 +129,10 @@ GAP_LEAD = (('gap_lead', True), ('pending_max_time', 2.0))   # 10: Planner.gap_l
                              # the car's own lead until it is clear of it sideways) and a pending lane change cancelled after
                              # 2 s (default 4 s; 9b's 6.5M never reached the limit). 9c: (('gap_search', True), ('yaw_margin',
                              # True), ('yaw_margin_scope', 'gap')): the gap search and the heading allowance on the gap cars
-PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', W_LATERAL))+GAP_LEAD   # 8b: Planner settings over the defaults
+V9_FIXES = (('ignore_rear_mates', True), ('follow_finish_committed', True))   # 11b: a lane-keeping car leaves the
+                             # teammates behind it in its lane out of its MPC obstacles; a committed follower whose leader
+                             # turns back finishes its own lane change (Planner.ignore_rear_mates, follow_finish_committed)
+PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', W_LATERAL))+GAP_LEAD+V9_FIXES   # 8b: Planner settings over the defaults
                              # (EnvConfig.planner_overrides). retry_cooldown 3.0 -> 1.0 s: after a forced cancel the car may
                              # re-request that lane sooner (batch 7's final model, 50 seeds: 1,048k vs 924k, +124k +- 69k);
                              # w_lateral 1 -> W_LATERAL: quicker lane changes
@@ -150,7 +158,7 @@ VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value
                              # 6: 100k, back to 2 Hz: the critic's per-decision discount and rewards change; 7: 0, the reward, traffic
                              # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes;
                              # 9: 100k, the lean and abort costs and the clock input; 9b: 100k, follow mode; 9c: 100k, the gap search;
-                             # 10: 100k, the lead-held gap rule and the 2 s pending limit; 11: 100k, the v9 traffic)
+                             # 10: 100k, the lead-held gap rule and the 2 s pending limit; 11, 11b: 100k, the v9 traffic)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
 INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b10_3m_001/final_model.zip'   # None: from scratch (9b: 8b's 1M; 9c: 9b's 8.25M;
                              # 10: models/ppo_v10_e5_dyn_b9b_6.5m/best_model.zip)
