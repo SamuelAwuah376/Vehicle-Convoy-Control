@@ -10,7 +10,7 @@ from nohesi.intentions import ACTIONS, FOLLOW
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v10_e5_dyn_b11b_5m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v10_e5_dyn_b11c_2.75m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -85,6 +85,12 @@ RUN_ID = 'ppo_v10_e5_dyn_b11b_5m_001'    # folder under runs_rl/; reuse with RES
 # follower's plan (seed 1002), and a committed follower was dropped back behind slower traffic when its leader turned
 # back (seed 1004); with both fixes, batch 10's final finishes both seeds without a collision. The same 5M from batch
 # 10's final model with batch 11's settings plus the fixes.
+# Batch 11c (the user's call, 2026-11-09): batch 11b stopped at 2.37M (STOPPED.md) because the fixes cost a lot on v8:
+# batch 10's final there with them 2,467k, 3/50 crashes, against 4,327k, 0/50 without (-1,860k +- 201k paired, better on
+# 3/50 seeds; stuck +24 s, fallbacks 2.7 -> 10 per episode; each alone on 10 seeds: ignore_rear_mates -877k,
+# follow_finish_committed -531k). The policy itself transfers (11b's 1.5M under the fixes on v8: +58k +- 151k over batch
+# 10's final under them). The rest of the 5M from 11b's 2.25M checkpoint with the fixes off (11b on 50 v9 seeds with them:
+# 2M 1,275k, 0/50 crashes; batch 10's final 1,077k, 5/50), the LR continuing from 11b's 2.25M value, a value warm-up.
 SCENARIO = 'v9'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1; v8: v7 with
                              # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left; v9: v8 with 45
@@ -100,7 +106,7 @@ GAE_LAMBDA = 0.95            # per decision (5 Hz: 0.98, 0.95 = 0.98^2.5)
 N_STEPS = 512                # rollout per env per update (5 Hz: 1280): 256 s of driving either way; 24 x 512 = 12,288
 ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
 N_ENVS = 24                  # parallel SubprocVecEnv workers (one CPU thread each; 24 = the physical cores)
-TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (600 per 120 s episode at 5 Hz, 240 at 2 Hz); dynamic,
+TOTAL_TIMESTEPS = 2_750_000   # 11c: the rest of 11b's 5M after its 2.25M checkpoint; policy decisions summed over envs (600 per 120 s episode at 5 Hz, 240 at 2 Hz); dynamic,
                               # 24 envs at 2 Hz: ~50-60/s, ~25 h per 5M (9: the rest of 8b's 10M; 9c: 3M)
 EVAL_SEEDS = tuple(range(1000, 1025))   # held-out seeds for the evaluations during training (until 9c: 1000-1009)
 EVAL_ENVS = 25               # parallel eval workers (idle between evals; torch-free workers hold ~0.1 GB each; until 9c: 10)
@@ -131,8 +137,9 @@ GAP_LEAD = (('gap_lead', True), ('pending_max_time', 2.0))   # 10: Planner.gap_l
                              # True), ('yaw_margin_scope', 'gap')): the gap search and the heading allowance on the gap cars
 V9_FIXES = (('ignore_rear_mates', True), ('follow_finish_committed', True))   # 11b: a lane-keeping car leaves the
                              # teammates behind it in its lane out of its MPC obstacles; a committed follower whose leader
-                             # turns back finishes its own lane change (Planner.ignore_rear_mates, follow_finish_committed)
-PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', W_LATERAL))+GAP_LEAD+V9_FIXES   # 8b: Planner settings over the defaults
+                             # turns back finishes its own lane change (Planner.ignore_rear_mates, follow_finish_committed);
+                             # 11c: off (they cost -1,860k +- 201k on v8)
+PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', W_LATERAL))+GAP_LEAD   # 8b: Planner settings over the defaults
                              # (EnvConfig.planner_overrides). retry_cooldown 3.0 -> 1.0 s: after a forced cancel the car may
                              # re-request that lane sooner (batch 7's final model, 50 seeds: 1,048k vs 924k, +124k +- 69k);
                              # w_lateral 1 -> W_LATERAL: quicker lane changes
@@ -142,7 +149,7 @@ LC_ABORT_PENALTY = -5.0      # 9: training-only reward per lane change the polic
 OBS_CLOCK = False            # 9: False holds the episode clock input at 0 (and its normalisation mean at 0, so it carries nothing)
 BRAKE_PENALTY = -1.0         # training-only reward per m/s of speed braked away (= -100 points per m/s, -0.1 to 3b; the batch 2 policy
                              # brakes away ~87 m/s per car-minute, ~-5k points per episode): smooth driving, little braking
-LEARNING_RATE = 1.34e-4      # initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
+LEARNING_RATE = 7.82e-5      # 11c: 11b's at 2.25M (1.34e-4 -> 1e-5 over 5M); initial LR, decayed linearly to LR_FINAL (batch 1: 3e-4 -> 0; batch 2 1e-3: new actions;
                              # 2c, 3: 3e-4; 3b, 4: 1e-4; 4b: 8.2e-5, batch 4's at 1M; 5: 5e-4, the user's call;
                              # 5b: 4.02e-4, batch 5's at 1M; 6, 7, 8: 5e-4, batch 5's fresh cycle; 9: 4.51e-4, 8b's at 1M;
                              # 9c: 4.51e-4 again, a fresh cycle, the user's call; 10: 1.34e-4, 9b's at 6.5M: 9c's fresh
@@ -158,10 +165,12 @@ VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value
                              # 6: 100k, back to 2 Hz: the critic's per-decision discount and rewards change; 7: 0, the reward, traffic
                              # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes;
                              # 9: 100k, the lean and abort costs and the clock input; 9b: 100k, follow mode; 9c: 100k, the gap search;
-                             # 10: 100k, the lead-held gap rule and the 2 s pending limit; 11, 11b: 100k, the v9 traffic)
+                             # 10: 100k, the lead-held gap rule and the 2 s pending limit; 11, 11b: 100k, the v9 traffic; 11c: 100k,
+                             # the planner fixes off)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b10_3m_001/final_model.zip'   # None: from scratch (9b: 8b's 1M; 9c: 9b's 8.25M;
-                             # 10: models/ppo_v10_e5_dyn_b9b_6.5m/best_model.zip)
+INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b11b_5m_001/checkpoints/model_2250072.zip'   # None: from scratch (9b: 8b's 1M;
+                             # 9c: 9b's 8.25M; 10: models/ppo_v10_e5_dyn_b9b_6.5m/best_model.zip; 11, 11b: batch 10's
+                             # final, runs_rl/ppo_v10_e5_dyn_b10_3m_001/final_model.zip)
 FOLLOW_MODE = True           # 9b: follow mode (EnvConfig.follow: the FOLLOW action, its mask, 6 appended observations)
 INIT_COPY_ACTIONS = ()       # 9b: ((FOLLOW, lane-keep actions, 8.0),): FOLLOW's starting logit = mean of the lane-keep
                              # logits + 8.0 (TrainConfig.init_copy_actions); 9c: () (9b's policy has FOLLOW trained)
