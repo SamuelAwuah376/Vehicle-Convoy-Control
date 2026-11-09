@@ -10,7 +10,7 @@ from nohesi.intentions import ACTIONS, FOLLOW
 from nohesi.rl.config import EnvConfig
 from nohesi.rl.train import TrainConfig, train
 
-RUN_ID = 'ppo_v10_e5_dyn_b10_3m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
+RUN_ID = 'ppo_v10_e5_dyn_b11_5m_001'    # folder under runs_rl/; reuse with RESUME to continue a run
 # Dynamic-car training in four 5M batches (the user's plan): batch 1 (ppo_v8_e4_dyn_b1_5m_001) from scratch; batches
 # 2-4 each set INIT_FROM to the previous batch's final model, with a fresh LR cycle. Batch 2 adds the overtake actions
 # (env e5: pass the car ahead and return, or stay out), warm-started from batch 1 (rl.train.load_policy_weights).
@@ -75,9 +75,15 @@ RUN_ID = 'ppo_v10_e5_dyn_b10_3m_001'    # folder under runs_rl/; reuse with RESU
 # -60k +- 260k; with the allowance as well: -295k +- 274k, fallbacks 2.9 -> 4.3 per episode), a pending lane change
 # cancelled after 2 s instead of 4, the LR continuing from 9b's 6.5M value, 25 evaluation seeds instead of 10 (the 10-seed
 # best picks noise: 9c's 3.0M best 4,533k on 1000-1009, 4,099k on 50), and a value warm-up for the new gap rule.
-SCENARIO = 'v8'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
+# Batch 11 (the user's call, 2026-11-08): 5M from batch 10's final model (= its best, 3.0M; 50 seeds 1000-1049 on v8:
+# 4,327k, 0/50 crashes, +136k +- 240k vs 9b's 6.5M, 29/50 better; its 1.5M 4,063k) on denser traffic (scenario v9: 45
+# cars, lane speeds 55-62 / 62-68 / 70-80 mph, traffic lane changes 3x as often, spread respawns; 10 seeds 1000-1009:
+# batch 10's final 1,050k, 2/10 crashes, 9b's 6.5M 933k), batch 10's other settings, the LR again from 1.34e-4, the
+# evaluations on v9, and a value warm-up for the new traffic.
+SCENARIO = 'v9'              # SCENARIOS key (v7: v5 = BMW M3s, 45-60 mph traffic, team starts at 70 mph; no traffic
                              # blockades (v6); traffic starts a lane change MOBIL picks with probability 0.1; v8: v7 with
-                             # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left)
+                             # traffic at 60-65 mph in the right and middle lanes, 70-80 mph in the left; v9: v8 with 45
+                             # cars, 55-62 / 62-68 / 70-80 mph, 3x traffic lane changes, spread respawns)
 SCORE = 'v10'                # SCORES key (v8: fast team play: trains above 80 mph, bonus above 120 mph, stronger spread
                              # penalty; v9: v8 reshaped for team play, see config.score_v9; v10: v9 + a train speed ramp)
 PLANT = 'dynamic'            # 'kinematic' or 'dynamic' (dynamic: the M3 with load transfer, grip budget, stability layer)
@@ -89,7 +95,7 @@ GAE_LAMBDA = 0.95            # per decision (5 Hz: 0.98, 0.95 = 0.98^2.5)
 N_STEPS = 512                # rollout per env per update (5 Hz: 1280): 256 s of driving either way; 24 x 512 = 12,288
 ENV_VERSION = 'e5'           # 'e4' (45 actions per car) or 'e5' (plus the 6 overtakes)
 N_ENVS = 24                  # parallel SubprocVecEnv workers (one CPU thread each; 24 = the physical cores)
-TOTAL_TIMESTEPS = 3_000_000   # policy decisions summed over envs (600 per 120 s episode at 5 Hz, 240 at 2 Hz); dynamic,
+TOTAL_TIMESTEPS = 5_000_000   # policy decisions summed over envs (600 per 120 s episode at 5 Hz, 240 at 2 Hz); dynamic,
                               # 24 envs at 2 Hz: ~50-60/s, ~25 h per 5M (9: the rest of 8b's 10M; 9c: 3M)
 EVAL_SEEDS = tuple(range(1000, 1025))   # held-out seeds for the evaluations during training (until 9c: 1000-1009)
 EVAL_ENVS = 25               # parallel eval workers (idle between evals; torch-free workers hold ~0.1 GB each; until 9c: 10)
@@ -132,7 +138,7 @@ LEARNING_RATE = 1.34e-4      # initial LR, decayed linearly to LR_FINAL (batch 1
                              # 2c, 3: 3e-4; 3b, 4: 1e-4; 4b: 8.2e-5, batch 4's at 1M; 5: 5e-4, the user's call;
                              # 5b: 4.02e-4, batch 5's at 1M; 6, 7, 8: 5e-4, batch 5's fresh cycle; 9: 4.51e-4, 8b's at 1M;
                              # 9c: 4.51e-4 again, a fresh cycle, the user's call; 10: 1.34e-4, 9b's at 6.5M: 9c's fresh
-                             # cycle moved the policy hard (approx_kl ~0.1) and lost its first 500k)
+                             # cycle moved the policy hard (approx_kl ~0.1) and lost its first 500k; 11: 1.34e-4 again)
 LR_FINAL = 1e-5
 TARGET_KL = 0.1              # PPO stops an update's epochs once the policy has moved this far (guards the high LR); None: off.
                              # The stop ends the whole update, the critic's epochs too (until 5: 0.05; 5b: 0.1, the user's call)
@@ -144,9 +150,10 @@ VF_WARMUP = 100_000          # fine-tuning: first decisions train only the value
                              # 6: 100k, back to 2 Hz: the critic's per-decision discount and rewards change; 7: 0, the reward, traffic
                              # and decision rate are batch 6's; 8: 100k, the stuck penalty's reshape; 8b: 100k, pass lanes, cooldown, lane changes;
                              # 9: 100k, the lean and abort costs and the clock input; 9b: 100k, follow mode; 9c: 100k, the gap search;
-                             # 10: 100k, the lead-held gap rule and the 2 s pending limit)
+                             # 10: 100k, the lead-held gap rule and the 2 s pending limit; 11: 100k, the v9 traffic)
 DEVICE = 'cuda'              # learner device: 'cuda' (needs the CUDA torch build) or 'cpu'; env workers always use the CPU
-INIT_FROM = 'models/ppo_v10_e5_dyn_b9b_6.5m/best_model.zip'   # None: from scratch (9b: 8b's 1M; 9c: 9b's 8.25M)
+INIT_FROM = 'runs_rl/ppo_v10_e5_dyn_b10_3m_001/final_model.zip'   # None: from scratch (9b: 8b's 1M; 9c: 9b's 8.25M;
+                             # 10: models/ppo_v10_e5_dyn_b9b_6.5m/best_model.zip)
 FOLLOW_MODE = True           # 9b: follow mode (EnvConfig.follow: the FOLLOW action, its mask, 6 appended observations)
 INIT_COPY_ACTIONS = ()       # 9b: ((FOLLOW, lane-keep actions, 8.0),): FOLLOW's starting logit = mean of the lane-keep
                              # logits + 8.0 (TrainConfig.init_copy_actions); 9c: () (9b's policy has FOLLOW trained)
