@@ -156,9 +156,13 @@ class CentralizedTeam:
         s, d, v, _ = traffic_prediction(snap, self.road, np.arange(N+1)*cfg.step)
         traffic = Obstacles(tuple(('traffic', int(k)) for k in snap.traffic_id), s, d, v)
         mates = []
+        keeping = cfg.ignore_rear_mates and self.intentions.intentions[i].phase == 'keep'
         for j in range(TEAM):
             if j == i:
                 continue
+            if keeping and snap.team_s[j] < snap.team_s[i] and \
+                    abs(snap.team_d[j]-snap.team_d[i]) < self.road.cfg.lane_width/2:
+                continue   # Planner.ignore_rear_mates: a teammate behind in the lane avoids this car, not vice versa
             plan = fresh.get(j)
             if plan is None:
                 plan = self.plans[j].shifted(1) if self.plans[j] is not None else \

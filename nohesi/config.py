@@ -303,6 +303,16 @@ class Planner:
     follow_preview: float = 0.5         # s: the leader's planned speed this far ahead
     follow_join_time: float = 1.0       # s: joining the leader's lane change may wait this long for the gap rule
     follow_train_room: bool = False     # a followed car's gap rule needs room for its followers (False: itself only)
+    # Fixes for batch 10's crashes on scenario v9 (off by default; the user's call, 2026-11-08):
+    # ignore_rear_mates: a car keeping its lane leaves the teammates behind it in its lane (CG within half a lane
+    # width) out of its MPC obstacles; they keep it in theirs. With them in, a follower's previous plan 0.35 s behind
+    # boxed the leader's plan in from behind, so it could not start braking early for a jam (v9 seed 1002: 36.8 m/s
+    # into 14-16 m/s traffic, braking at the grip cap too late; with the fix seeds 1000-1009: 0/10 crashes vs 2/10).
+    # follow_finish_committed: a follower whose join is committed, centre not yet in the target lane, when its leader
+    # turns back finishes its own change (its own locked gap) and the follow ends, instead of dropping back into the
+    # lane its centre is in (v9 seed 1004: dropped at 41.8 m/s 20 m behind a 23.4 m/s car).
+    ignore_rear_mates: bool = False
+    follow_finish_committed: bool = False
     # Gap search (IntentionManager.lane_gap): a lane change of a car stuck behind traffic whose gap rule fails for lack
     # of room tries target speeds up to gap_search_dv lower and higher in gap_search_step steps (smaller change first,
     # lower first): the first that passes the gap rule with gap_search_margin of room locks that gap (behind / ahead of

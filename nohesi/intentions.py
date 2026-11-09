@@ -433,9 +433,15 @@ class IntentionManager:
                 elif np.sign(jt.lane-it.lane) != np.sign(it.lane-it.origin) or it.phase == 'pending':
                     # mid a change into a lane the leader no longer targets, the leader back toward the origin side
                     # (or not yet across the line): drop it and keep the lane the follower's centre is in (crossing
-                    # paths with a returning leader stalls both); the follow goes on, joining from there
-                    self.records.append(Record(t, i, 'aborted', 'follow', it.lane))
-                    self._keep(i, int(self.road.lane_of(snap.team_d[i])))
+                    # paths with a returning leader stalls both); the follow goes on, joining from there. With
+                    # follow_finish_committed a committed change not yet across finishes on its own gap and the
+                    # follow ends (dropped, it could land at speed right behind slower traffic).
+                    here = int(self.road.lane_of(snap.team_d[i]))
+                    if c.follow_finish_committed and it.phase == 'committed' and here != it.lane:
+                        reason = 'leader_turned_back'
+                    else:
+                        self.records.append(Record(t, i, 'aborted', 'follow', it.lane))
+                        self._keep(i, here)
                 # committed and the leader moved on further the same way: finish, then join from there
             elif not reason:
                 it.follow_wait = None
