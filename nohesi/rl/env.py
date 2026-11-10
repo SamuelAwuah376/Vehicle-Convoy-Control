@@ -107,6 +107,18 @@ class External:
         return self.actions
 
 
+def planner_for(cfg, scenario):
+    """The team's Planner for an EnvConfig: its MPC and decision timing, the scenario's top speed, then the run's
+    planner_overrides and follow mode. The scripted baseline (rl.evaluate.scenario_for) uses the same one."""
+    planner = Planner(mpc=cfg.mpc, speed_max=scenario.team_speed_max, decision_interval=cfg.decision_interval,
+                      speed_step=cfg.speed_step)
+    if cfg.planner_overrides:
+        planner = replace(planner, **dict(cfg.planner_overrides))
+    if cfg.follow:
+        planner = replace(planner, follow=True)
+    return planner
+
+
 class NoHesiEnv(gymnasium.Env):
     metadata = {'render_modes': []}
 
@@ -116,12 +128,7 @@ class NoHesiEnv(gymnasium.Env):
         self.world = world
         s = SCENARIOS[cfg.scenario]()
         self.scenario = replace(s, score=SCORES[cfg.score](), vehicle=replace(s.vehicle, model=cfg.vehicle_model))
-        self.planner = Planner(mpc=cfg.mpc, speed_max=self.scenario.team_speed_max,
-                               decision_interval=cfg.decision_interval, speed_step=cfg.speed_step)
-        if cfg.planner_overrides:
-            self.planner = replace(self.planner, **dict(cfg.planner_overrides))
-        if cfg.follow:
-            self.planner = replace(self.planner, follow=True)
+        self.planner = planner_for(cfg, self.scenario)
         self.lanes = self.scenario.road.lanes
         self.action_space = spaces.MultiDiscrete([n_actions(cfg)]*TEAM)
         self._options = None   # (time, (3, len(OVERTAKES)) bool): overtakes that would start now, per decision

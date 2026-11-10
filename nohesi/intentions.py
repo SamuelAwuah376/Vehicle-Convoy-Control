@@ -103,8 +103,12 @@ class IntentionManager:
         return Target(self.target_d(i), it.speed, it.front, it.rear)
 
     def target_d(self, i):
-        it = self.intentions[i]
-        return self.road.lane_center(it.lane)+it.lean*self.cfg.lean_offset
+        it, c = self.intentions[i], self.cfg
+        d = self.road.lane_center(it.lane)+it.lean*c.lean_offset
+        if c.lean_edge_clamp:   # never aim past the CG's edge bound (Planner.lean_edge_clamp)
+            limit = self.road.width/2-self.params.width/2-c.edge_margin-c.lean_edge_clear
+            d = float(np.clip(d, -limit, limit))
+        return d
 
     @staticmethod
     def entered(origin, lane):
@@ -128,7 +132,8 @@ class IntentionManager:
             crossing = it.phase != 'keep' and lane in self.entered(it.origin, it.lane)
             if abs(snap.team_d[j]-self.road.lane_center(lane)) < reach or crossing:
                 plan, v = plans[j], snap.team[j, 3]
-                z = plan.at(int(round(horizon/plan.step))) if plan is not None else (snap.team_s[j]+v*horizon, 0, 0, v)
+                z = plan.at(self._plan_step(snap, plan, horizon)) if plan is not None else \
+                    (snap.team_s[j]+v*horizon, 0, 0, v)
                 out.append((('team', j), z[0], snap.team_s[j], v, z[3]))
         return out
 
@@ -643,7 +648,14 @@ class IntentionManager:
             k = int(np.flatnonzero(snap.traffic_id == j)[0])
             return snap.traffic_s[k]+snap.traffic_v[k]*T
         plan = plans[j] if plans is not None else None
-        return plan.at(int(round(T/plan.step)))[0] if plan is not None else snap.team_s[j]+snap.team[j, 3]*T
+        return plan.at(self._plan_step(snap, plan, T))[0] if plan is not None else snap.team_s[j]+snap.team[j, 3]*T
+
+    def _plan_step(self, snap, plan, T):
+        """Step of a teammate's plan T s after the snapshot: from the plan's own start with Planner.mate_plan_time
+        (the previous replan's plans start one planning step before the snapshot), else T/step from it (as before)."""
+        if self.cfg.mate_plan_time:
+            return max(int(round((snap.time+T-plan.time)/plan.step)), 0)
+        return int(round(T/plan.step))
 
     def _check_lock(self, snap, plans, i):
         """Re-lock, cancel (pending) or drop a stale gap car (committed).

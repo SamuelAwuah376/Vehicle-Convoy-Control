@@ -18,6 +18,8 @@ class Road:
 
     def __post_init__(self):
         _positive(self, 'lanes', 'lane_width', 'length')
+        if int(self.lanes) != self.lanes:
+            raise ValueError('lanes must be a whole number')
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,8 @@ class Vehicle:
             raise ValueError('brake_bias_front and drive_bias_front must lie in [0, 1]')
         if self.cg_to_rear_axle >= self.wheelbase:
             raise ValueError('cg_to_rear_axle must lie within the wheelbase')
+        if self.wheelbase >= self.length:
+            raise ValueError('wheelbase must be shorter than the body')
         if self.model not in ('kinematic', 'dynamic'):
             raise ValueError(f'unknown vehicle model {self.model!r}')
         if self.dynamic_blend_high <= self.dynamic_blend_low:
@@ -151,6 +155,8 @@ class Traffic:
             raise ValueError('speed_min must not exceed speed_max')
         if not 0 < self.lane_change_prob <= 1:
             raise ValueError('lane_change_prob must be in (0, 1]')
+        if int(self.count) != self.count:
+            raise ValueError('count must be a whole number')
 
 
 @dataclass(frozen=True)
@@ -233,8 +239,10 @@ class Score:
         _positive(self, *(k for k in vars(self) if k not in ('version', 'proximity_falloff', 'team_pass_require_all',
                                                              'spread_penalty_cap', 'train_ramp', *self.NON_NEGATIVE)
                           and not k.startswith('lc_') or k in ('lc_chain_window', 'lc_traffic_distance', 'lc_min_speed')))
-        if any(getattr(self, k) < 0 for k in vars(self) if k.startswith('lc_') and k != 'lc_base'):
+        if any(not getattr(self, k) >= 0 for k in vars(self) if k.startswith('lc_') and k != 'lc_base'):   # NaN too
             raise ValueError('lane-change points must be non-negative (lc_base may be a penalty)')
+        if not isfinite(self.lc_base):
+            raise ValueError('lc_base must be finite')
         for k in self.NON_NEGATIVE:
             if not isfinite(getattr(self, k)) or getattr(self, k) < 0:
                 raise ValueError(f'{k} must be non-negative')
@@ -251,7 +259,7 @@ class Score:
 @dataclass(frozen=True)
 class Planner:
     """Intention layer, MPC and fallback settings. Saved with results; bump version on change."""
-    version: str = 'm4.3'
+    version: str = 'm4.4'           # m4.4 (milestone 8): nmpc_edge_stop, lean_edge_clamp, fallback_ends_overtake on
     horizon: int = 30               # MPC steps (3 s at step 0.1)
     step: float = 0.1               # MPC step and replan interval (s)
     decision_interval: float = 0.5  # policy decisions (s)
@@ -405,6 +413,61 @@ class Planner:
     nmpc_w_vy: float = 10.0         # weight on body lateral speed vy: without it RTI/SQP diverges (GN misses r*vy coupling)
     nmpc_w_yaw_rate: float = 10.0   # weight on yaw rate r
     nmpc_levenberg_marquardt: float = 0.0   # acados LM regularisation of the Gauss-Newton Hessian
+    # nmpc_edge_yaw: the road-edge bound on d keeps the body's outermost corner, not only the CG, edge_margin inside the
+    # edge, at the heading of the iterate each SQP iteration linearises at (NonlinearMPC._edge_bounds; runtime bounds,
+    # same compiled solver). Off, the bound assumes a straight heading: the CG stays edge_margin + width/2 inside, which
+    # holds the corners inside only up to about 0.13 rad, so a plan with the CG at the bound at 0.2-0.47 rad put a
+    # corner 0.1-0.2 m past the edge (scenario v9 edge crashes, batch 11b seeds 1009, 1018, 1026, 1033).
+    nmpc_edge_yaw: bool = False
+    # escape_edge_grip: a car on a control law (lane-keep fallback or the law escape) whose body corner is within
+    # edge_grip_zone of the road edge while its CG moves toward that edge brakes no harder than the friction circle
+    # leaves after its steering command's lateral demand (v^2 tan(steer)/wheelbase): planning.fallback.edge_grip_accel.
+    # Off, the law escape brakes at the grip cap (8.24 m/s^2) whatever it steers, so the tyres had no grip left to turn
+    # back and the car slid 0.4 m to the edge (scenario v9 seed 1040 with nmpc_edge_yaw on; also 1018, 1026, 1033).
+    escape_edge_grip: bool = False
+    edge_grip_zone: float = 1.0        # m between the outermost body corner and the road edge
+    # nmpc_edge_stop: each stage's road-edge bound on d also leaves the room to stop the plan's outward lateral motion
+    # at edge_stop_accel: d + max(d', 0)^2/(2 edge_stop_accel) <= the straight-heading bound (road width/2 - width/2 -
+    # edge_margin) and d - max(-d', 0)^2/(2 edge_stop_accel) >= its negative, d' = vx sin psi + vy cos psi: two soft
+    # nonlinear constraint rows compiled into the solver (a separate solver build: the road width, edge_margin and
+    # edge_stop_accel are part of its hash; acados linearises them at each SQP iterate). They always use the straight
+    # bound, also with nmpc_edge_yaw (whose corner-aware bound is the box on d). Off, a plan may reach the bound still
+    # moving outward: the v9 edge crashes of batch 11c's 1M (seeds 1000, 1005, 1015, 1029) swung into an outer lane
+    # at 4.0-4.7 m/s outward with 1.4-2.3 m of room, past this bound 1.3-2.0 s before contact, and from the bound no
+    # fallback could stop them.
+    nmpc_edge_stop: bool = True        # on by default since m4.4 (milestone 8); False reproduces earlier results
+    edge_stop_accel: float = 4.0       # m/s^2 of lateral deceleration the stopping room assumes (grip cap ~8.2)
+    # lean_edge_clamp: a lane target (centre + lean) aims no farther out than the CG's straight-heading edge bound
+    # (road width/2 - width/2 - edge_margin, 4.15 m) minus lean_edge_clear. Off, an edge-side lean in an outer lane aims
+    # at 3.6 + 0.6 = 4.2 m, past the bound the MPC keeps the CG within (v9 seeds 1021 and 1005: plans run to the bound
+    # at 0.2-0.3 rad and the cars slid off).
+    lean_edge_clamp: bool = True       # on by default since m4.4 (milestone 8); False reproduces earlier results
+    lean_edge_clear: float = 0.25      # m inside that bound (3.90 m: an edge-side lean of 0.30 m in an outer lane)
+    # mate_plan_time: the intention layer (gap rule, middle-lane check, lock check, overtake corridor and the action
+    # masks built on them) reads a teammate's plan at the snapshot's time plus the lookahead T: step
+    # round((snap.time + T - plan.time)/plan.step). Off, it reads step round(T/plan.step) of the plan the previous
+    # replan made, which starts one planning step before the snapshot, so teammates were predicted 0.1 s (about 3 m
+    # at 30 m/s) short of where they would be; the coordinator's own checks (_obstacles, _mates) shift those plans one
+    # step.
+    # Off by default: the milestone 8 policy was trained with the old read, which left a hidden 2-3 m of room behind a
+    # teammate ahead. With it on (50 seeds, batch 11c's final, m4.4 planner), v8 scores +543k +- 242k but v9 +51k +- 99k
+    # with 3 crashes (0 off) and 2.8 more fallbacks per episode: about 15 % of gap acceptances change, mostly follow
+    # joins now accepted at margin_long (0.25 m) behind a teammate's plan, and two of the crashes trace to such joins.
+    # For a new training batch: on, with explicit room behind teammate gap cars.
+    mate_plan_time: bool = False
+    # fallback_ends_overtake: a fallback (emergency MPC or the law escape) that moves a lane-keeping car into another
+    # lane ends its overtake. Off, a car in an overtake's 'pass' stage moved back behind the passed car stays in that
+    # stage for up to overtake_pass_max: its target speed held at the passed car's plus the margin, and the mask allows
+    # only same-side overtakes. On by default since m4.4: rare (it never fired in batch 11c's final on 50 v9 and 50
+    # v8 seeds, every score identical).
+    fallback_ends_overtake: bool = True
+    # yield_pending: when a lane-keeping car's plan conflicts with a teammate's still-pending lane change into its lane,
+    # that change is cancelled (the teammate keeps its origin lane and is re-planned) instead of the keeping car
+    # backing off; a car between the two in the planning order is re-checked against the teammate's new plan. Off, the
+    # keeping car yields while the change goes ahead (scenario v9 seed 1003, batch 11c's 1.5M with the edge flags: a
+    # teammate's change accepted on a join plan dropped in the same cycle; the keeping car yielded into traffic).
+    # Not adopted: on batch 11c's 2M (50 seeds) it changed 3-4 seeds, v9 -14k +- 42k with a new crash, v8 +68k +- 74k.
+    yield_pending: bool = False
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('version', 'rear_closing_time', 'mpc', 'nmpc_steer_cap',
@@ -422,6 +485,8 @@ class Planner:
             raise ValueError('speed_min must not exceed speed_max')
         if self.middle_window_start > self.middle_window_end:
             raise ValueError('middle_window_start must not exceed middle_window_end')
+        if self.yaw_margin_scope not in ('all', 'gap'):   # anything but 'gap' would silently act as 'all'
+            raise ValueError(f'unknown yaw_margin_scope {self.yaw_margin_scope!r}')
 
 
 @dataclass(frozen=True)
@@ -442,8 +507,12 @@ class Scenario:
 
     def __post_init__(self):
         _positive(self, 'team_speed', 'team_start_s', 'team_speed_max', 'overtaker_speed', 'overtaker_look')
-        if self.team_start_headway < 0:
+        if not (isfinite(self.team_start_headway) and self.team_start_headway >= 0):
             raise ValueError('team_start_headway must be non-negative')
+        if self.team_speed > self.team_speed_max:
+            raise ValueError('team_speed must not exceed team_speed_max')
+        if self.traffic.min_gap <= self.vehicle.length:   # the only spacing check when spawning and recycling
+            raise ValueError('traffic min_gap must exceed the vehicle length')
         if not 0 <= self.team_lane < self.road.lanes:
             raise ValueError('team_lane outside road')
         if self.vehicle.width >= self.road.lane_width:
@@ -528,8 +597,8 @@ SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenari
 
 
 def score_v1():
-    """Rewards continuous close, fast driving: team combo on close passes, same-lane teammate
-    proximity (20 m), and much smaller steady speed points."""
+    """Rewards continuous close, fast driving: team combo on close passes, teammate proximity (any pair within
+    20 m centre to centre, in any lane), and much smaller steady speed points."""
     return Score(version='v1', proximity_distance=20.0, speed_rate=0.25, speed_floor=25.0,
                  combo_step=0.5, combo_max=5.0, combo_window=5.0)
 

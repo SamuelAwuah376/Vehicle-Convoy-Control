@@ -5,7 +5,7 @@ import numpy as np
 from ..dynamics import DynamicPlant, brake_limit
 from ..intentions import IntentionManager
 from ..planning.base import Obstacles, Target, constant_speed_plan
-from ..planning.fallback import dense, first_conflict, lane_keep_plan, shifted_fallback
+from ..planning.fallback import dense, edge_grip_accel, first_conflict, lane_keep_plan, shifted_fallback
 from ..planning.single import LaneChangeMPC
 from ..prediction import traffic_prediction
 from ..stability import StabilityLayer
@@ -38,10 +38,13 @@ class CentralizedTeam:
     computed this cycle and the shifted previous-cycle plans of teammates not yet planned. After
     the cycle, every plan is footprint-checked against predicted traffic and higher-priority
     teammates' final plans; on a conflict the lower-priority vehicle yields (abandon any lane change
-    for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape). With the
+    for the lane whose lane-keep rollout stays clear longest and re-solve, else the emergency escape; with
+    Planner.yield_pending a lane-keeping car whose conflict is a teammate's pending change into its lane cancels
+    that change instead). With the
     nonlinear MPC (Planner.nmpc_emergency) the escape is an MPC plan in emergency mode (_emergency): candidate
-    manoeuvres (brake, hold or gain speed, in the car's lane or one either side), each solved with the contact rows
-    only, the clear one (else the one with the least contact) executed like any plan; the car plans first next cycle.
+    manoeuvres (brake or hold, in the car's lane or one either side; gain speed in its own lane), each solved with
+    the contact rows only, the clear one (else the one with the least contact) executed like any plan; the car plans
+    first next cycle.
     Otherwise, and as the last resort when no emergency solve succeeds ('escape'), the lane-keep law escape: full
     braking, holding or gaining speed in the nearby lane with the gentlest predicted impact.
     A car mid lane change backs out when its target slot closes: if, on its plan, the time to contact with a gap
@@ -107,6 +110,9 @@ class CentralizedTeam:
         for i in range(TEAM):
             if not self._plan_driven(i):
                 controls[i] = lane_keep_control(snap, self.road, self.params, i, *self.escape[i], self.brake)
+                if self.cfg.escape_edge_grip:
+                    controls[i, 0] = edge_grip_accel(snap, self.road, self.params, i, controls[i], self.brake,
+                                                     self.cfg.edge_grip_zone)
         self.last_accel = controls[:, 0].copy()
         if self.stability is not None:
             for i in range(TEAM):   # the MPC's plan (planned motion) or None: steady-state reference of the command
@@ -377,8 +383,8 @@ class CentralizedTeam:
         return worst
 
     def _lane_keep(self, snap, i, mode, plans, check):
-        """Lane-keep fallback in the clearest nearby lane. 'emergency' also tries full braking first, then
-        holding the current speed, in each lane."""
+        """Lane-keep fallback in the clearest nearby lane. 'emergency' and 'escape' try, in each lane, full braking
+        first, then holding the current speed, then gaining escape_accel of speed (a threat from behind)."""
         it, v = self.intentions.intentions[i], float(snap.team[i, 3])
         lanes = self._lanes(snap, i)
         if mode in ('emergency', 'escape'):
@@ -394,10 +400,10 @@ class CentralizedTeam:
         return plan
 
     def _emergency(self, snap, i, plans, check):
-        """MPC emergency escape for car i: candidate manoeuvres (brake / hold / gain speed in its lane or one either
-        side), each the reference of an emergency solve; the first whose plan passes the footprint check, else the
-        one with the least contact (largest obstacle slack), then the latest first conflict. No solve succeeds: the
-        lane-keep law escape ('escape')."""
+        """MPC emergency escape for car i: candidate manoeuvres (brake or hold the speed in its lane or one either
+        side; gain speed in its own lane only), each the reference of an emergency solve; the first whose plan passes
+        the footprint check, else the one with the least contact (largest obstacle slack), then the latest first
+        conflict. No solve succeeds: the lane-keep law escape ('escape')."""
         it, v = self.intentions.intentions[i], float(snap.team[i, 3])
         here = int(self.road.lane_of(snap.team_d[i]))
         lanes = [l for l in (here, here-1, here+1) if 0 <= l < self.road.cfg.lanes]
@@ -429,7 +435,12 @@ class CentralizedTeam:
         return plan
 
     def _keep_lane(self, snap, i, lane, reason):
-        it = self.intentions.intentions[i]
+        it, ot = self.intentions.intentions[i], self.intentions.intentions[i].overtake
+        moved = it.phase != 'keep' or it.lane != lane
+        if self.cfg.fallback_ends_overtake and ot is not None and ot.stage != 'out' and moved \
+                and lane != ot.home+ot.side and not (ot.stage == 'return' and lane == ot.home):
+            # moved out of the passing lane other than by its return (a cancelled pull-out ends in _overtake_step)
+            self.intentions._end_overtake(snap.time, i, 'overtake_ended', f'fallback_{reason}')
         if it.phase != 'keep':
             self.intentions.cancel(i, snap.time, reason, lane)
         elif it.lane != lane:
@@ -469,6 +480,36 @@ class CentralizedTeam:
         others += [(('team', j), plans[j].z[:, 0], plans[j].z[:, 1], plans[j].z[:, 2]) for j in higher]
         return first_conflict(plans[i].z, others, self.params, cfg.check_margin, substeps=cfg.check_substeps)
 
+    def _cancel_pending(self, snap, i, hit, fresh, order, n):
+        """Planner.yield_pending: lane-keeping car i's plan conflicts with teammate j = hit's car. If j's lane change
+        into i's lane is still pending, cancel it (j keeps its origin lane), re-plan j and any car between j and i in
+        `order` that now conflicts with the cars before it (emergency if a re-plan still conflicts), then re-plan i.
+        Returns i's remaining conflict (None: resolved), or `hit` itself when the rule does not apply."""
+        j = hit[0][1]
+        jt = self.intentions.intentions[j]
+        here = int(self.road.lane_of(snap.team_d[i]))
+        if jt.phase != 'pending' or here not in self.intentions.entered(jt.origin, jt.lane):
+            return hit
+        self.intentions.cancel(j, snap.time, 'yield_pending', jt.origin)
+        self.plans[j] = None   # no shifted fallback onto the cancelled change
+        fresh[j] = self._plan_vehicle(snap, j, fresh)
+        for k in order[order.index(j):n]:   # j, then a car planned between j and i (checked against j's old plan)
+            before = order[:order.index(k)]
+            if self._conflict(snap, k, fresh, before) is None:
+                continue
+            if k != j:
+                self.plans[k] = None
+                fresh[k] = self._plan_vehicle(snap, k, fresh)
+                if self._conflict(snap, k, fresh, before) is None:
+                    continue
+            fresh[k] = self._emergency(snap, k, fresh, before) if self.emergency_mpc else \
+                self._lane_keep(snap, k, 'emergency', fresh, before)
+        fresh[i] = self._plan_vehicle(snap, i, fresh)
+        remaining = self._conflict(snap, i, fresh, order[:n])
+        if remaining is None:
+            self.log.conflicts.append((snap.time, i, hit[0], hit[1], 'mate_cancelled'))
+        return remaining
+
     def _replan(self, snap):
         if self.cfg.follow:
             self.intentions.update_follow(snap, self.plans)
@@ -494,11 +535,16 @@ class CentralizedTeam:
                 hit = self._conflict(snap, i, fresh, order[:n])
             if hit is None:
                 continue
+            it = self.intentions.intentions[i]
+            if self.cfg.yield_pending and it.phase == 'keep' and hit[0][0] == 'team':
+                hit = self._cancel_pending(snap, i, hit, fresh, order, n)
+                if hit is None:
+                    continue
             # Yield: abandon any lane change for the nearby lane (CG lane first: still reversible there) whose
             # lane-keep rollout stays clear longest, and re-plan against everyone's current plans.
-            it = self.intentions.intentions[i]
             if it.phase != 'keep':
-                lanes = [l for l in self._lanes(snap, i, (int(self.road.lane_of(snap.team_d[i])),)) if l != it.lane]                     or [it.origin]
+                lanes = [l for l in self._lanes(snap, i, (int(self.road.lane_of(snap.team_d[i])),)) if l != it.lane] \
+                    or [it.origin]
                 (lane, _, _), _ = self._rollout(snap, i, [(l, it.speed, np.inf) for l in lanes], fresh, order[:n],
                                                 'lane_keep')
                 self.intentions.cancel(i, snap.time, 'conflict', lane)

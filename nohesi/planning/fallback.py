@@ -2,7 +2,7 @@
 from dataclasses import replace
 import numpy as np
 from ..dynamics import brake_limit
-from ..geometry import clearances, footprints, overlaps
+from ..geometry import clearances, footprint, footprints, overlaps
 from ..rl.scripted import lane_keep_law
 from ..prediction import vehicle_ahead_incl_merging
 from .base import Plan
@@ -72,6 +72,27 @@ def lane_keep_plan(snap, road, plant, i, lane, speed, cfg, max_accel=np.inf, sou
             if n == 0:
                 u.append([a, steer])
     return Plan(snap.time, cfg.step, np.array(z, float), np.array(u, float), source)
+
+
+def edge_grip_accel(snap, road, params, i, control, brake, zone):
+    """Planner.escape_edge_grip: control-law acceleration of car i, braking capped by the friction circle once its
+    body corner is within `zone` of the road edge with its CG moving toward that edge: |a| <= sqrt(brake^2 - a_lat^2),
+    a_lat = v^2 tan(steer)/wheelbase the lateral demand of the law's steering command. Otherwise unchanged."""
+    a, steer = float(control[0]), float(control[1])
+    if a >= 0.0:
+        return a
+    _, corner = road.to_frenet(footprint(snap.team[i], params))
+    out = corner[np.argmax(np.abs(corner))]
+    if road.width/2-abs(out) > zone:
+        return a
+    v = float(snap.team[i, 3])
+    vy = 0.0 if snap.team_vy is None else float(snap.team_vy[i])
+    psi = float(snap.team[i, 2]-road.heading(snap.team_s[i]))
+    d_rate = v*np.sin(psi+np.arcsin(np.clip(vy/max(v, 1e-3), -1.0, 1.0)))
+    if np.sign(out)*d_rate <= 0.0:
+        return a
+    lateral = v*v*abs(np.tan(steer))/params.wheelbase
+    return max(a, -float(np.sqrt(max(brake*brake-lateral*lateral, 0.0))))
 
 
 def first_conflict(z, others, params, margin, start=1, substeps=1):

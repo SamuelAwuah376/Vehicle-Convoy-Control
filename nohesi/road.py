@@ -2,12 +2,14 @@ import numpy as np
 
 
 class LaneRoute:
-    """Lane centreline with the at(s) interface used by controllers.pursuit."""
+    """Lane centreline with the at(s) interface used by controllers.pursuit. The road is straight, so the centreline
+    continues past road.cfg.length (the 10 km of geometry is not a wall: 300 s runs reach about 10.4 km). Clipping it
+    there put the pursuit target behind a car past the end, and the lane-keep law steered it out of its lane."""
     def __init__(self, road, lane):
         self.road, self.d, self.total = road, road.lane_center(lane), road.cfg.length
 
     def at(self, s):
-        s = np.clip(s, 0, self.total)
+        s = np.maximum(s, 0)
         return self.road.to_xy(s, np.full_like(np.asarray(s, float), self.d)), self.road.heading(s)
 
 

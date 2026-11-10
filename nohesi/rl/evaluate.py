@@ -8,6 +8,7 @@ Policy actions are deterministic with the env's action masks applied; observatio
 VecNormalize statistics saved next to the model (training=False, norm_reward=False).
 """
 import argparse
+import hashlib
 import json
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, fields, replace
@@ -167,20 +168,13 @@ def evaluate_model(model, normalize, env_cfg, seeds=EVAL_SEEDS, n_envs=None, vec
 
 # ---------------------------------------------------------------------------------------------- scripted baseline
 def scenario_for(env_cfg):
-    """(scenario, planner, score) matching the RL env's configuration, for scripted runs."""
-    from ..config import SCENARIOS, SCORES, Planner
-    try:   # the env's own builder, if it exposes one, is authoritative
-        from . import env as rl_env
-        if hasattr(rl_env, 'build_scenario'):
-            scenario, planner = rl_env.build_scenario(env_cfg)
-            return scenario, planner, scenario.score
-    except ImportError:
-        pass
+    """(scenario, planner, score) matching the RL env's configuration, for scripted runs: the env's own planner
+    (rl.env.planner_for: the scenario's top speed, the run's planner_overrides and follow mode)."""
+    from ..config import SCENARIOS, SCORES
+    from .env import planner_for
     scenario = SCENARIOS[env_cfg.scenario]()
     scenario = replace(scenario, vehicle=replace(scenario.vehicle, model=env_cfg.vehicle_model))
-    planner = replace(Planner(), mpc=env_cfg.mpc, decision_interval=env_cfg.decision_interval,
-                      speed_step=env_cfg.speed_step)
-    return scenario, planner, SCORES[env_cfg.score]()
+    return scenario, planner_for(env_cfg, scenario), SCORES[env_cfg.score]()
 
 
 def _overtaker_one(args):
@@ -197,6 +191,8 @@ def overtaker_baseline(env_cfg, seeds=EVAL_SEEDS, workers=None, cache_dir=ROOT/'
     seeds = [int(s) for s in seeds]
     tag = '_'.join(f'{k}-{v}' for k, v in sorted(asdict(env_cfg).items())
                    if k in ('scenario', 'score', 'vehicle_model', 'mpc', 'version'))
+    planner = scenario_for(env_cfg)[1]   # its settings and version are part of the key (a changed default re-runs)
+    tag += '_planner-'+hashlib.sha1(json.dumps(asdict(planner), sort_keys=True, default=str).encode()).hexdigest()[:10]
     path = Path(cache_dir)/f'overtaker_{tag}_seeds{seeds[0]}-{seeds[-1]}_{len(seeds)}.json'
     if path.exists():
         cached = json.loads(path.read_text(encoding='utf-8'))
@@ -235,12 +231,15 @@ def load_policy(model_path, vecnorm_path):
 
 
 # ---------------------------------------------------------------------------------------------- store one episode
-def store_episode(model, normalize, env_cfg, seed, label, root=ROOT/'results', policy='ppo'):
-    """Run one deterministic episode in-process and save it like run_sim.py (numbered results/ run + GIF)."""
+def store_episode(model, normalize, env_cfg, seed, label, root=ROOT/'results', policy='ppo', gif=True, duration=None):
+    """Run one deterministic episode in-process and save it like run_sim.py (numbered results/ run + GIF unless
+    gif=False). duration: episode length in s instead of the scenario's."""
     from ..evaluation.io import append_index, next_run_dir, save
     from ..evaluation.viz import animate, plot
     from .env import NoHesiEnv
     env = NoHesiEnv(env_cfg)
+    if duration:
+        env.scenario = replace(env.scenario, timing=replace(env.scenario.timing, duration=float(duration)))
     obs, _ = env.reset(seed=int(seed))
     done = False
     while not done:
@@ -252,7 +251,8 @@ def store_episode(model, normalize, env_cfg, seed, label, root=ROOT/'results', p
     out = next_run_dir(root, label)
     m = save(episode, out)
     plot(episode, out/'summary.png')
-    animate(episode, out/'team.gif')
+    if gif:
+        animate(episode, out/'team.gif')
     append_index(out, m)
     env.close()
     return out, m
@@ -337,10 +337,13 @@ def main(argv=None):
     model_path, vecnorm_path = resolve(a.run, a.which)
     vecnorm_path = Path(a.vecnorm) if a.vecnorm else vecnorm_path
     run_dir = Path(a.run) if Path(a.run).is_dir() else model_path.parent
-    if (run_dir/'config.json').exists():
-        env_cfg = load_env_cfg(run_dir)
+    # a checkpoint (runs_rl/<run>/checkpoints/model_<t>.zip) takes its run folder's config.json
+    cfg_dir = next((d for d in (run_dir, run_dir.parent) if (d/'config.json').exists()), None)
+    if cfg_dir is not None:
+        env_cfg = load_env_cfg(cfg_dir)
     else:
         from .config import EnvConfig
+        print(f'no config.json in {run_dir} or {run_dir.parent}: using the EnvConfig() defaults')
         env_cfg = EnvConfig()
     overrides = {k: v for k, v in (('mpc', a.mpc), ('vehicle_model', a.vehicle), ('scenario', a.scenario),
                                    ('score', a.score)) if v}

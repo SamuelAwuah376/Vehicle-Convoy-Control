@@ -229,8 +229,9 @@ def write_config(cfg, run_dir, extra=None):
            'time': time.strftime('%Y-%m-%dT%H:%M:%S'), 'argv': sys.argv, **(extra or {})}
     try:
         from . import env as rl_env
-        space = rl_env.NoHesiEnv(cfg.env).observation_space
-        out['observation_dim'] = int(space.shape[0])
+        env = rl_env.NoHesiEnv(cfg.env)
+        out['observation_dim'] = int(env.observation_space.shape[0])
+        out['planner'] = _jsonable(asdict(env.planner))   # the full Planner (missing fields load as the defaults)
     except Exception:   # noqa: BLE001 - informational only
         pass
     (run_dir/'config.json').write_text(json.dumps(out, indent=2, default=str)+'\n', encoding='utf-8')
@@ -443,6 +444,7 @@ def train(cfg):
                 venv = load_obs_normalisation(_vecnorm_path(Path(cfg.init_from)), venv, cfg)
                 venv.training, venv.norm_reward, venv.clip_reward = True, cfg.norm_reward, cfg.clip_reward
                 venv.ret_rms, venv.returns = RunningMeanStd(shape=()), np.zeros(venv.num_envs)   # new score: new return scale
+                venv.gamma, venv.clip_obs = cfg.gamma, cfg.clip_obs   # this run's, not the source's (5/5b kept 0.99)
                 if not cfg.env.obs_clock:   # the clock input is held at 0: with mean 0 it normalises to exactly 0 (no signal)
                     from .env import clock_index
                     venv.obs_rms.mean[clock_index(cfg.env)] = 0.0
