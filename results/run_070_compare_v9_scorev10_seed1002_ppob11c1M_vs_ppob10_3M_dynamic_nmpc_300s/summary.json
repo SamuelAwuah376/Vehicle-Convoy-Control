@@ -1,0 +1,910 @@
+{
+  "PPO batch 11c (1M best)": {
+    "scenario_version": "v9",
+    "score_version": "v10",
+    "seed": 1002,
+    "policy": "PPO batch 11c (1M best)",
+    "end_reason": "time",
+    "duration_s": 300.0,
+    "team_score": 3800332.1124844053,
+    "individual_scores": [
+      1091531.7542536997,
+      1423588.5161672423,
+      1285211.8420634633
+    ],
+    "score_by_term": {
+      "close_pass": [
+        1001679.6202358016,
+        1331369.7458553945,
+        1195411.084192309
+      ],
+      "proximity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "speed": [
+        10491.868669127221,
+        10730.391302409313,
+        11327.733733948768
+      ],
+      "collision": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maneuver": [
+        7050.0,
+        6540.0,
+        6030.0
+      ],
+      "draft": [
+        74295.37022100383,
+        76141.37022100382,
+        75621.12022100383
+      ],
+      "spread": [
+        -1985.1048722329524,
+        -1192.9912115655436,
+        -3178.096083798499
+      ],
+      "top_speed": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "collisions": [],
+    "overtakes": 289,
+    "close_passes_scored": 200,
+    "draft_passes_scored": 142,
+    "train_passes_scored": 122,
+    "train_time_s": 95.8499999999967,
+    "mean_speed_mps": 26.784944973968937,
+    "top_speed_time_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "braking_mps": [
+      444.44194395405196,
+      456.7432576918398,
+      441.658876495144
+    ],
+    "stuck_time_s": [
+      79.10000000000001,
+      79.55000000000001,
+      84.10000000000001
+    ],
+    "team_pass": {
+      "count": 200,
+      "boosted": 180,
+      "mean_multiplier": 1.505179386032439,
+      "max_multiplier": 1.857881249073186
+    },
+    "combo": {
+      "max_multiplier": 5.0,
+      "time_above_1_s": 251.0,
+      "max_count": 71
+    },
+    "maneuvers": {
+      "count": {
+        "pass_single": 58,
+        "base": 2,
+        "chain_single": 6
+      },
+      "points": 19620.0
+    },
+    "proximity_time_s": {
+      "0-1": 0.0,
+      "0-2": 0.0,
+      "1-2": 0.0
+    },
+    "draft_time_s": [
+      95.85000000000001,
+      197.60000000000002,
+      176.70000000000002
+    ],
+    "min_clearance_traffic_m": 0.18343893280253365,
+    "min_clearance_teammates_m": 0.1529890727309995,
+    "mpc_failures": 37,
+    "policy_compute_ms": {
+      "mean": 8.535342399974372,
+      "max": 454.6588000084739
+    },
+    "planner": {
+      "lane_changes_accepted": 343,
+      "lane_changes_completed": 119,
+      "double_lane_changes": {
+        "accepted": 10,
+        "completed": 0
+      },
+      "locked_gap_margin_m": {
+        "count": 343,
+        "min": 0.25918907920364287,
+        "median": 5.656737210701485
+      },
+      "lane_changes_aborted": 141,
+      "lane_changes_cancelled": 81,
+      "masked_lane_actions": 0,
+      "rejections": {
+        "mpc_grip": 1
+      },
+      "qp_solves": 9105,
+      "qp_failures": 37,
+      "qp_status": {
+        "solved": 9068,
+        "grip": 11,
+        "infeasible": 26
+      },
+      "fallbacks": {
+        "emergency": 12,
+        "lane_keep": 2,
+        "escape": 1
+      },
+      "plan_conflicts": {
+        "emergency": 8,
+        "replanned": 6
+      },
+      "solve_ms": {
+        "mean": 4.751790104246453,
+        "p95": 7.276220005587674,
+        "max": 139.3102000001818
+      },
+      "iterations": {
+        "mean": 18.393190554640306,
+        "max": 661
+      },
+      "plan_error_next_step_m": {
+        "s_mean": 0.0025354195386808618,
+        "s_max": 0.049802260787146224,
+        "d_mean": 0.0008664749875506416,
+        "d_max": 0.009322688750397212
+      },
+      "missed_opportunity_s": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "scenario": {
+      "version": "v9",
+      "road": {
+        "lanes": 3,
+        "lane_width": 3.6,
+        "length": 10000.0
+      },
+      "vehicle": {
+        "wheelbase": 2.857,
+        "cg_to_rear_axle": 1.5,
+        "length": 4.79,
+        "width": 1.9,
+        "accel_max": 8.0,
+        "brake_max": 11.0,
+        "steer_max": 0.5,
+        "steer_rate": 0.6,
+        "power_speed": 26.3,
+        "lateral_accel_max": 9.5,
+        "standstill_gap": 5.0,
+        "headway": 1.2,
+        "model": "dynamic",
+        "mass": 1780.0,
+        "yaw_inertia": 2800.0,
+        "cornering_stiffness_front": 110000.0,
+        "cornering_stiffness_rear": 125000.0,
+        "friction": 1.05,
+        "cg_height": 0.5,
+        "brake_bias_front": 0.72,
+        "drive_bias_front": 0.3,
+        "dynamic_blend_low": 3.0,
+        "dynamic_blend_high": 6.0,
+        "dynamic_substep": 0.01
+      },
+      "traffic": {
+        "count": 45,
+        "speed_min": 24.5872,
+        "speed_max": 35.7632,
+        "lane_speeds": [
+          [
+            24.5872,
+            27.71648
+          ],
+          [
+            27.71648,
+            30.39872
+          ],
+          [
+            31.2928,
+            35.7632
+          ]
+        ],
+        "spawn_behind": 150.0,
+        "spawn_ahead": 400.0,
+        "recycle_behind": 150.0,
+        "respawn_ahead": 250.0,
+        "min_gap": 15.0,
+        "team_lane_clear_ahead": 100.0,
+        "team_lane_clear_behind": 40.0,
+        "idm_accel": 1.5,
+        "idm_brake": 2.0,
+        "idm_brake_max": 8.0,
+        "idm_gap": 2.0,
+        "idm_headway": 1.5,
+        "lane_changes": true,
+        "mobil_politeness": 0.3,
+        "mobil_threshold": 0.2,
+        "mobil_safe_brake": 3.0,
+        "lane_change_time": 3.0,
+        "lane_change_interval": 1.0,
+        "lane_change_gap": 0.5,
+        "no_walls": false,
+        "wall_window": 9.58,
+        "wall_slowdown": 3.0,
+        "lane_change_cooldown": 8.0,
+        "keep_right_bias": 0.0,
+        "lane_change_prob": 0.3,
+        "no_blockades": true,
+        "blockade_gap": 10.58,
+        "blockade_buffer": 10.0,
+        "blockade_headway": 0.5,
+        "respawn_spread": true,
+        "respawn_spots": 10,
+        "respawn_spot_gap": 20.0,
+        "respawn_count_behind": 150.0,
+        "respawn_count_ahead": 500.0
+      },
+      "timing": {
+        "dt": 0.05,
+        "duration": 300.0
+      },
+      "score": {
+        "version": "v10",
+        "pass_base": 100.0,
+        "pass_threshold": 1.5,
+        "pass_ref_speed": 28.0,
+        "proximity_rate": 0.0,
+        "proximity_distance": 20.0,
+        "proximity_min_speed": 20.0,
+        "speed_rate": 10.0,
+        "speed_floor": 25.0,
+        "collision_penalty": 500.0,
+        "collision_wipe": 0.5,
+        "repass_cooldown": 10.0,
+        "combo_step": 0.5,
+        "combo_max": 5.0,
+        "combo_window": 5.0,
+        "proximity_falloff": "linear",
+        "lc_base": -300.0,
+        "lc_pass_single": 60.0,
+        "lc_pass_double": 90.0,
+        "lc_chain_single": 150.0,
+        "lc_chain_double": 300.0,
+        "lc_chain_window": 3.0,
+        "lc_traffic_distance": 10.0,
+        "lc_min_speed": 25.0,
+        "team_pass_gain": 0.5,
+        "team_pass_distance": 50.0,
+        "team_pass_require_all": true,
+        "draft_rate": 5.0,
+        "draft_headway": 1.0,
+        "draft_min_speed": 20.0,
+        "draft_pass_gain": 15.0,
+        "draft_pass_window": 1.0,
+        "train_rate": 250.0,
+        "train_headway": 0.5,
+        "train_pass_gain": 30.0,
+        "train_min_speed": 26.82,
+        "train_ramp": [
+          [
+            26.82,
+            0.4
+          ],
+          [
+            29.06,
+            0.5
+          ],
+          [
+            31.29,
+            0.7
+          ],
+          [
+            35.76,
+            1.0
+          ]
+        ],
+        "top_speed_rate": 10.0,
+        "top_speed_threshold": 53.64,
+        "spread_penalty_rate": 4.0,
+        "spread_free_distance": 50.0,
+        "spread_scale": 10.0,
+        "spread_penalty_cap": 400.0
+      },
+      "team_speed": 31.3,
+      "team_lane": 1,
+      "team_start_s": 100.0,
+      "team_speed_max": 60.0,
+      "team_start_headway": 0.6,
+      "overtaker_speed": 40.0,
+      "overtaker_look": 80.0
+    },
+    "planner_config": {
+      "version": "m4.3",
+      "horizon": 30,
+      "step": 0.1,
+      "decision_interval": 0.5,
+      "max_iter": 4000,
+      "qp_eps": 0.0001,
+      "qp_reuse": true,
+      "qp_soft_slots": 6,
+      "speed_step": 2.0,
+      "speed_min": 20.0,
+      "speed_max": 60.0,
+      "gap_lookahead": 3.0,
+      "margin_long": 0.25,
+      "margin_lat": 0.25,
+      "edge_margin": 0.3,
+      "headway": 0.3,
+      "teammate_headway": 0.2,
+      "lean_offset": 0.6,
+      "relevance": 60.0,
+      "side_zone": 5.0,
+      "done_tolerance": 0.3,
+      "max_shifted_steps": 5,
+      "merge_window": 30.0,
+      "rear_closing_time": 0.3,
+      "double_gap_lookahead": 4.0,
+      "overtake_look": 80.0,
+      "overtake_margin": 3.0,
+      "overtake_clear": 2.0,
+      "overtake_pass_max": 8.0,
+      "overtake_return_lead": 2.0,
+      "overtake_merge_time": 2.0,
+      "overtake_settled": 0.5,
+      "overtake_out_min": 0.8,
+      "follow": true,
+      "follow_gap": 0.35,
+      "follow_window": 1.0,
+      "follow_break": 1.5,
+      "follow_k": 0.5,
+      "follow_max_rel": 5.0,
+      "follow_preview": 0.5,
+      "follow_join_time": 1.0,
+      "follow_train_room": false,
+      "ignore_rear_mates": false,
+      "follow_finish_committed": false,
+      "gap_search": false,
+      "yaw_margin": false,
+      "yaw_margin_psi": 0.06,
+      "yaw_margin_offset": 0.5,
+      "yaw_margin_scope": "all",
+      "gap_search_dv": 8.0,
+      "gap_search_step": 1.0,
+      "gap_search_margin": 3.0,
+      "gap_search_brake": 4.0,
+      "gap_search_window": 100.0,
+      "gap_search_closing": 2.0,
+      "gap_lead": true,
+      "gap_lead_time": 1.25,
+      "middle_window_start": 0.8,
+      "middle_window_end": 2.5,
+      "commit_progress_eps": 0.1,
+      "commit_stall_time": 2.0,
+      "commit_max_time": 6.0,
+      "pending_max_time": 2.0,
+      "retry_cooldown": 1.0,
+      "check_margin": 0.1,
+      "emergency_decel": 12.0,
+      "check_substeps": 5,
+      "escape_accel": 5.0,
+      "slot_check": true,
+      "slot_margin": 0.5,
+      "slot_lateral": 0.1,
+      "grip_brake": 0.8,
+      "stability": true,
+      "stab_grip": 0.95,
+      "stab_min_brake": 0.3,
+      "stab_steer_cap": 1.2,
+      "stab_k_yaw": 0.08,
+      "stab_k_slip": 0.6,
+      "stab_slip_free": 0.035,
+      "stab_max_correction": 0.1,
+      "stab_steer_margin": 0.9,
+      "w_lateral": 10.0,
+      "w_speed": 0.5,
+      "w_heading": 5.0,
+      "w_accel": 0.1,
+      "w_steer": 10.0,
+      "w_accel_rate": 1.0,
+      "w_steer_rate": 2000.0,
+      "w_slack": 100.0,
+      "lateral_tolerance": 0.05,
+      "yield_window": 10.0,
+      "yield_margin": 1.0,
+      "w_yield": 100.0,
+      "mpc": "nonlinear",
+      "nmpc_hard_slots": 14,
+      "nmpc_soft_slots": 10,
+      "nmpc_sqp_iter": 1,
+      "nmpc_integrator_steps": 2,
+      "nmpc_steer_cap": false,
+      "nmpc_slip_limit": 0.8,
+      "nmpc_w_slip": 1000.0,
+      "nmpc_grip_limit": 0.9,
+      "nmpc_w_obstacle": 100000.0,
+      "nmpc_obstacle_quad": 200000.0,
+      "nmpc_vx_floor": 5.0,
+      "nmpc_emergency": true,
+      "nmpc_emergency_sqp_iter": 3,
+      "nmpc_emergency_comfort": 0.2,
+      "nmpc_verify": true,
+      "nmpc_verify_iter": 4,
+      "nmpc_verify_budget": 0.0,
+      "nmpc_grip_tol": 0.01,
+      "nmpc_recover_steps": 3,
+      "nmpc_w_vy": 10.0,
+      "nmpc_w_yaw_rate": 10.0,
+      "nmpc_levenberg_marquardt": 0.0,
+      "nmpc_edge_yaw": false,
+      "escape_edge_grip": false,
+      "edge_grip_zone": 1.0
+    }
+  },
+  "PPO batch 10 (3.0M final = best)": {
+    "scenario_version": "v9",
+    "score_version": "v10",
+    "seed": 1002,
+    "policy": "PPO batch 10 (3.0M final = best)",
+    "end_reason": "collision",
+    "duration_s": 8.55,
+    "team_score": 139214.81982085606,
+    "individual_scores": [
+      37523.347344755246,
+      51222.348245097375,
+      50469.12423100345
+    ],
+    "score_by_term": {
+      "close_pass": [
+        73019.7585707856,
+        99232.54029729909,
+        97648.2295589719
+      ],
+      "proximity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "speed": [
+        848.309471500193,
+        934.6561928956583,
+        1006.3922558103068
+      ],
+      "collision": [
+        -38523.347344755246,
+        -51222.348245097375,
+        -50469.12423100345
+      ],
+      "maneuver": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "draft": [
+        2181.25,
+        2277.5,
+        2286.25
+      ],
+      "spread": [
+        -2.623352775304081,
+        0.0,
+        -2.623352775304081
+      ],
+      "top_speed": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "collisions": [
+      {
+        "vehicle": 0,
+        "kind": "traffic",
+        "other": 13
+      }
+    ],
+    "overtakes": 28,
+    "close_passes_scored": 15,
+    "draft_passes_scored": 12,
+    "train_passes_scored": 6,
+    "train_time_s": 1.800000000000001,
+    "mean_speed_mps": 35.452803882545055,
+    "top_speed_time_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "braking_mps": [
+      27.014675555989808,
+      22.194339813572654,
+      23.34856624623787
+    ],
+    "stuck_time_s": [
+      0.05,
+      0.0,
+      0.0
+    ],
+    "team_pass": {
+      "count": 15,
+      "boosted": 9,
+      "mean_multiplier": 1.2490020368740986,
+      "max_multiplier": 1.5801923076785886
+    },
+    "combo": {
+      "max_multiplier": 5.0,
+      "time_above_1_s": 7.300000000000001,
+      "max_count": 15
+    },
+    "maneuvers": {
+      "count": {},
+      "points": 0.0
+    },
+    "proximity_time_s": {
+      "0-1": 0.0,
+      "0-2": 0.0,
+      "1-2": 0.0
+    },
+    "draft_time_s": [
+      1.8,
+      8.0,
+      8.35
+    ],
+    "min_clearance_traffic_m": 0.0,
+    "min_clearance_teammates_m": 13.15991006114298,
+    "mpc_failures": 61,
+    "policy_compute_ms": {
+      "mean": 28.798039181379885,
+      "max": 991.2524999963352
+    },
+    "planner": {
+      "lane_changes_accepted": 4,
+      "lane_changes_completed": 0,
+      "double_lane_changes": {
+        "accepted": 0,
+        "completed": 0
+      },
+      "locked_gap_margin_m": {
+        "count": 4,
+        "min": 0.6274218245721022,
+        "median": 4.180500283650523
+      },
+      "lane_changes_aborted": 2,
+      "lane_changes_cancelled": 1,
+      "masked_lane_actions": 0,
+      "rejections": {},
+      "qp_solves": 350,
+      "qp_failures": 61,
+      "qp_status": {
+        "solved": 289,
+        "grip": 21,
+        "infeasible": 40
+      },
+      "fallbacks": {
+        "emergency": 13
+      },
+      "plan_conflicts": {
+        "unresolved": 6
+      },
+      "solve_ms": {
+        "mean": 12.868731428586347,
+        "p95": 61.39324499745272,
+        "max": 112.63569998845924
+      },
+      "iterations": {
+        "mean": 88.98857142857143,
+        "max": 705
+      },
+      "plan_error_next_step_m": {
+        "s_mean": 0.001308919157183513,
+        "s_max": 0.009530574684106341,
+        "d_mean": 0.00024359024288594358,
+        "d_max": 0.002472039967256895
+      },
+      "missed_opportunity_s": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "scenario": {
+      "version": "v9",
+      "road": {
+        "lanes": 3,
+        "lane_width": 3.6,
+        "length": 10000.0
+      },
+      "vehicle": {
+        "wheelbase": 2.857,
+        "cg_to_rear_axle": 1.5,
+        "length": 4.79,
+        "width": 1.9,
+        "accel_max": 8.0,
+        "brake_max": 11.0,
+        "steer_max": 0.5,
+        "steer_rate": 0.6,
+        "power_speed": 26.3,
+        "lateral_accel_max": 9.5,
+        "standstill_gap": 5.0,
+        "headway": 1.2,
+        "model": "dynamic",
+        "mass": 1780.0,
+        "yaw_inertia": 2800.0,
+        "cornering_stiffness_front": 110000.0,
+        "cornering_stiffness_rear": 125000.0,
+        "friction": 1.05,
+        "cg_height": 0.5,
+        "brake_bias_front": 0.72,
+        "drive_bias_front": 0.3,
+        "dynamic_blend_low": 3.0,
+        "dynamic_blend_high": 6.0,
+        "dynamic_substep": 0.01
+      },
+      "traffic": {
+        "count": 45,
+        "speed_min": 24.5872,
+        "speed_max": 35.7632,
+        "lane_speeds": [
+          [
+            24.5872,
+            27.71648
+          ],
+          [
+            27.71648,
+            30.39872
+          ],
+          [
+            31.2928,
+            35.7632
+          ]
+        ],
+        "spawn_behind": 150.0,
+        "spawn_ahead": 400.0,
+        "recycle_behind": 150.0,
+        "respawn_ahead": 250.0,
+        "min_gap": 15.0,
+        "team_lane_clear_ahead": 100.0,
+        "team_lane_clear_behind": 40.0,
+        "idm_accel": 1.5,
+        "idm_brake": 2.0,
+        "idm_brake_max": 8.0,
+        "idm_gap": 2.0,
+        "idm_headway": 1.5,
+        "lane_changes": true,
+        "mobil_politeness": 0.3,
+        "mobil_threshold": 0.2,
+        "mobil_safe_brake": 3.0,
+        "lane_change_time": 3.0,
+        "lane_change_interval": 1.0,
+        "lane_change_gap": 0.5,
+        "no_walls": false,
+        "wall_window": 9.58,
+        "wall_slowdown": 3.0,
+        "lane_change_cooldown": 8.0,
+        "keep_right_bias": 0.0,
+        "lane_change_prob": 0.3,
+        "no_blockades": true,
+        "blockade_gap": 10.58,
+        "blockade_buffer": 10.0,
+        "blockade_headway": 0.5,
+        "respawn_spread": true,
+        "respawn_spots": 10,
+        "respawn_spot_gap": 20.0,
+        "respawn_count_behind": 150.0,
+        "respawn_count_ahead": 500.0
+      },
+      "timing": {
+        "dt": 0.05,
+        "duration": 300.0
+      },
+      "score": {
+        "version": "v10",
+        "pass_base": 100.0,
+        "pass_threshold": 1.5,
+        "pass_ref_speed": 28.0,
+        "proximity_rate": 0.0,
+        "proximity_distance": 20.0,
+        "proximity_min_speed": 20.0,
+        "speed_rate": 10.0,
+        "speed_floor": 25.0,
+        "collision_penalty": 500.0,
+        "collision_wipe": 0.5,
+        "repass_cooldown": 10.0,
+        "combo_step": 0.5,
+        "combo_max": 5.0,
+        "combo_window": 5.0,
+        "proximity_falloff": "linear",
+        "lc_base": -300.0,
+        "lc_pass_single": 60.0,
+        "lc_pass_double": 90.0,
+        "lc_chain_single": 150.0,
+        "lc_chain_double": 300.0,
+        "lc_chain_window": 3.0,
+        "lc_traffic_distance": 10.0,
+        "lc_min_speed": 25.0,
+        "team_pass_gain": 0.5,
+        "team_pass_distance": 50.0,
+        "team_pass_require_all": true,
+        "draft_rate": 5.0,
+        "draft_headway": 1.0,
+        "draft_min_speed": 20.0,
+        "draft_pass_gain": 15.0,
+        "draft_pass_window": 1.0,
+        "train_rate": 250.0,
+        "train_headway": 0.5,
+        "train_pass_gain": 30.0,
+        "train_min_speed": 26.82,
+        "train_ramp": [
+          [
+            26.82,
+            0.4
+          ],
+          [
+            29.06,
+            0.5
+          ],
+          [
+            31.29,
+            0.7
+          ],
+          [
+            35.76,
+            1.0
+          ]
+        ],
+        "top_speed_rate": 10.0,
+        "top_speed_threshold": 53.64,
+        "spread_penalty_rate": 4.0,
+        "spread_free_distance": 50.0,
+        "spread_scale": 10.0,
+        "spread_penalty_cap": 400.0
+      },
+      "team_speed": 31.3,
+      "team_lane": 1,
+      "team_start_s": 100.0,
+      "team_speed_max": 60.0,
+      "team_start_headway": 0.6,
+      "overtaker_speed": 40.0,
+      "overtaker_look": 80.0
+    },
+    "planner_config": {
+      "version": "m4.3",
+      "horizon": 30,
+      "step": 0.1,
+      "decision_interval": 0.5,
+      "max_iter": 4000,
+      "qp_eps": 0.0001,
+      "qp_reuse": true,
+      "qp_soft_slots": 6,
+      "speed_step": 2.0,
+      "speed_min": 20.0,
+      "speed_max": 60.0,
+      "gap_lookahead": 3.0,
+      "margin_long": 0.25,
+      "margin_lat": 0.25,
+      "edge_margin": 0.3,
+      "headway": 0.3,
+      "teammate_headway": 0.2,
+      "lean_offset": 0.6,
+      "relevance": 60.0,
+      "side_zone": 5.0,
+      "done_tolerance": 0.3,
+      "max_shifted_steps": 5,
+      "merge_window": 30.0,
+      "rear_closing_time": 0.3,
+      "double_gap_lookahead": 4.0,
+      "overtake_look": 80.0,
+      "overtake_margin": 3.0,
+      "overtake_clear": 2.0,
+      "overtake_pass_max": 8.0,
+      "overtake_return_lead": 2.0,
+      "overtake_merge_time": 2.0,
+      "overtake_settled": 0.5,
+      "overtake_out_min": 0.8,
+      "follow": true,
+      "follow_gap": 0.35,
+      "follow_window": 1.0,
+      "follow_break": 1.5,
+      "follow_k": 0.5,
+      "follow_max_rel": 5.0,
+      "follow_preview": 0.5,
+      "follow_join_time": 1.0,
+      "follow_train_room": false,
+      "ignore_rear_mates": false,
+      "follow_finish_committed": false,
+      "gap_search": false,
+      "yaw_margin": false,
+      "yaw_margin_psi": 0.06,
+      "yaw_margin_offset": 0.5,
+      "yaw_margin_scope": "all",
+      "gap_search_dv": 8.0,
+      "gap_search_step": 1.0,
+      "gap_search_margin": 3.0,
+      "gap_search_brake": 4.0,
+      "gap_search_window": 100.0,
+      "gap_search_closing": 2.0,
+      "gap_lead": true,
+      "gap_lead_time": 1.25,
+      "middle_window_start": 0.8,
+      "middle_window_end": 2.5,
+      "commit_progress_eps": 0.1,
+      "commit_stall_time": 2.0,
+      "commit_max_time": 6.0,
+      "pending_max_time": 2.0,
+      "retry_cooldown": 1.0,
+      "check_margin": 0.1,
+      "emergency_decel": 12.0,
+      "check_substeps": 5,
+      "escape_accel": 5.0,
+      "slot_check": true,
+      "slot_margin": 0.5,
+      "slot_lateral": 0.1,
+      "grip_brake": 0.8,
+      "stability": true,
+      "stab_grip": 0.95,
+      "stab_min_brake": 0.3,
+      "stab_steer_cap": 1.2,
+      "stab_k_yaw": 0.08,
+      "stab_k_slip": 0.6,
+      "stab_slip_free": 0.035,
+      "stab_max_correction": 0.1,
+      "stab_steer_margin": 0.9,
+      "w_lateral": 10.0,
+      "w_speed": 0.5,
+      "w_heading": 5.0,
+      "w_accel": 0.1,
+      "w_steer": 10.0,
+      "w_accel_rate": 1.0,
+      "w_steer_rate": 2000.0,
+      "w_slack": 100.0,
+      "lateral_tolerance": 0.05,
+      "yield_window": 10.0,
+      "yield_margin": 1.0,
+      "w_yield": 100.0,
+      "mpc": "nonlinear",
+      "nmpc_hard_slots": 14,
+      "nmpc_soft_slots": 10,
+      "nmpc_sqp_iter": 1,
+      "nmpc_integrator_steps": 2,
+      "nmpc_steer_cap": false,
+      "nmpc_slip_limit": 0.8,
+      "nmpc_w_slip": 1000.0,
+      "nmpc_grip_limit": 0.9,
+      "nmpc_w_obstacle": 100000.0,
+      "nmpc_obstacle_quad": 200000.0,
+      "nmpc_vx_floor": 5.0,
+      "nmpc_emergency": true,
+      "nmpc_emergency_sqp_iter": 3,
+      "nmpc_emergency_comfort": 0.2,
+      "nmpc_verify": true,
+      "nmpc_verify_iter": 4,
+      "nmpc_verify_budget": 0.0,
+      "nmpc_grip_tol": 0.01,
+      "nmpc_recover_steps": 3,
+      "nmpc_w_vy": 10.0,
+      "nmpc_w_yaw_rate": 10.0,
+      "nmpc_levenberg_marquardt": 0.0,
+      "nmpc_edge_yaw": false,
+      "escape_edge_grip": false,
+      "edge_grip_zone": 1.0
+    }
+  },
+  "setup": {
+    "scenario": "v9",
+    "duration_s": 300.0,
+    "seed": 1002,
+    "planner_overrides": {
+      "retry_cooldown": 1.0,
+      "w_lateral": 10.0,
+      "gap_lead": true,
+      "pending_max_time": 2.0
+    }
+  }
+}
