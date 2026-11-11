@@ -90,3 +90,28 @@ def test_every_loaded_truck_dumps(run):
     last = frames[-1]['c'][0]['trucks']
     assert all(r[9] < 0.01 for r in last)          # payload gone
     assert all(r[12] == 4 for r in last)           # DONE
+
+
+def test_trucks_stay_on_the_haul_road_or_pad(run):
+    """No truck leaves the road, the ROM pad or the loading area (regression: the return convoy once drove past the
+    end of its route, through the pit wall and up the hillside)."""
+    site, frames, _ = run
+    x0, x1, y0, y1 = cs.PAD
+    road = site.road_xy
+    worst = 0.0
+    for fr in frames[::15]:
+        for c in fr['c']:
+            if not c['active']:
+                continue
+            for r in c['trucks']:
+                if x0 - 5 <= r[0] <= x1 + 5 and y0 - 5 <= r[1] <= y1 + 5:
+                    continue
+                d = float(np.min(np.hypot(road[:, 0] - r[0], road[:, 1] - r[1])))
+                worst = max(worst, d)
+    assert worst <= cs.ROAD_HALF + 1.0, worst
+
+
+def test_every_convoy_ends_at_rest(run):
+    _, frames, _ = run
+    for c in frames[-1]['c']:
+        assert all(r[5] < 0.05 for r in c['trucks'])

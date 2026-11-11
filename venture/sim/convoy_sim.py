@@ -631,6 +631,8 @@ class Convoy:
         v_t = np.minimum(v_lim, v_curve)
         if side > 0:
             v_t = np.minimum(v_t, 4.0 + 5.7 * np.clip((s_road[-1] - s_road) / 60.0, 0, 1))
+        else:   # the return convoy pulls up at the loading area, 12 m short of the end of its route, and queues
+            v_t = np.where(s_road > s_road[-1] - 12.0, 0.0, v_t)
         for i in range(len(v_t) - 2, -1, -1):
             ds = s_road[i + 1] - s_road[i]
             v_t[i] = min(v_t[i], math.sqrt(v_t[i + 1] ** 2 + 2 * 0.55 * ds))
@@ -688,6 +690,8 @@ class Convoy:
         if self.state == 'RUN':
             v_ref *= min(1.0, max(0.7, 1.0 - 0.012 * (excess - 6.0)))
         u = 0.55 * (v_ref - L.v)
+        if v_ref <= 0.0:
+            u = -1.0 if L.v > 0.05 else -0.3
         u = min(max(u, -1.2), 0.7)
         if self.alert_t >= 0 and t >= self.alert_t + 1.0 and self.state in ('HOLD', 'CLEAR'):
             u = -1.3 if L.v > 0.05 else -0.3
