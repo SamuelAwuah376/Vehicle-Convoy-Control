@@ -1,0 +1,12 @@
+{
+  "name": "convoy-promo-video",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Renders the leader-follower convoy promo video from convoy_sim.py output (Three.js in headless Chromium, frames encoded with ffmpeg)",
+  "scripts": {
+    "render": "node render.js"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}

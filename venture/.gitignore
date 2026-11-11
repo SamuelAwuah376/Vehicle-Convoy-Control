@@ -1,0 +1,8 @@
+# regenerable outputs (see README "Reproduce")
+video/node_modules/
+video/frames/
+video/preview/
+video/logs/
+video/data/
+video/soundtrack.wav
+video/bench/

@@ -1,0 +1,390 @@
+{
+ "assumptions": {
+  "wage_per_hr": 28.19,
+  "benefit_load": 1.42,
+  "overhead_per_hr": 3.0,
+  "hours_per_truck_yr": 4160,
+  "payload_t": 55.0,
+  "cycle_min": 20.0,
+  "truck_opex_per_hr": 110.0,
+  "convoy_efficiency": 0.92,
+  "maint_tyre_saving": 0.05,
+  "price_per_follower_hr": 24.0,
+  "followers_per_convoy": 3,
+  "kit_cost_pilot": 60000.0,
+  "kit_cost_scale": 32000.0,
+  "install_pilot": 8000.0,
+  "install_scale": 4000.0,
+  "kit_life_yr": 5.0,
+  "support_pilot": 14000.0,
+  "support_scale": 8000.0,
+  "cloud_insurance": 3000.0,
+  "lead_kit": 12000.0,
+  "us_aggregates_gt": 2.4,
+  "us_quarries": 3500,
+  "us_pits": 6500,
+  "us_quarry_trucks_low": 3000,
+  "us_quarry_trucks_high": 6000,
+  "global_haul_trucks_90t": 66000,
+  "global_rigid_adt_sales_yr": 16000,
+  "fleet_life_yr": 10,
+  "icp_share": 0.4
+ },
+ "sites": {
+  "icp": {
+   "label": "ICP: 5 km private haul, 40 t ADT/road-class truck, remote site",
+   "wage": 35.0,
+   "opex": 70.0,
+   "payload": 40.0,
+   "cycle": 30.0,
+   "eff": 1.0,
+   "note": "travel ~75% of cycle; relief operator covers breaks/shift change (+5% utilisation) offsets convoy queuing (-5%)"
+  },
+  "icp_median": {
+   "label": "ICP at the US median wage ($28.19/h)",
+   "wage": 28.19,
+   "opex": 70.0,
+   "payload": 40.0,
+   "cycle": 30.0,
+   "eff": 1.0,
+   "note": ""
+  },
+  "mid": {
+   "label": "Mid: 3 km haul, 60 t truck, US median wage",
+   "wage": 28.19,
+   "opex": 110.0,
+   "payload": 55.0,
+   "cycle": 20.0,
+   "eff": 0.92,
+   "note": ""
+  },
+  "avoid": {
+   "label": "Avoid: short quarry loop, 60 t truck, single loader",
+   "wage": 28.19,
+   "opex": 110.0,
+   "payload": 55.0,
+   "cycle": 14.0,
+   "eff": 0.8,
+   "note": "loader-paced cycle: a tight convoy idles the loader"
+  }
+ },
+ "customer_roi_base": {
+  "label": "ICP: 5 km private haul, 40 t ADT/road-class truck, remote site",
+  "convoy_efficiency": 1.0,
+  "price_per_follower_hr": 24.0,
+  "hours_per_truck_yr": 4160,
+  "operator_cost_per_hr": 52.7,
+  "tons_per_yr": 1331200,
+  "manual_cost": 2041728,
+  "convoy_cost": 1639872,
+  "saving_per_yr": 401856,
+  "saving_pct_of_haul_cost": 19.7,
+  "manual_cost_per_t": 1.534,
+  "convoy_cost_per_t": 1.232,
+  "operator_seats_per_day_manual": 8,
+  "operator_seats_per_day_convoy": 2,
+  "leadhaul_revenue_per_convoy": 299520,
+  "price_per_ton_equiv": 0.3,
+  "tons_per_operator_hr_manual": 80.0,
+  "tons_per_operator_hr_convoy": 320.0
+ },
+ "sensitivity": [
+  {
+   "label": "Mid: 3 km haul, 60 t truck, US median wage",
+   "convoy_efficiency": 0.92,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 43.03,
+   "tons_per_yr": 2745600,
+   "manual_cost": 2546416,
+   "convoy_cost": 2435091,
+   "saving_per_yr": 111325,
+   "saving_pct_of_haul_cost": 4.4,
+   "manual_cost_per_t": 0.927,
+   "convoy_cost_per_t": 0.887,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 325565,
+   "price_per_ton_equiv": 0.158,
+   "tons_per_operator_hr_manual": 165.0,
+   "tons_per_operator_hr_convoy": 607.2
+  },
+  {
+   "label": "Avoid: short quarry loop, 60 t truck, single loader",
+   "convoy_efficiency": 0.8,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 43.03,
+   "tons_per_yr": 3922286,
+   "manual_cost": 2546416,
+   "convoy_cost": 2800355,
+   "saving_per_yr": -253939,
+   "saving_pct_of_haul_cost": -10.0,
+   "manual_cost_per_t": 0.649,
+   "convoy_cost_per_t": 0.714,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 374400,
+   "price_per_ton_equiv": 0.127,
+   "tons_per_operator_hr_manual": 235.7,
+   "tons_per_operator_hr_convoy": 754.3
+  },
+  {
+   "label": "ICP, convoy efficiency 0.9",
+   "convoy_efficiency": 0.9,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 52.7,
+   "tons_per_yr": 1331200,
+   "manual_cost": 2041728,
+   "convoy_cost": 1822080,
+   "saving_per_yr": 219648,
+   "saving_pct_of_haul_cost": 10.8,
+   "manual_cost_per_t": 1.534,
+   "convoy_cost_per_t": 1.369,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 332800,
+   "price_per_ton_equiv": 0.333,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 288.0
+  },
+  {
+   "label": "ICP, convoy efficiency 0.95",
+   "convoy_efficiency": 0.95,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 52.7,
+   "tons_per_yr": 1331200,
+   "manual_cost": 2041728,
+   "convoy_cost": 1726181,
+   "saving_per_yr": 315547,
+   "saving_pct_of_haul_cost": 15.5,
+   "manual_cost_per_t": 1.534,
+   "convoy_cost_per_t": 1.297,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 315284,
+   "price_per_ton_equiv": 0.316,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 304.0
+  },
+  {
+   "label": "ICP, price $18/follower-h",
+   "convoy_efficiency": 1.0,
+   "price_per_follower_hr": 18.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 52.7,
+   "tons_per_yr": 1331200,
+   "manual_cost": 2041728,
+   "convoy_cost": 1564992,
+   "saving_per_yr": 476736,
+   "saving_pct_of_haul_cost": 23.3,
+   "manual_cost_per_t": 1.534,
+   "convoy_cost_per_t": 1.176,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 224640,
+   "price_per_ton_equiv": 0.225,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 320.0
+  },
+  {
+   "label": "ICP, price $30/follower-h",
+   "convoy_efficiency": 1.0,
+   "price_per_follower_hr": 30.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 52.7,
+   "tons_per_yr": 1331200,
+   "manual_cost": 2041728,
+   "convoy_cost": 1714752,
+   "saving_per_yr": 326976,
+   "saving_pct_of_haul_cost": 16.0,
+   "manual_cost_per_t": 1.534,
+   "convoy_cost_per_t": 1.288,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 374400,
+   "price_per_ton_equiv": 0.375,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 320.0
+  },
+  {
+   "label": "ICP, single shift",
+   "convoy_efficiency": 1.0,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 2080,
+   "operator_cost_per_hr": 52.7,
+   "tons_per_yr": 665600,
+   "manual_cost": 1020864,
+   "convoy_cost": 819936,
+   "saving_per_yr": 200928,
+   "saving_pct_of_haul_cost": 19.7,
+   "manual_cost_per_t": 1.534,
+   "convoy_cost_per_t": 1.232,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 149760,
+   "price_per_ton_equiv": 0.3,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 320.0
+  },
+  {
+   "label": "ICP at the US median wage ($28.19/h)",
+   "convoy_efficiency": 1.0,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 43.03,
+   "tons_per_yr": 1331200,
+   "manual_cost": 1880816,
+   "convoy_cost": 1599644,
+   "saving_per_yr": 281172,
+   "saving_pct_of_haul_cost": 14.9,
+   "manual_cost_per_t": 1.413,
+   "convoy_cost_per_t": 1.202,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 299520,
+   "price_per_ton_equiv": 0.3,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 320.0
+  },
+  {
+   "label": "ICP with road-class truck (opex $40/h)",
+   "convoy_efficiency": 1.0,
+   "price_per_follower_hr": 24.0,
+   "hours_per_truck_yr": 4160,
+   "operator_cost_per_hr": 52.7,
+   "tons_per_yr": 1331200,
+   "manual_cost": 1542528,
+   "convoy_cost": 1159392,
+   "saving_per_yr": 383136,
+   "saving_pct_of_haul_cost": 24.8,
+   "manual_cost_per_t": 1.159,
+   "convoy_cost_per_t": 0.871,
+   "operator_seats_per_day_manual": 8,
+   "operator_seats_per_day_convoy": 2,
+   "leadhaul_revenue_per_convoy": 299520,
+   "price_per_ton_equiv": 0.3,
+   "tons_per_operator_hr_manual": 80.0,
+   "tons_per_operator_hr_convoy": 320.0
+  }
+ ],
+ "follower_economics": [
+  {
+   "scale": "pilot",
+   "revenue_per_yr": 90435,
+   "cogs_per_yr": 31400,
+   "gross_margin_pct": 65.3,
+   "upfront_capex": 72000,
+   "capex_payback_months": 11.8
+  },
+  {
+   "scale": "scale",
+   "revenue_per_yr": 108522,
+   "cogs_per_yr": 19000,
+   "gross_margin_pct": 82.5,
+   "upfront_capex": 40000,
+   "capex_payback_months": 4.9
+  }
+ ],
+ "market": {
+  "rev_per_follower_blended": 72000.0,
+  "us_aggregates_beachhead_arr_range": [
+   64800000,
+   129600000
+  ],
+  "global_offhighway_fleet_est": 160000,
+  "global_tam_arr": 8640000000,
+  "note": "Fleet counts are DERIVED estimates (USGS tonnage / truck productivity; OHR sales x life). Validate with AEM/OHR data."
+ },
+ "plan": {
+  "years": [
+   {
+    "year": 2027,
+    "followers": 3,
+    "sites": 1,
+    "price_per_hr": 16.0,
+    "exit_arr": 144000
+   },
+   {
+    "year": 2028,
+    "followers": 12,
+    "sites": 3,
+    "price_per_hr": 20.0,
+    "exit_arr": 720000
+   },
+   {
+    "year": 2029,
+    "followers": 40,
+    "sites": 9,
+    "price_per_hr": 23.0,
+    "exit_arr": 2760000
+   },
+   {
+    "year": 2030,
+    "followers": 110,
+    "sites": 22,
+    "price_per_hr": 24.0,
+    "exit_arr": 7920000
+   },
+   {
+    "year": 2031,
+    "followers": 260,
+    "sites": 45,
+    "price_per_hr": 24.0,
+    "exit_arr": 18720000
+   }
+  ],
+  "raises": [
+   {
+    "round": "pre-seed",
+    "when": "Q1 2027",
+    "amount": 2000000.0,
+    "instrument": "post-money SAFE",
+    "cap": 16000000.0
+   },
+   {
+    "round": "seed",
+    "when": "H2 2028",
+    "amount": 7000000.0,
+    "trigger": "paid pilot -> 12-month contract, 2nd site, safety case v1"
+   },
+   {
+    "round": "Series A",
+    "when": "2029-30",
+    "amount": 25000000.0,
+    "trigger": ">= $3M ARR, 40+ followers, 9+ sites"
+   }
+  ]
+ },
+ "preseed_budget": {
+  "items": [
+   [
+    "Team: founder + 3 robotics/controls engineers + field-ops lead (18 mo, loaded)",
+    1150000
+   ],
+   [
+    "Vehicles: 2 used 40-60 t trucks/ADTs (or leased) + 3 scaled UTVs with by-wire",
+    260000
+   ],
+   [
+    "Autonomy kits: sensors, compute, V2V, by-wire integration (3 sets)",
+    180000
+   ],
+   [
+    "Safety: HARA, UL 4600-structured case, third-party pre-audit; insurance; test site",
+    170000
+   ],
+   [
+    "Legal/IP (Stanford OTL check), travel, customer discovery",
+    90000
+   ],
+   [
+    "Contingency",
+    150000
+   ]
+  ],
+  "total": 2000000
+ }
+}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leadhaul pre-seed memo</title>
+<style>
+  @page { size: Letter; margin: 0.42in 0.45in 0.4in 0.45in; }
+  :root { --ink: #121820; --mute: #4c5561; --teal: #0b8f86; --teal-bg: #e7f5f3; --amber: #b86e00; --red: #b3261e; --rule: #d5dbe0; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Inter', sans-serif; font-size: 8.15pt; line-height: 1.32; color: var(--ink); }
+  .page { break-after: page; position: relative; }
+  .page:last-child { break-after: auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--ink); padding-bottom: 5px; margin-bottom: 7px; }
+  .brand { font-size: 19pt; font-weight: 800; letter-spacing: 0.12em; }
+  .brand span { color: var(--teal); }
+  .brand small { display: block; font-size: 8.3pt; font-weight: 600; letter-spacing: 0.01em; color: var(--mute); margin-top: 1px; }
+  .meta { text-align: right; font-size: 7.6pt; color: var(--mute); line-height: 1.4; }
+  .meta b { color: var(--ink); }
+  .tldr { background: var(--teal-bg); border-left: 4px solid var(--teal); padding: 6px 9px 6px 9px; margin-bottom: 7px; font-size: 8.5pt; line-height: 1.36; }
+  .tldr b { color: #06625c; }
+  .cols { column-count: 2; column-gap: 15px; }
+  h2 { font-size: 9.4pt; font-weight: 800; margin: 7px 0 3px 0; letter-spacing: 0.01em; break-after: avoid; }
+  h2 .n { color: var(--teal); margin-right: 4px; }
+  p { margin: 0 0 4px 0; }
+  ul { margin: 0 0 4px 0; padding-left: 12px; }
+  li { margin: 0 0 1.6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 2px 0 5px 0; font-size: 7.35pt; line-height: 1.25; break-inside: avoid; }
+  th { text-align: left; font-weight: 700; border-bottom: 1.2px solid var(--ink); padding: 2px 3px; }
+  td { border-bottom: 0.6px solid var(--rule); padding: 1.6px 3px; vertical-align: top; }
+  td.r, th.r { text-align: right; white-space: nowrap; }
+  tr.hl td { background: var(--teal-bg); font-weight: 600; }
+  tr.bad td { color: var(--red); }
+  .src { font-size: 6.4pt; color: var(--mute); }
+  .k { font-weight: 700; }
+  .pill { display: inline-block; font-size: 6.6pt; font-weight: 700; padding: 0 4px; border-radius: 3px; background: #eef1f3; color: var(--mute); letter-spacing: 0.03em; }
+  .box { border: 1px solid var(--rule); border-radius: 4px; padding: 5px 7px; margin: 3px 0 6px 0; break-inside: avoid; }
+  .ask { border: 1.5px solid var(--ink); border-radius: 4px; padding: 5px 8px; margin: 3px 0 6px 0; break-inside: avoid; }
+  .ask .big { font-size: 11pt; font-weight: 800; }
+  footer { margin-top: 5px; border-top: 1px solid var(--rule); padding-top: 3px; font-size: 6.15pt; color: var(--mute); line-height: 1.3; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 7pt; }
+  .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+  .strip figure { margin: 0; }
+  .strip img { width: 100%; display: block; border-radius: 3px; }
+  .strip figcaption { font-size: 6.6pt; line-height: 1.25; color: var(--mute); margin-top: 2px; }
+  .strip figcaption b { color: var(--teal); }
+</style>
+</head>
+<body>
+
+<!-- ============================================================== PAGE 1 -->
+<section class="page">
+<header>
+  <div class="brand">LEAD<span>HAUL</span><small>Human-led autonomous haul convoys for private industrial routes</small></div>
+  <div class="meta"><b>Pre-seed investment memo</b> · November 2026<br>Working name · stills and video are simulation renders, not field footage<br>Figures marked <span class="pill">EST</span> are our estimates; <span class="pill">TARGET</span> are plans</div>
+</header>
+
+<div class="tldr"><b>The call.</b> Do not build highway convoy trucking: fuel-only platooning (Peloton) and human-led highway convoys (Locomation, $105M raised) both died, and driverless highway trucking is a billion-dollar race with tiny revenue. <b>Pivot to private haul roads</b> at mines, quarries, frac-sand and heavy-civil sites, where autonomy is already proven and paid for (5,684 autonomous or autonomy-ready haul trucks worldwide, +48% in a year) but still reaches only a few percent of the fleet. Our wedge is the fastest way to take operators off trucks a site already owns: <b>one operator drives the lead truck and up to three retrofitted trucks follow driverless</b>. There is no site survey, no control room and no new fleet. We sell it <b>only where the math works</b>: long, repetitive private hauls, which save about <b>20% of haul cost per convoy</b> and quadruple tons per operator-hour in our model. <b>Ask: $2.0M pre-seed</b> (post-money SAFE, $16M cap) to reach a paid driverless-follower pilot in 18 months.</div>
+
+<div class="cols">
+
+<h2><span class="n">1</span>Why not the original idea (highway convoys)</h2>
+<ul>
+  <li><b>Fuel savings were too small to pay for platooning.</b> NREL measured 3.7–6.4% team fuel savings, and only about 55–65% of miles can be platooned at all. Daimler found "no business case" (2019). Peloton raised about $78M and was liquidated in 2021.</li>
+  <li><b>A human leader does not shortcut public roads.</b> The follower still needs near-driverless validation, so the capital cost matches full autonomy while only half the labor is saved. Locomation had a 1,120-unit fleet commitment and still sold its assets in 2023.</li>
+  <li><b>Highway autonomy is a capital race.</b> Aurora: about $3M revenue, $234M loss in Q3 2026. Kodiak burns about $153M a year. Waabi raised $750M. A pre-seed team cannot win head-on.</li>
+</ul>
+
+<h2><span class="n">2</span>Where the money is: private haul roads</h2>
+<ul>
+  <li><b>Proven and paid for.</b> Kodiak runs 37 unsupervised trucks on Atlas Energy's Permian lease roads, with a 100-truck order for 1H27. Volvo hauls all of Brønnøy Kalk's limestone driverless and bills <b>per tonne</b> (3 Mt by Sep 2026). Cat had 827 autonomous trucks at end-2025 and is now at Luck Stone quarries; Komatsu passed 1,000 in Apr 2026.</li>
+  <li><b>Still early.</b> The 5,684 autonomous or autonomy-ready trucks (GlobalData, Jul 2026) are about 3.5% of roughly 160k off-highway rigid trucks and ADTs <span class="pill">EST</span>. Almost all sit in large single-OEM mines with site-wide infrastructure. Mid-size sites and mixed fleets are nearly untouched.</li>
+  <li><b>Labor is the bottleneck.</b> 77% of contractors with openings struggle to hire heavy-equipment operators (AGC 2025). About 221k US mining workers, more than half the workforce, are expected to retire by 2029 (SME). In Luck Stone's words: if one of four trucks has no operator, a quarter of the day's production is gone.</li>
+  <li><b>Safety pressure.</b> Powered haulage caused 13 of 33 US mining deaths in 2025 (MSHA). MSHA's surface mobile equipment rule has required written safety programs since Jul 2024.</li>
+  <li><b>Volume.</b> US aggregates: 2.40 Gt ($40.0B) in 2025 from ~3,500 quarries and 6,500 pits (USGS); frac sand ~100 Mt/yr <span class="pill">EST</span>.</li>
+</ul>
+
+<h2><span class="n">3</span>Product: convoy first, driverless next</h2>
+<p><b>Kit.</b> A follower kit has radar plus lidar for its own perception, dual RTK GNSS, a Jetson-class computer, a V2V mesh radio and by-wire control over J1939 and electro-hydraulic steering. A lighter lead kit holds GNSS, V2V, a cab tablet and driver monitoring. Followers drive the leader's exact path from V2V breadcrumbs, so a haul road that moves needs no re-mapping. Gaps are set from stopping distance, and each follower checks the corridor it will sweep. <b>Any truck can halt the whole convoy</b>, and the operator resumes it.</p>
+<p><b>Why this order.</b> The human at the front supplies judgment, exception handling and the route itself. That narrows the hazard set to things that enter the corridor seconds after the leader passed, and to follower faults. The result: a smaller safety case (ISO 17757, UL 4600), deployment in weeks, and a human presence customers, insurers and unions accept. <b>Roadmap:</b> (1) tight convoys on long hauls; (2) path-follow mode, where followers re-drive the leader's recent path spaced to the loader's pace, for short hauls; (3) driverless leaders on learned routes.</p>
+
+<h2><span class="n">4</span>Where convoys win, and where they don't</h2>
+<p>A convoy only removes operator-hours, so its value grows with <b>operator cost relative to truck running cost</b> and with <b>how little throughput convoying costs</b>. Model: one operator plus three followers, two shifts, $24 per follower-hour; loaded labor = wage × 1.42 + overhead (BLS).</p>
+<table>
+  <tr><th>Site type (per convoy, 2 shifts)</th><th class="r">Convoy eff.</th><th class="r">Haul cost saved</th><th class="r">t / operator-h</th></tr>
+  <tr class="hl"><td><b>ICP:</b> 5 km private haul, 40 t ADT, remote-site wage</td><td class="r">1.00</td><td class="r">$402k/yr · 19.7%</td><td class="r">80 → 320</td></tr>
+  <tr><td>Same, road-class trucks ($40/h running cost)</td><td class="r">1.00</td><td class="r">$383k · 24.8%</td><td class="r">80 → 320</td></tr>
+  <tr><td>Same at the US median wage</td><td class="r">1.00</td><td class="r">$281k · 14.9%</td><td class="r">80 → 320</td></tr>
+  <tr><td>ICP if convoying costs 10% throughput</td><td class="r">0.90</td><td class="r">$220k · 10.8%</td><td class="r">80 → 288</td></tr>
+  <tr><td>3 km haul, 60 t truck ($110/h), median wage</td><td class="r">0.92</td><td class="r">$111k · 4.4%</td><td class="r">165 → 607</td></tr>
+  <tr class="bad"><td><b>Avoid:</b> short loader-paced quarry loop</td><td class="r">0.80</td><td class="r">−$254k · −10%</td><td class="r">236 → 754</td></tr>
+</table>
+<p><b>Our ideal customer (ICP):</b> a private haul of at least 3–5 km one-way, with travel at least 70% of the cycle. At least 4 trucks run the route, loading and dumping can take several trucks in a row (stockpile, bin, ROM pad), operators are scarce or cost at least $45/h loaded, and there are no more than 2 controlled crossings. Examples: satellite-pit-to-plant hauls, frac-sand lease roads, long mine and megaproject haul roads. Short quarry loops are OEM and Pronto territory; we stay out until mode (2) is ready. ICP cost per ton falls from $1.53 to $1.23, with no customer capex (billed per follower-hour, or about $0.30/t).</p>
+
+</div>
+<div class="strip">
+  <figure><img src="img/ramp.jpg"><figcaption><b>1</b> One operator leads three driverless followers up an 8.8% ramp.</figcaption></figure>
+  <figure><img src="img/tech.jpg"><figcaption><b>2</b> Followers drive the leader's breadcrumbs and check their own corridor.</figcaption></figure>
+  <figure><img src="img/hold.jpg"><figcaption><b>3</b> A pickup runs the crossing: the convoy holds over V2V, 31 m clear.</figcaption></figure>
+  <figure><img src="img/dump.jpg"><figcaption><b>4</b> Each follower spots and dumps on its own, then forms up again.</figcaption></figure>
+</div>
+</section>
+
+<!-- ============================================================== PAGE 2 -->
+<section class="page">
+<div class="cols">
+
+<h2><span class="n">5</span>Business model and unit economics</h2>
+<p><b>Robotics-as-a-service.</b> We own the kit, install it in days and bill <b>$24 per follower operating hour</b> <span class="pill">TARGET</span> (about 55% of the loaded seat it replaces), with 12–36-month contracts and minimum hours. Pilots run at $16–20/h. Per-tonne billing, as Volvo does, is offered where sites prefer it.</p>
+<table>
+  <tr><th>Per follower</th><th class="r">Revenue/yr</th><th class="r">Gross margin</th><th class="r">Kit + install</th><th class="r">Capex payback</th></tr>
+  <tr><td>Pilot (first 10 kits, $20/h)</td><td class="r">$90k</td><td class="r">65%</td><td class="r">$72k</td><td class="r">12 mo</td></tr>
+  <tr><td>Scale (100+ kits, $24/h)</td><td class="r">$109k</td><td class="r">82%</td><td class="r">$40k</td><td class="r">5 mo</td></tr>
+</table>
+<table>
+  <tr><th>Plan <span class="pill">TARGET</span></th><th class="r">2027</th><th class="r">2028</th><th class="r">2029</th><th class="r">2030</th><th class="r">2031</th></tr>
+  <tr><td>Sites / followers</td><td class="r">1 / 3</td><td class="r">3 / 12</td><td class="r">9 / 40</td><td class="r">22 / 110</td><td class="r">45 / 260</td></tr>
+  <tr><td>Exit ARR</td><td class="r">$0.1M</td><td class="r">$0.7M</td><td class="r">$2.8M</td><td class="r">$7.9M</td><td class="r">$18.7M</td></tr>
+</table>
+<p><b>Market</b> <span class="pill">EST</span>: about 160k off-highway rigid trucks and ADTs worldwide (≈16k sold a year × 10-year life). If three in four become followers at about $72k a year, that is a <b>~$8.6B/yr</b> TAM. The US aggregates beachhead alone holds $65–130M ARR. The 2031 plan needs fewer than 1% of US trucks.</p>
+<p><b>Go-to-market.</b> We land one convoy on one route, then expand to every qualifying route at the site and across the owner's sites. <b>Buyers</b> are site GMs and VPs of operations at multi-site aggregates and mining companies, and contract miners and haulers who are paid per ton and short of drivers. <b>Channels</b> are independent ADT dealers and equipment lessors who carry the kit capex (the ISEE–Holman model), plus fleet-telematics partners. Design partners get a discounted pilot with a 12-month conversion option.</p>
+
+<h2><span class="n">6</span>Competition and why we win the wedge</h2>
+<table>
+  <tr><th>Player</th><th>Model</th><th>Our angle</th></tr>
+  <tr><td>Cat, Komatsu AHS</td><td>OEM fleets, site infrastructure, big mines; now quarries</td><td>Mixed fleets, no zone-wide infrastructure, mid-size sites</td></tr>
+  <tr><td>Pronto (Atoms) + SafeAI</td><td>Retrofit driverless, ~30 vehicles at Heidelberg</td><td>Human-led: faster safety case, mixed traffic, long hauls</td></tr>
+  <tr><td>ASI ($225M SoftBank), Bedrock</td><td>Generalist construction autonomy</td><td>Narrow ODD, convoy coordination; partner, e.g. haul behind their loaders</td></tr>
+  <tr><td>Kodiak</td><td>Driverless road trucks, frac sand</td><td>Retrofit existing trucks; human on board for crossings</td></tr>
+  <tr><td>Teleo/Havoc, Fernride</td><td>Remote supervision</td><td>No remote operations center; works where links are poor</td></tr>
+</table>
+<p><b>Moat over time.</b> We own the multi-vehicle coordination stack: convoying, spacing, merging and spotting. Every convoy-hour builds route data, and our ISO 23725-aligned API plugs into incumbent fleet systems. Sites that start with convoys are the natural customers for our driverless mode. Downside protection: small off-road autonomy companies get bought (SafeAI by Pronto, Teleo by Havoc, ASI Mining by Epiroc, Embark by Applied Intuition for $71M).</p>
+
+<h2><span class="n">7</span>Technical plan: 18 months, gated</h2>
+<p><b>Already built.</b> The founder's multi-vehicle MPC and RL team-driving stack, with follow mode, gap rules and a CARLA bridge, has 0 crashes on 50 seeds in 45-car traffic. Our new haul-convoy simulation tracks the operator's line to <b>1.7 cm RMS</b> (14 cm max) over 20 Hz V2V with 40–60 ms latency and 2% loss. It held for a pickup that ran the crossing 52 m ahead and stopped 31 m clear (see the video).</p>
+<table style="break-inside:auto">
+  <tr><th>Months</th><th>Milestone (gate)</th></tr>
+  <tr><td>0–3</td><td>ICP list built from MSHA mine data and satellite-measured haul lengths; 40 site interviews; 3 LOIs; HARA, ODD and safety-case skeleton (ISO 17757, UL 4600)</td></tr>
+  <tr><td>3–6</td><td>Hardware-in-the-loop J1939 bench; 3 by-wire UTVs convoying on a track with fault injection. <b>Gate 1:</b> sim-vs-real residuals, choice of design partner and truck model</td></tr>
+  <tr><td>6–12</td><td>Retrofit 1 lead + 2 followers at the partner's isolated haul loop; safety drivers in followers; 1,000+ supervised km. <b>Gate 2:</b> measured convoy efficiency ≥0.95, nuisance-stop rate, intervention trend</td></tr>
+  <tr><td>12–18</td><td>Driverless followers in an isolation zone (the Freeport Bagdad playbook); third-party pre-audit; paid pilot moves to a 12-month contract; second site LOI</td></tr>
+</table>
+<p><b>Architecture</b> follows a simplex design. MPC and learned policies run the performance layer. A simple verified safety controller and an independent e-stop own the minimal-risk stop. Policies are frozen in the field. Gaps are at least the predecessor's stopping distance plus margin, because a loaded truck stopping downhill can need 60–120 m. A comm-loss watchdog stops a follower that loses its link, and radar is the primary obstacle sensor because of dust.</p>
+
+<h2><span class="n">8</span>The raise</h2>
+<div class="ask"><span class="big">$2.0M pre-seed</span> · post-money SAFE · $16M cap (~12.5%). That sits just under Carta's Q2 2026 median of $18M for $1–2.4M rounds, priced for pre-revenue hardware.<br>
+<b>Use (18 mo):</b> team of founder, 3 controls/robotics engineers and a field-ops lead ($1.15M) · 2 trucks + 3 UTVs ($0.26M) · 3 kit sets ($0.18M) · safety case, audit, insurance ($0.17M) · legal/IP and discovery ($0.09M) · contingency ($0.15M).<br>
+<b>Seed (H2 2028, ~$7M at $28–35M post):</b> paid pilot → 12-month contract, 2 sites, 5,000+ follower-hours, safety pre-audit. The Carta seed median is $4.5M at $23.9M post.</div>
+<p><b>Best-fit investors:</b> Eclipse (led Bedrock's and Humble's seeds), 8VC (Overland, Outrider), Zacua (new $135M fund for mining and construction robotics), Schematic, Trucks VC, Root, Construct and DCVC. Samsara Ventures is a strategic fit; Point72 and Shield cover the defense option. StartX (historically equity-free), PearX or YC can accelerate the round. <b>Non-dilutive:</b> state mobility pilot grants (e.g. Michigan's $200k to Intramotev for a mine) and convoy-module work with Army/DIU ATV-S primes. Check SBIR status first: its authority lapsed in Oct 2025 and we have not confirmed reauthorization.</p>
+
+<h2><span class="n">9</span>Risks, mitigations, kill criteria</h2>
+<table>
+  <tr><th>Risk</th><th>Mitigation / kill criterion</th></tr>
+  <tr><td>Too few ICP sites</td><td>Quantify in the first 90 days from MSHA data and imagery. <b>Kill or re-pivot</b> if fewer than 25 qualifying sites, or fewer than 3 willing to pay for a pilot, by month 6</td></tr>
+  <tr><td>Convoying costs throughput</td><td>Measured in the pilot. If efficiency is below 0.9, move to path-follow mode or license the convoy software to OEMs and integrators</td></tr>
+  <tr><td>OEMs or Pronto move down-market</td><td>Mixed-fleet retrofit, speed, ISO 23725 integration, dealer and contract-miner channels</td></tr>
+  <tr><td>Safety incident</td><td>Isolation zone first, simplex architecture, stopping-distance gaps, third-party audit, insurance</td></tr>
+  <tr><td>Retrofit and labor friction</td><td>One J1939 truck model first and a by-wire partner. The operator becomes the paid convoy lead, with relief and escort roles (USW at Asarco)</td></tr>
+  <tr><td>Founder gap</td><td>Recruit a field-ops / mining co-founder before close; clear IP with Stanford OTL</td></tr>
+</table>
+
+</div>
+<footer><b>Sources</b> (full list with links in <span class="mono">venture/research/sources.md</span>):
+NREL TP-5400-62348 (2015) · FreightWaves and Jones Day on Locomation (2023) · Aurora Q3 2026 results · Kodiak Q3 2026 and Atlas releases (Nov 2026) · Volvo Group, Brønnøy Kalk (Sep 2026) · Caterpillar Q4 2025 call, Luck Stone (Sep 2026) · Komatsu (Apr 2026) · GlobalData via Mining Technology (2025–26) · USGS Mineral Industry Surveys, 2026-Q2 · BLS OOH May 2025 and ECEC Jun 2025 · AGC 2025 Workforce Survey · SME workforce briefing · MSHA powered-haulage page, 30 CFR 56/57 surface mobile equipment rule · Costmine via North Shore News (2023) · Carta State of Pre-Seed Q2 2026 and seed benchmarks · company releases for Overland, Bedrock, Humble, Crewline, Pronto/SafeAI, Teleo/Havoc, ASI, Epiroc · Breaking Defense and InsideDefense on ATV-S · ISO 17757:2019, ISO 23725:2024, ISO 21815, UL 4600. Model: <span class="mono">venture/model/unit_economics.py</span>. Simulation: <span class="mono">venture/sim/convoy_sim.py</span>. Fleet counts and ICP prevalence are estimates to be validated.</footer>
+</section>
+</body>
+</html>
