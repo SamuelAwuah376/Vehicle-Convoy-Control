@@ -39,21 +39,21 @@ const shots = [
     layers: { tech: win(0.6, 14, 0.6, 0.6) },
     fx: { chips: 1, tele: 1, v2v: 1, crumbs: tau => ease(tau / 1.0), corridors: tau => ease((tau - 5.0) / 1.0), chipsReturn: 1, detect: 1, chipMask: [1180, 120, 1900, 700] }, speedBadge: () => '2×' },
 
-  { id: 'safety', t0: 41, t1: 57, sim: knots([[0, 120], [4, 126], [11, 133], [16, 143]]),
+  { id: 'safety', t0: 41, t1: 57, sim: knots([[0, 122], [4, 128], [11, 135], [16, 147]]),
     cam: (tau, d) => { const u = ease(tau / d); return { pos: L3([292, 44, 33], [300, 50, 30], u), target: L3([356, 127, 0], [362, 127, 0], u), fov: 40, focus: [360, 125, 0] }; },
     layers: { safety: win(0.5, 6.5, 0.6, 0.6) },
-    fx: { chips: 1, tele: 1, v2v: 1, corridors: 1, detect: 1, chart: win(1.0, 16, 0.6, 0.4), log: win(4.0, 16, 0.4, 0.4), clock: 1, chipMask: [1200, 140, 1900, 320] },
-    speedBadge: tau => (tau < 4 ? '1.5×' : tau < 11 ? '1×' : '2×') },
+    fx: { chips: 1, tele: 1, v2v: 1, corridors: 1, detect: 1, chart: win(1.0, 16, 0.6, 0.4), log: win(4.0, 16, 0.4, 0.4), clock: 1, chipMask: [1180, 130, 1900, 390] },
+    speedBadge: tau => (tau < 4 ? '1.5×' : tau < 11 ? '1×' : '2.4×') },
 
-  { id: 'dump', t0: 57, t1: 69, sim: tau => 176 + 4.5 * tau,
+  { id: 'dump', t0: 57, t1: 69, sim: tau => 178 + 4.6 * tau,
     cam: (tau, d) => { const u = ease(tau / d); return { pos: L3([606, 182, 21], [612, 190, 24], u), target: L3([646, 230, 3], [649, 232, 3], u), fov: 44, focus: [640, 230, 0] }; },
-    layers: { dump: win(0.6, 11.4, 0.6, 0.6) }, fx: { chips: 1 }, speedBadge: () => '4.5×' },
+    layers: { dump: win(0.6, 11.4, 0.6, 0.6) }, fx: { chips: 1 }, speedBadge: () => '4.6×' },
 
-  { id: 'business', t0: 69, t1: 83, sim: tau => 230 + 2.0 * tau,
+  { id: 'business', t0: 69, t1: 83, sim: tau => 233 + 1.85 * tau,
     cam: (tau, d) => { const u = ease(tau / d); return { pos: L3([700, 110, 105], [500, -270, 390], u), target: L3([520, 190, -2], [235, 60, -12], u), fov: 40, focus: L3([600, 220, 0], [250, 60, 0], u) }; },
     layers: { stats: win(1.0, 14, 0.8, 0.6) } },
 
-  { id: 'end', t0: 83, t1: 92, sim: tau => 258 + 0.2 * tau,
+  { id: 'end', t0: 83, t1: 92, sim: tau => 258.9 + 0.1 * tau,
     cam: (tau) => { const u = ease(tau / 9); return { pos: L3([500, -270, 390], [470, -300, 410], u), target: L3([235, 60, -12], [230, 60, -12], u), fov: 40, focus: [250, 60, 0] }; },
     dim: tau => 0.8 * ease(tau / 1.2), fade: tau => ease((tau - 8.2) / 0.8), layers: { end: win(0.8, 8.9, 0.9, 0.7) }, fx: { simBadge: 0 } },
 ];
@@ -71,7 +71,7 @@ export const STORY = {
       <div class="src">Source: AGC 2025 Workforce Survey</div></div>`,
     solution: () => `<div class="lower"><div class="kicker">The idea</div>
       <div class="line">One operator leads.<br>Up to three driverless trucks follow.</div>
-      <div class="sub">A retrofit kit turns trucks a site already owns into followers.<br>No site survey. No remote control room.</div></div>`,
+      <div class="sub">A retrofit kit turns trucks a site already owns into followers.<br>No HD-map survey. No remote control room.</div></div>`,
     tech: m => { const rms = Math.max(...['AUTO 1', 'AUTO 2', 'AUTO 3'].map(k => m.loaded[k].lat_rms_cm));
       return `<div class="panel"><h3>How it works</h3>
       <div class="item"><div class="t">Follows the operator's exact line</div><div class="d">Each follower tracks the leader's path from V2V breadcrumbs, so a haul road that moves needs no re-mapping.</div><div class="m">${rms.toFixed(1)} cm RMS path error · simulated</div></div>
@@ -86,8 +86,8 @@ export const STORY = {
     stats: () => `<div class="stats-title"><small>The business</small>Turn one operator into a fleet.</div>
       <div class="stats">
         <div class="stat"><div class="n">1<span>→</span>4</div><div class="l">trucks moved by each operator on convoy routes</div></div>
-        <div class="stat"><div class="n">75<span>%</span></div><div class="l">fewer driver-hours per ton on those routes</div></div>
-        <div class="stat"><div class="n">Any<span>OEM</span></div><div class="l">retrofit kit for the trucks a site already owns</div></div>
+        <div class="stat"><div class="n">70<span>%+</span></div><div class="l">fewer operator-hours per ton on those routes, after convoy losses</div></div>
+        <div class="stat"><div class="n">Multi<span>OEM</span></div><div class="l">retrofit kit for the trucks a site already owns</div></div>
         <div class="stat"><div class="n"><span>$</span>/ton</div><div class="l">priced per ton hauled, so sites pay for production</div></div>
       </div>
       <div class="note">Rendered from our convoy simulation (vehicle dynamics, V2V, control and perception logic in Python; Three.js). Business figures are design targets, not field results.</div>`,

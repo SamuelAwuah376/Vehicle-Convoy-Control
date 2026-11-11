@@ -44,10 +44,10 @@ Research date: 2026-11-11.
 
 | Claim | Source |
 |---|---|
-| Wage: BLS May 2025 median $58,640/yr ($28.19/h), heavy and tractor-trailer truck drivers | https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm |
+| Wage: BLS May 2025 median $58,640/yr ($28.19/h), heavy and tractor-trailer truck drivers; the $35/h remote-site and $80/h FIFO/union cases are our assumptions | https://www.bls.gov/ooh/transportation-and-material-moving/heavy-and-tractor-trailer-truck-drivers.htm |
 | Benefit load 1.42× (private industry, Jun 2025) | BLS ECEC, https://www.bls.gov/news.release/archives/ecec_09122025.htm |
 | A 100 t truck costs $175/h to run (2022) | Costmine via https://www.nsnews.com/resources-agriculture/labour-costs-will-soon-beat-oil-as-mines-biggest-expense-new-data-indicate-7105938 |
-| Site archetypes, convoy efficiency, price and kit costs | Our assumptions and targets; see `../model/unit_economics.py` |
+| Site archetypes, truck running and ownership costs, convoy efficiency, the $5/t margin, price and kit costs | Our assumptions and targets; see `../model/unit_economics.py` |
 | ISO 17757:2019 (autonomous machine safety) | https://cdn.standards.iteh.ai/samples/76126/01f23b9df1bd4b9c9633dbe61ac694bd/ISO-17757-2019.pdf |
 | ISO 23725:2024 (autonomous fleet and fleet-management interoperability) | https://cdn.standards.iteh.ai/samples/76769/751f0d4094bd4da08e808c4dccd08368/ISO-23725-2024.pdf |
 | ISO/TS 21815-2 (J1939 collision-avoidance interface) | https://www.iso.org/standard/77303.html |
@@ -63,7 +63,6 @@ Research date: 2026-11-11.
 | Bedrock Robotics: $600M Series C at $4.1B | https://www.globenewswire.com/news-release/2026/10/26/3388197/0/en/bedrock-robotics-raises-600-million-series-c-to-scale-autonomous-construction-equipment-across-u-s-sites.html |
 | Havoc acquired Teleo | https://www.prnewswire.com/news-releases/havoc-advances-all-domain-collaborative-autonomy-through-acquisitions-of-mavrik-and-teleo-302711100.html |
 | Epiroc acquired ASI Mining | https://www.epirocgroup.com/en/media/corporate-press-releases/2024/20240529-epiroc-to-acquire-remaining-share-of-autonomous-solutions-provider-asi-mining |
-| Applied Intuition bought Embark for $71M | https://www.appliedintuition.com/news/embark |
 | ISEE–Holman leasing model | FreightWaves, 2026-10-02 (see `01_competitors.md`) |
 
 ## Sections 7–8: technical plan and the raise
@@ -71,7 +70,7 @@ Research date: 2026-11-11.
 | Claim | Source |
 |---|---|
 | Founder's stack: 0 crashes on 50 seeds in 45-car traffic | This repository's README, milestone 8 (batch 11c, scenario v9) |
-| Haul-convoy simulation: 1.7 cm RMS tracking, a hold 52 m ahead, stopped 31 m clear | `../sim/convoy_sim.py`, output in `../video/data/metrics.json` |
+| Haul-convoy simulation: 1.7 cm RMS tracking, a hold 44 m ahead, stopped 18 m clear | `../sim/convoy_sim.py`, output in `../video/data/metrics.json` |
 | Freeport Bagdad: isolation zone first | https://www.fcx.com/freeport-features/010825 |
 | USW at Asarco: displaced drivers moved into escort and other roles | https://usw.org/news/usw-members-focus-on-jobs-safety-as-asarco-rolls-out-autonomous-trucks/ |
 | Carta Q2 2026: median SAFE cap of $18M for $1–2.4M pre-seed rounds | https://carta.com/data/state-of-pre-seed-q2-2026/ (figure via Finro's citation of Carta) |

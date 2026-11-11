@@ -62,6 +62,7 @@ STEER_RATE = math.radians(22.0)
 
 # Convoy spacing (front axle to front axle minus truck length = bumper gap, along the path)
 GAP_STANDSTILL = 20.0
+D_ENTRY = 30.0       # scenario: follower 1's distance to the crossing when the pickup enters its path
 TIME_GAP = 3.0
 
 
@@ -550,19 +551,21 @@ class Pickup:
         self.odo = 0.0
         self.y_stop = y_road - LANE_OFF + 0.6
 
-    def start(self, t, y_start):
-        self.y = y_start
-        self.v = 8.0
+    def start(self, t):
         self.state = 'approach'
         self.t_state = t
+        self.v_target = 0.0
 
     def step(self, t, dt):
         if self.state == 'approach':
             d = self.y - self.y_stop
-            if d < 9.0:
-                self.v = max(0.0, self.v - 4.5 * dt)
-                if self.v <= 0.0:
+            if d < 9.0:                             # brakes to stop at y_stop, in the convoy's lane
+                self.v = max(0.0, self.v - min(6.0, self.v ** 2 / (2 * max(d, 0.05))) * dt)
+                if self.v <= 0.05 or d <= 0.02:
+                    self.v = 0.0
                     self.state, self.t_state = 'stopped', t
+            else:                                   # paced by the scenario (v_target), 2 m/s2 either way
+                self.v += float(np.clip(self.v_target - self.v, -2.0 * dt, 2.0 * dt))
         elif self.state == 'stopped':
             if t - self.t_state > 2.6:
                 self.state, self.t_state = 'leave', t
@@ -808,7 +811,7 @@ class Convoy:
                 if tr.v < 0.05:
                     tr.mode = 'DONE'
             if tr.tip > math.radians(22.0):
-                tr.payload = max(0.0, tr.payload - DT / 3.2)
+                tr.payload = max(0.0, tr.payload - CTRL_EVERY * DT / 3.2)   # drive_pad runs at the 20 Hz control rate
             tr.mass = MASS_EMPTY + (MASS_LOADED - MASS_EMPTY) * tr.payload
         elif tr.mode == 'DONE':
             tr.u = -0.5
@@ -884,19 +887,19 @@ def run(out_dir: Path, seed=7, t_end=None, quiet=False):
                     if c.name == 'loaded':
                         c.maybe_enter_pad(t, k)
                     c.drive_pad(t, k)
-        # light vehicle: starts so it enters follower 1's corridor when follower 1 is ~32 m from the crossing
+        # light vehicle: drives down the access road from the plant, paced so its front enters follower 1's
+        # corridor when follower 1 is D_ENTRY from the crossing (the leader is then ~20 m clear of it)
         f1 = loaded.trucks[1]
-        if not pickup_triggered and f1.bc is not None:
-            # distance from F1's front to the crossing
-            p_cross = site.road_xy[i_cross]
-            d_cross = np.hypot(*(p_cross - f1.front))
-            if d_cross < 105.0 and f1.front[0] < ACCESS_X:
-                # the pickup's front reaches the convoy lane's corridor when follower 1 is ~45 m from the crossing
-                y_enter = site.road_xy[i_cross, 1] - LANE_OFF + (WIDTH / 2 + 1.6) + Pickup.L / 2
-                y_start = y_enter + 8.0 * (d_cross - 45.0) / max(f1.v, 1.0)
-                pickup.start(t, y_start)
-                pickup_triggered = True
-                hud_events.append((t, 'LV-07 approaching crossing'))
+        p_cross = site.road_xy[i_cross]
+        d_cross = np.hypot(*(p_cross - f1.front))
+        if not pickup_triggered and f1.bc is not None and d_cross < 220.0 and f1.front[0] < ACCESS_X:
+            pickup.start(t)
+            pickup_triggered = True
+            hud_events.append((t, 'LV-07 leaves the plant'))
+        if pickup.state == 'approach' and ctrl:
+            y_enter = site.road_xy[i_cross, 1] - LANE_OFF + (WIDTH / 2 + 1.6) + Pickup.L / 2
+            t_arr = (d_cross - D_ENTRY) / max(f1.v, 1.0) if f1.front[0] < ACCESS_X else 0.0
+            pickup.v_target = float(np.clip((pickup.y - y_enter) / max(t_arr, 0.5), 2.5, 11.0))
         if pickup.state not in ('parked', 'parked_south'):
             pickup.step(t, DT)
         # perception (20 Hz): every follower checks its own corridor for the light vehicle

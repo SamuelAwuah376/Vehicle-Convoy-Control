@@ -2,7 +2,7 @@
 
 Pads (A minor - F - C - G), a sub bass, an eighth-note pulse, transition swells, and a two-tone alert at the
 moment AUTO 1 detects the light vehicle; the pulse drops out for the safety beat and returns on resume.
-Cue times follow story.js (shot boundaries) and the sim events (detect at sim 127.3 s -> video 46.3 s).
+Cue times follow story.js (shot boundaries) and the sim events (detect at sim 129.25 s -> video 46.25 s).
 """
 import wave
 from pathlib import Path
@@ -17,7 +17,7 @@ t = np.arange(N) / SR
 rng = np.random.default_rng(3)
 
 SHOTS = [0, 6, 15, 27, 41, 57, 69, 83, 92]
-T_DETECT, T_RESUME = 46.3, 54.4
+T_DETECT, T_RESUME = 46.25, 55.55
 
 
 def note(n):            # MIDI -> Hz
