@@ -10,8 +10,11 @@ The (v, a) part is the plant's lag discretised exactly over the Planning.dt sub-
 over a step is linear in (v, a, a_cmd). Heading and position use the midpoint rule
     yaw+ = yaw + D tan(steer_mid)/L,   [x, y]+ = [x, y] + D [cos, sin](yaw + (yaw+ - yaw)/2),
 linearised around the reference (x_r, y_r, yaw_r, v_r, steer_r). The reference is the current segment's samples
-interpolated at arc lengths that advance from the truck's projection by the speed profile; steer_r = atan(L dyaw/ds)
-per sample interval, ds signed by the direction of motion.
+interpolated at arc lengths that advance from the truck's projection by the speed profile. steer_r is the path's
+steering atan(L dyaw/ds) per sample interval (ds signed by the direction of motion) averaged over STEER_WINDOW m of path:
+a step in the path's steering (Hybrid A* joins arcs of different curvature) becomes a ramp centred on it. The steering
+takes 3.8 s from lock to lock, longer than the 3 s horizon, and at full lock an outward error cannot be corrected, so
+the MPC also tracks this ramp (W_STEER) instead of turning late.
 
 Speed profile (magnitude, signed by the segment direction): min(speed_limit, v_forward_max or v_reverse_max,
 sqrt(lat_accel_max/|curvature|), the steering-rate cap below), decelerating at brake_comfort to 0 at the segment end (a
@@ -28,8 +31,13 @@ Truck.steer_rate, a_cmd in the gear's range ([-brake_max, accel_max] forward, [-
 bounds (slack, heavy weight): v in [0, v_forward_max] on forward segments, [-v_reverse_max, 0] on reverse ones; soft
 because at a stop the lagged acceleration carries the linear model through zero speed where the plant's gear clamps it.
 One OSQP instance is set up once with a fixed sparsity pattern; each call updates its data (q, l, u, A values).
+
+A (nearly) stopped truck whose steering is off the reference where it stands (at a cusp after a lock-to-lock shift, at
+the path's start) first steers in place: the reference waits at zero speed for the steering time. A truck standing at
+(or past) the path's end outside park_tolerance reports 'off_path' (this path cannot park it: replan), as it does when
+the lateral error exceeds track_tolerance.
 """
-from math import atan, cos, hypot, sin, sqrt, tan
+from math import atan, cos, hypot, sin, sqrt
 from time import perf_counter
 import numpy as np
 import osqp
@@ -42,6 +50,10 @@ PARK_YAW = 0.1          # rad: arrival heading tolerance (Planning.park_toleranc
 HOLD_MARGIN = 0.3       # m: a hold at stop_index aims this far short of that sample
 PROGRESS_WINDOW = 6.0   # m: progress is searched this far ahead of the previous progress
 END_REACH = 2.0         # m: a cusp or the path end counts as reached only with progress this close to it
+END_ALONG = 0.1         # m: standing still no more than this short of a segment's end (along its heading) is "at" it
+ALIGN_SPEED = 0.1       # m/s: below this, a truck whose steering is off the reference steers before driving on
+ALIGN_TOL = 0.05        # rad: ... until within this of the reference steering where it stands
+ALIGN_SLACK = 1.0       # s: a standstill spends at most the full-lock-to-full-lock steering time plus this aligning
 STEER_WINDOW = 3.0      # m of path over which the steering reference spreads a change of the path's steering
 STEER_REACH = 3.0       # m: the steering-rate speed cap applies this far either side of such a change
 W_STEER = 8.0           # cost weight on the steering angle's deviation from the (smoothed) reference steering
@@ -63,6 +75,7 @@ class _Segment:
         ds = np.diff(self.s)
         kappa = np.where(ds > 1e-6, d*np.diff(self.yaw)/np.maximum(ds, 1e-6), 0.0)   # dyaw/ds, ds = d*|ds|
         self.steer = np.clip(np.arctan(truck.wheelbase*kappa), -truck.steer_max, truck.steer_max)
+        self.kappa_end = float(np.tan(self.steer[-1])/truck.wheelbase)
         self.steer_ref = self._smoothed_steer()
         ak = np.abs(kappa)
         k_sample = np.maximum(np.r_[ak[0], ak], np.r_[ak, ak[-1]])
@@ -111,11 +124,14 @@ class _Segment:
         return np.interp(s, self.s, self.steer_ref)
 
     def point_ahead(self, s):
-        """(x, y) at arc length s, extended beyond the segment's end along its last heading (pure-pursuit target)."""
+        """(x, y) at arc length s, extended beyond the segment's end along its last arc (pure-pursuit target)."""
         if s <= self.s[-1]:
             return float(np.interp(s, self.s, self.x)), float(np.interp(s, self.s, self.y))
-        extra = self.direction*(s-self.s[-1])
-        return self.x[-1]+extra*cos(self.yaw[-1]), self.y[-1]+extra*sin(self.yaw[-1])
+        sig, p0 = self.direction*(s-self.s[-1]), self.yaw[-1]         # signed arc length past the end
+        k = self.kappa_end
+        if abs(k*sig) < 1e-6:
+            return self.x[-1]+sig*cos(p0), self.y[-1]+sig*sin(p0)
+        return self.x[-1]+(sin(p0+k*sig)-sin(p0))/k, self.y[-1]-(cos(p0+k*sig)-cos(p0))/k
 
 
 class PathTracker:
@@ -130,8 +146,9 @@ class PathTracker:
         if self.N < 2:
             raise ValueError('mpc_horizon must be at least 2')
         self.path, self.progress, self.segment, self.arrived = None, 0, 0, False
-        self.prediction = None
+        self.prediction, self._aligning = None, 0.0
         self.stats = {'solves': 0, 'solve_time': 0.0, 'fallbacks': 0}
+        self.last_error = None                              # repr of the last exception a solve raised
         self._segs = []
         self._lag = self._lag_model()
         self._qp = self._pattern()
@@ -145,7 +162,7 @@ class PathTracker:
         self.progress = int(np.clip(progress, 0, len(path)-1))
         self.segment = path.segment_of(self.progress)
         self.arrived = False
-        self.prediction = None
+        self.prediction, self._aligning = None, 0.0
 
     def _update_progress(self, seg, x, y):
         lo = max(self.progress, seg.i0)
@@ -175,12 +192,14 @@ class PathTracker:
         return self.path.s[seg.i1]-self.path.s[self.progress] <= END_REACH
 
     def _reached_end(self, seg, x, y):
-        """At the segment's last sample: within CUSP_REACH of it, or past it along its heading (an overshoot)."""
+        """At the segment's last sample: within CUSP_REACH of it, or level with or past it along its heading (a
+        stop beside it or an overshoot) within track_tolerance."""
         if not self._near_end(seg):
             return False
         dx, dy = x-seg.x[-1], y-seg.y[-1]
         along = seg.direction*(dx*cos(seg.yaw[-1])+dy*sin(seg.yaw[-1]))
-        return hypot(dx, dy) <= CUSP_REACH or (along > 0 and hypot(dx, dy) < self.planning.track_tolerance)
+        dist = hypot(dx, dy)
+        return dist <= CUSP_REACH or (along > -END_ALONG and dist < self.planning.track_tolerance)
 
     # ---------------------------------------------------------------------------------------------------- command
     def command(self, state, steer, accel, speed_limit, stop_index=None):
@@ -193,14 +212,14 @@ class PathTracker:
         x, y, yaw, v = (float(a) for a in state[:4])
         steer, accel = float(steer), float(accel)
         speed_limit = np.inf if speed_limit is None else max(float(speed_limit), 0.0)
+        stop_index = None if stop_index is None else max(int(stop_index), 0)
         seg = self._segs[self.segment]
         last = self.segment == len(self._segs)-1
         if self.arrived:
             return self._hold(seg, steer, 'arrived', *self._project(seg, x, y, yaw)[1:])
         self._update_progress(seg, x, y)
         status = None
-        held = stop_index is not None and int(stop_index) <= seg.i1   # may not pass the cusp: no shift
-        if not last and not held and abs(v) < STOPPED and self._reached_end(seg, x, y):
+        if not last and not self._held(seg, stop_index) and abs(v) < STOPPED and self._reached_end(seg, x, y):
             self.segment += 1
             seg, last, status = self._segs[self.segment], self.segment == len(self._segs)-1, 'cusp'
             self.progress = seg.i0
@@ -212,8 +231,14 @@ class PathTracker:
             return self._hold(seg, steer, 'arrived', lateral, heading)
         if abs(lateral) > pl.track_tolerance:
             return self._stop(seg, v, steer, lateral, heading)
+        if last and abs(v) < STOPPED and speed_limit > 0 and not self._held(seg, stop_index) and \
+                self._reached_end(seg, x, y):
+            # Standing at (or past) the path's end outside park_tolerance: this path cannot park it; replan.
+            return self._stop(seg, v, steer, lateral, heading)
 
-        ref = self._reference(seg, s0, v, speed_limit, stop_index)
+        ref = self._reference(seg, s0, v, steer, speed_limit, stop_index)
+        if status is None and ref['wait'] > 0 and self.segment > 0 and s0-seg.s[0] < CUSP_REACH:
+            status = 'cusp'                                  # steering at the cusp before driving off
         if status is None:
             u0 = max(seg.direction*v, 0.0)
             near = ref['s_lim']-s0 <= u0*u0/(2*t.brake_comfort)+0.5
@@ -234,6 +259,11 @@ class PathTracker:
             steer_cmd = float(np.clip(steer+rate*self.h, -t.steer_max, t.steer_max))
         return steer_cmd, accel_cmd, seg.direction, self._info(lateral, heading, status)
 
+    @staticmethod
+    def _held(seg, stop_index):
+        """stop_index lies in (or before) this segment: the truck may not pass the segment's end (no shift)."""
+        return stop_index is not None and stop_index <= seg.i1
+
     def _info(self, lateral, heading, status):
         return {'progress': self.progress, 'segment': self.segment, 'lateral_error': lateral,
                 'heading_error': heading, 'status': status}
@@ -248,14 +278,15 @@ class PathTracker:
         return steer, -float(sign)*self.truck.brake_comfort, seg.direction, self._info(lateral, heading, 'off_path')
 
     # -------------------------------------------------------------------------------------------------- reference
-    def _reference(self, seg, s0, v, speed_limit, stop_index):
+    def _reference(self, seg, s0, v, steer, speed_limit, stop_index):
         """Reference over the horizon from the truck's projection s0: arc lengths sr (N+1,), speed magnitudes ur,
-        and the stop point s_lim (segment end or HOLD_MARGIN short of stop_index)."""
+        the stop point s_lim (segment end or HOLD_MARGIN short of stop_index) and the wait (s) at zero speed for the
+        steering to come within ALIGN_TOL of the reference before a (nearly) stopped truck drives on."""
         t, N, h, d = self.truck, self.N, self.h, seg.direction
         b = t.brake_comfort
         s_lim, hold = float(seg.s[-1]), speed_limit == 0.0
-        if stop_index is not None and int(stop_index) <= seg.i1:
-            s_stop = float(self.path.s[int(stop_index)])-HOLD_MARGIN
+        if self._held(seg, stop_index):
+            s_stop = float(self.path.s[stop_index])-HOLD_MARGIN
             if s_stop < s_lim:
                 s_lim, hold = s_stop, True
         u0 = max(d*v, 0.0)
@@ -266,6 +297,14 @@ class PathTracker:
             dec = min(max(b, u0*u0/(2*gap)), t.brake_max)
         s_end = max(s_lim, s0)
         static = seg.profile
+        wait = 0.0
+        if u0 < ALIGN_SPEED:
+            wait = max(abs(float(seg.steer_at(s0))-steer)-ALIGN_TOL, 0.0)/t.steer_rate
+            self._aligning = self._aligning+h if wait > 0 else 0.0
+            if self._aligning > 2*t.steer_max/t.steer_rate+ALIGN_SLACK:
+                wait = 0.0                                   # budget spent: drive on (no standstill deadlock)
+        else:
+            self._aligning = 0.0
 
         def target(s):
             return min(float(np.interp(s, seg.s, static)), speed_limit, sqrt(2*b*max(s_lim-s, 0.0)))
@@ -273,13 +312,16 @@ class PathTracker:
         sr[0], ur[0] = s0, u0
         for k in range(N):
             u = ur[k]
+            if (k+1)*h <= wait:
+                sr[k+1], ur[k+1] = sr[k], 0.0
+                continue
             un = min(max(target(min(sr[k]+h*u, s_end)), u-dec*h), u+t.accel_max*h)
             un = max(un, 0.0)
             sn = sr[k]+0.5*h*(u+un)
             if sn >= s_end:
                 sn, un = s_end, 0.0
             sr[k+1], ur[k+1] = sn, un
-        return {'s': sr, 'u': ur, 's_lim': s_lim, 'hold': hold}
+        return {'s': sr, 'u': ur, 's_lim': s_lim, 'hold': hold, 'wait': wait}
 
     # ---------------------------------------------------------------------------------------------------- the QP
     def _lag_model(self):
@@ -362,8 +404,8 @@ class PathTracker:
         start = perf_counter()
         try:
             out = self._solve_qp(seg, z0, ref)
-        except (ValueError, ArithmeticError, RuntimeError):
-            out = None
+        except (ValueError, TypeError, ArithmeticError, RuntimeError, osqp.OSQPException) as err:
+            self.last_error, out = repr(err), None
         self.stats['solves'] += 1
         self.stats['solve_time'] += perf_counter()-start
         return out

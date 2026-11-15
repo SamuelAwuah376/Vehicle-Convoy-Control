@@ -16,8 +16,8 @@ Observation (float32, D = 3*SLOT + 2 = 152), slot k = follower k in queue order,
       other's distance to its gate/50 (negative inside), the other holds a zone that stops ego
   leader (4): relative x/50, y/50, sin, cos of the relative heading
   global (2): time/duration, followers/3
-Reward per decision (YardEnvConfig weights): -w_time per unparked follower-second, +w_progress per metre of path
-completed, +w_park per follower parked, -w_collision on a collision (ends the episode), -w_safety per safety stop,
+Reward per decision (YardEnvConfig weights): -w_time per unparked follower-second, +w_progress per metre of remaining
+path removed (potential-based: replans that lengthen a path pay that back), +w_park per follower parked, -w_collision on a collision (ends the episode), -w_safety per safety stop,
 -w_replan per replan, -w_replan_fail per failed replan, -w_back per metre backed off, -w_stall if the episode stalls.
 """
 from dataclasses import dataclass
@@ -40,9 +40,10 @@ class YardEnvConfig:
     scenario: str = 'yard1'
     followers: tuple = ()          # (min, max) followers per episode; () keeps the scenario's
     w_time: float = 0.02           # per unparked follower per second
-    w_progress: float = 0.02       # per metre of path completed
+    w_progress: float = 0.02       # per metre of remaining path removed (potential-based: a replan that lengthens the
+                                   # path costs what driving the extra length earns back)
     w_park: float = 5.0
-    w_collision: float = 20.0
+    w_collision: float = 50.0     # above the most a long episode can cost otherwise (time ~18 + forgone park bonuses)
     w_safety: float = 0.5
     w_replan: float = 0.2
     w_replan_fail: float = 0.5

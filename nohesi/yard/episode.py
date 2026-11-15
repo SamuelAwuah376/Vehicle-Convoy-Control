@@ -171,7 +171,8 @@ class YardRun:
     def _check_blocks(self):
         """After a reveal: the first sample of each follower's remaining path that the shared map now blocks."""
         from .hybrid_astar import collision_free
-        clearance = self.grid.clearance(extra=self.leader_foot)
+        parked = [corners(self.truck, self.world.states[j][None])[0] for j, g in enumerate(self.f) if g.parked]
+        clearance = self.grid.clearance(extra=np.concatenate([self.leader_foot]+([np.array(parked)] if parked else [])))
         for f in self.f:
             if f.path is None or f.parked:
                 continue
@@ -275,7 +276,7 @@ class YardRun:
             if self.done:
                 break
         after = self.remaining()
-        tally['progress_m'] = float(sum(max(b-a, 0.0) for b, a in zip(before, after) if b is not None and a is not None))
+        tally['progress_m'] = float(sum(b-a for b, a in zip(before, after) if b is not None and a is not None))
         return tally
 
     def remaining(self):
@@ -391,8 +392,13 @@ class YardRun:
             if abs(st[3]) < MOVING and err <= self.cfg.park_tolerance and abs(wrap(st[2]-f.spot[2])) <= 0.1 and \
                     f.progress >= len(f.path)-3:
                 f.parked, new = True, new+1
-                self.coordinator.set_path(i, f.path, len(f.path)-1)
+                # A parked truck is a static obstacle from now on, out of the conflict zones: the zones' margin (disks,
+                # zone_margin) is wider than the planner's clearance, so a path planned around it would stay blocked
+                # by its zone for good. Paths it now blocks are flagged like a revealed obstacle (then REPLAN).
+                self.coordinator.set_path(i, None, 0)
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'parked', 'detail': f'{err:.2f} m'})
+        if new:
+            self._check_blocks()
         return new
 
     # ------------------------------------------------------------------ record
