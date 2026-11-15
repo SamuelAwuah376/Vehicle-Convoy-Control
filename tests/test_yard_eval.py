@@ -26,7 +26,7 @@ def test_config_layouts(tmp_path):
                   'env_module': 'nohesi.yard.env', 'eval_seeds': [1000, 1001], 'norm_obs': True},
         'env_config_type': 'nohesi.yard.env.YardEnvConfig', 'git': {'commit': None}}))
     cfg, module, info = ye.load_run_config(tmp_path)
-    assert cfg == YardEnvConfig(scenario='yard1_clear', followers=(3, 3), w_park=7.0) and module == 'nohesi.yard.env'
+    assert cfg == YardEnvConfig(version='ye1', scenario='yard1_clear', followers=(3, 3), w_park=7.0) and module == 'nohesi.yard.env'
     assert info['eval_seeds'] == [1000, 1001]
     assert any('missing' in w for w in ye.WARNINGS)   # w_time etc. took today's defaults
     ye.WARNINGS.clear()

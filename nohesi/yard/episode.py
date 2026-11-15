@@ -7,7 +7,8 @@ Per decision (Planning.decision_interval) every follower gets one of ACTIONS:
     GO        follow the planned path at the yard limits (v_forward_max forward, v_reverse_max reverse)
     BACK_OFF  reverse back along the ground just driven, up to BACK_OFF_DISTANCE (to clear a zone or open a gap);
               choosing another action ends it once the truck has stopped
-    REPLAN    plan again from where the truck stands (stopped only), around the trucks where they are now; if the spot
+    REPLAN    plan again from where the truck stands (stopped, and only when a replan can change something: no path, a
+              blocked path, off its path, or stuck while trying to move), around what stays put; if the spot
               itself has become unsafe (a revealed obstacle), the driver assigns a new one
 The path itself may reverse (Hybrid A* plans cusps); GO and CREEP drive it in whichever direction it goes.
 
@@ -109,13 +110,18 @@ class YardRun:
             assigned = [g.spot for g in self.f[:i] if g.spot is not None]
             others = np.concatenate((self.leader_foot, starts[i+1:]))
             self._assign(i, assigned, others)
+        for f in self.f:
+            if f.path is None:
+                f.last_remaining = 0.0   # its first path's length is then charged by the potential when it gets one
+        self._check_blocks()             # a follower left without a spot stands on the road: later paths through it
         self.initial_path_length = sum(f.path.length for f in self.f if f.path is not None)
         self.stop_index = [None]*self.n
         self._snapshot()
 
     # ------------------------------------------------------------------ planning
-    def _assign(self, i, assigned, others):
-        """Driver picks for follower i until one is accepted (its path comes with it)."""
+    def _assign(self, i, assigned, others, source='assign'):
+        """Driver picks for follower i until one is accepted (its path comes with it). source: 'assign' (the start) or
+        'replan' (a reassignment): recorded in a 'no_spot' event's detail."""
         pose, picks = self.driver.pick(i, self.world, self.grid, assigned, others, self.planner)
         for p in picks:
             self.picks.append({'time': self.time, 'follower': i, 'pose': np.asarray(p['pose'], float),
@@ -124,7 +130,7 @@ class YardRun:
         if pose is None:
             f.spot = None
             self._set_path(i, None)   # out of the coordinator: a standing pathless truck is a static obstacle
-            self.events.append({'time': self.time, 'follower': i, 'kind': 'no_spot', 'detail': ''})
+            self.events.append({'time': self.time, 'follower': i, 'kind': 'no_spot', 'detail': source})
             if self.time > 0:
                 self._check_blocks()
             return False
@@ -194,7 +200,7 @@ class YardRun:
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'replan_failed', 'detail': result.reason})
                 return 'failed'
         assigned = [g.spot for j, g in enumerate(self.f) if j != i and g.spot is not None]
-        ok = self._assign(i, assigned, self._obstacles_for(i))
+        ok = self._assign(i, assigned, self._obstacles_for(i), 'replan')
         f.failed_replans = 0
         if ok:
             self.events.append({'time': self.time, 'follower': i, 'kind': 'replan', 'detail': 'new spot'})
@@ -240,18 +246,19 @@ class YardRun:
 
     def _back_conflicts(self, i, k_from, k_to):
         """Does retracing samples k_from -> k_to (k_to < k_from) enter the hold range of a zone that another truck holds,
-        or that its partner could request now (within gate + look of its entry)?"""
+        or that its partner could request now (within gate + look of its entry)? A zone the truck stands in (k_from in
+        its hold range) is its own already: backing out of it is what BACK_OFF is for (it frees the zone for the truck
+        waiting at its gate)."""
         c = self.coordinator
         for z, o in zip(c.zones, c.owner):
             if i not in (z.a, z.b):
                 continue
             lo, hi = z.side(i)[0]-c.gate, z.side(i)[1]
-            if hi < k_to or lo > k_from:
+            if hi < k_to or lo > k_from or lo <= k_from <= hi:
                 continue
             j = z.other(i)
             j_in, j_out = z.side(j)
-            pj = c.progress[j] if c.progress is not None else 0
-            if o not in (None, i) or (j_in-c.gate-c.look <= pj <= j_out):
+            if o not in (None, i) or (j_in-c.gate-c.look <= c.progress[j] <= j_out):
                 return True
         return False
 
@@ -490,7 +497,7 @@ class YardRun:
         return {'seed': self.seed, 'success': self.end_reason == 'parked', 'parked': int(sum(f.parked for f in self.f)),
                 'followers': self.n, 'collision': self.end_reason == 'collision', 'end_reason': self.end_reason,
                 'duration_s': float(self.time), 'replans': count('replan'),
-                'replans_failed': count('replan_failed')+sum(e['kind'] == 'no_spot' and e['time'] > 0 for e in ev),
+                'replans_failed': count('replan_failed')+sum(e['kind'] == 'no_spot' and e['detail'] == 'replan' for e in ev),
                 'safety_stops': count('safety_stop'), 'back_off_m': float(self.totals['back_off_m']),
                 'picks_rejected': sum(not p['accepted'] for p in self.picks),
                 'reassigned': count('reassigned'),

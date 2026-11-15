@@ -36,7 +36,7 @@ SLOT = EGO+NEAR+OTHER*(SLOTS-1)+LEADER
 @dataclass(frozen=True)
 class YardEnvConfig:
     """YardEnv settings. Bump version whenever the observation, the masks or the reward change."""
-    version: str = 'ye1'
+    version: str = 'ye2'           # ye2: BACK_OFF may leave the zone it stands in; first-path potential; block check at start
     scenario: str = 'yard1'
     followers: tuple = ()          # (min, max) followers per episode; () keeps the scenario's
     w_time: float = 0.02           # per unparked follower per second

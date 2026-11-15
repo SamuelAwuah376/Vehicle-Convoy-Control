@@ -1,0 +1,336 @@
+{
+  "run": "yard_ppo_001",
+  "run_dir": "runs_rl/yard_ppo_001",
+  "model": {
+    "label": "final",
+    "path": "runs_rl/yard_ppo_001/final_model.zip",
+    "sha256": "7b64db5aa5f3d29af0c1a42758a38a2ccb65b93e9e6766e6ea9d31da49b7b94e",
+    "num_timesteps": 400384,
+    "vecnormalize": "runs_rl/yard_ppo_001/final_vecnormalize.pkl",
+    "normalized": true
+  },
+  "env_module": "nohesi.yard.env",
+  "env_config": {
+    "version": "ye1",
+    "scenario": "yard1",
+    "followers": [],
+    "w_time": 0.02,
+    "w_progress": 0.02,
+    "w_park": 5.0,
+    "w_collision": 50.0,
+    "w_safety": 0.5,
+    "w_replan": 0.2,
+    "w_replan_fail": 0.5,
+    "w_back": 0.0,
+    "w_stall": 5.0
+  },
+  "run_config": {
+    "config": "runs_rl/yard_ppo_001/config.json",
+    "run_id": "yard_ppo_001",
+    "eval_seeds": [
+      1000,
+      1001,
+      1002,
+      1003,
+      1004,
+      1005,
+      1006,
+      1007,
+      1008,
+      1009,
+      1010,
+      1011,
+      1012,
+      1013,
+      1014,
+      1015,
+      1016,
+      1017,
+      1018,
+      1019
+    ],
+    "norm_obs": true,
+    "git": {
+      "commit": "476cfc5a81e68f8b550b31027bf4e1998c4fcde9",
+      "dirty": false
+    },
+    "observation_dim": 152,
+    "action_nvec": [
+      5,
+      5,
+      5
+    ]
+  },
+  "seeds": [
+    1020,
+    1021,
+    1022,
+    1023,
+    1024,
+    1025,
+    1026,
+    1027,
+    1028,
+    1029,
+    1030,
+    1031,
+    1032,
+    1033,
+    1034,
+    1035,
+    1036,
+    1037,
+    1038,
+    1039,
+    1040,
+    1041,
+    1042,
+    1043,
+    1044,
+    1045,
+    1046,
+    1047,
+    1048,
+    1049,
+    1050,
+    1051,
+    1052,
+    1053,
+    1054,
+    1055,
+    1056,
+    1057,
+    1058,
+    1059,
+    1060,
+    1061,
+    1062,
+    1063,
+    1064,
+    1065,
+    1066,
+    1067,
+    1068,
+    1069
+  ],
+  "workers": 4,
+  "deterministic": true,
+  "date": "2026-11-15",
+  "git": {
+    "commit": "d3c08b06d7b9b83df25f317a7149abcf033d2532",
+    "dirty": false
+  },
+  "policies": {
+    "ppo": {
+      "episodes": 50,
+      "success_rate": 0.96,
+      "parked_frac": 0.9809523809523809,
+      "collision_rate": 0.0,
+      "timeout_rate": 0.02,
+      "stalled_rate": 0.02,
+      "duration_s": 78.814,
+      "duration_s_std": 43.96487238694092,
+      "success_duration_s": 72.64583333333333,
+      "safety_stops": 0.0,
+      "replans": 0.14,
+      "replans_failed": 0.0,
+      "back_off_m": 0.04955478068487035,
+      "picks_rejected": 0.86,
+      "reassigned": 0.04,
+      "path_length_m": 157.33679658678366,
+      "driven_m": 157.30003929644528,
+      "decisions": 158.04,
+      "end_reasons": {
+        "parked": 48,
+        "stalled": 1,
+        "timeout": 1
+      },
+      "by_followers": {
+        "1": {
+          "episodes": 13,
+          "success_rate": 1.0,
+          "duration_s": 45.46153846153846,
+          "success_duration_s": 45.46153846153846
+        },
+        "2": {
+          "episodes": 19,
+          "success_rate": 1.0,
+          "duration_s": 69.7421052631579,
+          "success_duration_s": 69.7421052631579
+        },
+        "3": {
+          "episodes": 18,
+          "success_rate": 0.8888888888888888,
+          "duration_s": 112.47777777777777,
+          "success_duration_s": 98.18125
+        }
+      }
+    },
+    "scripted": {
+      "episodes": 50,
+      "success_rate": 1.0,
+      "parked_frac": 1.0,
+      "collision_rate": 0.0,
+      "timeout_rate": 0.0,
+      "stalled_rate": 0.0,
+      "duration_s": 73.782,
+      "duration_s_std": 29.604044926327212,
+      "success_duration_s": 73.782,
+      "safety_stops": 0.0,
+      "replans": 0.16,
+      "replans_failed": 0.0,
+      "back_off_m": 0.0,
+      "picks_rejected": 0.86,
+      "reassigned": 0.04,
+      "path_length_m": 157.33679658678366,
+      "driven_m": 158.95892175398083,
+      "decisions": 147.94,
+      "end_reasons": {
+        "parked": 50
+      },
+      "by_followers": {
+        "1": {
+          "episodes": 13,
+          "success_rate": 1.0,
+          "duration_s": 45.51538461538462,
+          "success_duration_s": 45.51538461538462
+        },
+        "2": {
+          "episodes": 19,
+          "success_rate": 1.0,
+          "duration_s": 68.5578947368421,
+          "success_duration_s": 68.5578947368421
+        },
+        "3": {
+          "episodes": 18,
+          "success_rate": 1.0,
+          "duration_s": 99.71111111111111,
+          "success_duration_s": 99.71111111111111
+        }
+      }
+    }
+  },
+  "paired": {
+    "seeds_both_solved": 48,
+    "delta_duration_mean_s": 0.5854166666666658,
+    "delta_duration_std_s": 3.545028858828808,
+    "delta_duration_ci95_s": 1.002894449305604,
+    "delta_duration_median_s": 0.0,
+    "ppo_faster": 14,
+    "ppo_slower": 9,
+    "equal": 25,
+    "solved_by_ppo_only": [],
+    "solved_by_scripted_only": [
+      1025,
+      1062
+    ],
+    "solved_by_neither": [],
+    "by_followers": {
+      "1": {
+        "seeds_both_solved": 13,
+        "delta_duration_mean_s": -0.053846153846154064,
+        "ppo_faster": 1,
+        "ppo_slower": 0
+      },
+      "2": {
+        "seeds_both_solved": 19,
+        "delta_duration_mean_s": 1.1842105263157892,
+        "ppo_faster": 7,
+        "ppo_slower": 4
+      },
+      "3": {
+        "seeds_both_solved": 16,
+        "delta_duration_mean_s": 0.39374999999999805,
+        "ppo_faster": 6,
+        "ppo_slower": 5
+      }
+    }
+  },
+  "cases": [
+    {
+      "case": "ppo_wins_most",
+      "seed": 1069,
+      "followers": 2,
+      "ppo": {
+        "end_reason": "parked",
+        "parked": 2,
+        "duration_s": 73.0
+      },
+      "scripted": {
+        "end_reason": "parked",
+        "parked": 2,
+        "duration_s": 81.1
+      },
+      "delta_duration_s": -8.099999999999994,
+      "files": {
+        "ppo": [
+          "ppo_wins_most_seed1069_ppo.png",
+          "ppo_wins_most_seed1069_ppo.gif"
+        ],
+        "scripted": [
+          "ppo_wins_most_seed1069_scripted.png",
+          "ppo_wins_most_seed1069_scripted.gif"
+        ]
+      }
+    },
+    {
+      "case": "ppo_loses_most",
+      "seed": 1059,
+      "followers": 2,
+      "ppo": {
+        "end_reason": "parked",
+        "parked": 2,
+        "duration_s": 86.2
+      },
+      "scripted": {
+        "end_reason": "parked",
+        "parked": 2,
+        "duration_s": 68.6
+      },
+      "delta_duration_s": 17.60000000000001,
+      "files": {
+        "ppo": [
+          "ppo_loses_most_seed1059_ppo.png",
+          "ppo_loses_most_seed1059_ppo.gif"
+        ],
+        "scripted": [
+          "ppo_loses_most_seed1059_scripted.png",
+          "ppo_loses_most_seed1059_scripted.gif"
+        ]
+      }
+    },
+    {
+      "case": "ppo_fails",
+      "seed": 1025,
+      "followers": 3,
+      "ppo": {
+        "end_reason": "stalled",
+        "parked": 2,
+        "duration_s": 153.7
+      },
+      "scripted": {
+        "end_reason": "parked",
+        "parked": 3,
+        "duration_s": 132.3
+      },
+      "delta_duration_s": null,
+      "files": {
+        "ppo": [
+          "ppo_fails_seed1025_ppo.png",
+          "ppo_fails_seed1025_ppo.gif"
+        ],
+        "scripted": [
+          "ppo_fails_seed1025_scripted.png",
+          "ppo_fails_seed1025_scripted.gif"
+        ]
+      }
+    }
+  ],
+  "wall_s": {
+    "ppo_s": 111.0,
+    "scripted_s": 30.5,
+    "render_s": 70.5,
+    "total_s": 213.9
+  },
+  "warnings": []
+}
