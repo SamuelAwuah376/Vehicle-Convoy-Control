@@ -19,3 +19,10 @@ Files per folder: `{best,final}_model.zip` + `{best,final}_vecnormalize.pkl` (ob
 (training and env config), `eval_history.csv` (10-seed evaluations during training), and the 20-seed evaluations
 (`eval_*_default.json` on the run's own score, `eval_compare_v6.json` with all models on v6). `ppo_v8_e4_10m/eval_compare_v8.json`
 compares its best and final models, `ppo_v7_e4_6m/final` and the overtaker on 70 unseen seeds (scenario v5, score v8).
+
+**Yard parking (`nohesi/yard/`, not a road model):** `yard_ppo_ye1_400k` is the first MaskablePPO coordination policy
+for convoy parking (5 actions per follower: HOLD, CREEP, GO, BACK_OFF, REPLAN), trained 400k decisions on env `ye1`,
+scenario `yard1`. On 50 fresh seeds (1020-1069) it parks every follower in 96 % of episodes (the scripted baseline:
+100 %), 0 collisions, level with the baseline on time (+0.6 +- 3.5 s on the seeds both solved):
+`eval_50seeds_1020-1069.json`. Run it with `run_yard.py` (`POLICY = 'ppo'`). The code is now at env `ye2` (BACK_OFF may
+leave the zone it stands in): same observations and actions, so the model still runs, but retrain for ye2 results.

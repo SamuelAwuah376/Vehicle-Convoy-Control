@@ -446,7 +446,18 @@ A separate stack, built on the haul-road verdict: a human-driven leader and 1–
   - `SEED` (the layout, follower count and driver picks), `FOLLOWERS` (e.g. `(3, 3)`; `()` keeps 1–3) and `ANIMATE`.
   - Outputs go to `results/run_NNN_<scenario>_<policy>_seed<seed>_followers<n>/`: `yard.gif`, `yard.png`, `metrics.json` and `events.json`.
 - **Train:** `train_yard.py` (settings at the top), or `.venv\Scripts\python -m nohesi.yard.train --run-id yard_ppo_001 --timesteps 2000000 --envs 8`. It trains MaskablePPO with invalid actions masked, evaluates on held-out seeds 1000–1019, and runs the scripted baseline once on the same seeds. Outputs go to `runs_rl/<run_id>/`. Both scripts need the `rl` extra.
-- **Results (scripted baseline, `yard1`, seeds 0–39, 300 s limit):** 40/40 episodes parked every follower (89/89 followers), with 0 collisions and 0 safety stops. Mean time to park the convoy: 78.5 s (35.6 s with 1 follower, 72.4 s with 2, 104.7 s with 3). 11 replans and 1 failed replan in total. About 2 s of wall time per episode on one CPU core. Reference run: `results/run_078_yard1_scripted_seed0_followers3/` (3 followers parked in 117 s).
+- **Results, scripted baseline** (`yard1`, seeds 0–39, 300 s limit):
+  - 40/40 episodes parked every follower (89/89 followers), with 0 collisions and 0 safety stops.
+  - Mean time to park the convoy: 79.2 s, with 11 replans and 1 failed replan in total.
+  - About 2 s of wall time per episode on one CPU core.
+  - A random policy choosing among the allowed actions had 0 collisions too: the shield and the supervisor make every allowed action safe, so what a policy can learn is order and timing.
+  - Reference run: `results/run_078_yard1_scripted_seed0_followers3/` (3 followers parked in 117 s).
+- **Results, first trained policy** (`models/yard_ppo_ye1_400k`; env `ye1`; 400k decisions, 4 envs, 75 min):
+  - On 50 fresh seeds (1020–1069) against the baseline: success 0.96 vs 1.00, with 0 collisions and 0 safety stops for both.
+  - On the 48 seeds both solved it is level with the baseline (+0.6 ± 3.5 s; faster on 14, slower on 9).
+  - Both failures are 3-follower yards: a follower held at a cusp until the episode stalled.
+  - Files: `results/yard_eval_yard_ppo_001_final_2026-11-15/` (`experiments/yard_eval.py`).
+  - Next: a longer run on env `ye2`, where BACK_OFF may also leave the zone it stands in.
 
 ## Training (milestone 3)
 

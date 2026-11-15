@@ -556,6 +556,26 @@ code). These seeds lie outside the training (≥ 2000) and selection (1000–101
 wall time per decision. `tests/test_yard_env.py` (12 integration tests) runs such a policy on 3 seeds and checks that
 it never collides.
 
+**First trained policy** (`models/yard_ppo_ye1_400k`; env `ye1`, before the ye2 BACK_OFF change):
+- **Setup:**
+  - 400k decisions with 4 envs on 4 CPU cores (75 min), the YardTrainConfig defaults otherwise.
+  - Evaluated every 50k decisions on seeds 1000–1019.
+- **Learning curve** (success rate / mean duration of successes):
+  - untrained: 0.00 / –;
+  - 50k: 0.80 / 71.3 s;
+  - 100k: 0.95 / 71.9 s;
+  - 200k: 0.90 / 64.6 s;
+  - 400k: 0.95 / 63.1 s;
+  - the baseline on the same seeds: 1.00 / 65.5 s.
+- **Fresh seeds 1020–1069** (`experiments/yard_eval.py`, `results/yard_eval_yard_ppo_001_final_2026-11-15/`):
+  - success 0.96 for the policy against 1.00 for the baseline;
+  - 0 collisions and 0 safety stops for both;
+  - on the 48 seeds both solved, policy minus baseline is +0.6 ± 3.5 s (95 % CI of the mean ±1.0 s): faster on 14, slower on 9, equal on 25;
+  - by follower count (successes): 1: 45.5 s vs 45.5 s, 2: 69.7 vs 68.6 s, 3: 98.2 vs 99.7 s.
+- **Failures:** both are 3-follower yards. On seed 1025 the policy held F2 at the cusp before its reverse leg, with no other truck near, until the episode stalled; seed 1062 timed out.
+- **Reading:** after a short run the policy is as fast as the hand-written priority rule, safely, but not yet as reliable. It does not use BACK_OFF (0 m per episode).
+- **Next:** a longer run (2M+ decisions) on `ye2`, where BACK_OFF may leave the zone it stands in. If the cusp stalls persist, consider a small per-truck idle cost.
+
 **Evaluation protocol.**
 
 - **Seeds.** Training seeds are drawn at 2000 or above. During training, `nohesi/yard/train.py` evaluates the policy

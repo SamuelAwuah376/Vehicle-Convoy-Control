@@ -13,7 +13,7 @@ from nohesi.yard.viz import animate, plot
 
 SCENARIO = 'yard1'        # 'yard1' (lidar misses 15 % of low obstacles) or 'yard1_clear' (perfect scan)
 POLICY = 'scripted'       # 'scripted' (prioritized baseline) or 'ppo' (a trained run, PPO_RUN)
-PPO_RUN = 'runs_rl/yard_ppo_001'   # POLICY = 'ppo' only: run folder with final_model.zip and final_vecnormalize.pkl
+PPO_RUN = 'models/yard_ppo_ye1_400k'   # POLICY = 'ppo' only: run folder with final_model.zip and final_vecnormalize.pkl (the first trained policy, env ye1)
 PPO_MODEL = 'final'       # 'final' or 'best'
 SEED = 0                  # yard layout, follower count and driver picks
 FOLLOWERS = ()            # (min, max) followers, e.g. (3, 3); () keeps the scenario's (1-3)
