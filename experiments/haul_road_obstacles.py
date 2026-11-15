@@ -7,9 +7,10 @@ scripted overtaker on the same planner. Scenarios (nohesi.config):
     h1  v9's road and cars at the policy's trained speeds (70 mph start, up to 134 mph), 12 static obstacles in place
         of the 45 traffic cars
     h2  h1 in a mining envelope: 45 km/h start, 5-60 km/h commanded, gravel (mu 0.6)
-Policies: 'ppo', 'overtaker', and 'ppo_edge' = ppo with the planner's corner-aware road-edge bound and edge grip
-(Planner.nmpc_edge_yaw, escape_edge_grip; both off by default), which hold the body corners, not only the CG, inside
-the edge at the plan's heading (the low-speed lane changes obstacles force run at 0.2-0.3 rad).
+Policies: 'ppo', 'overtaker', and 'ppo_edge' / 'overtaker_edge' = those with the planner's corner-aware road-edge
+bound and edge grip (Planner.nmpc_edge_yaw, escape_edge_grip; both off by default), which hold the body corners, not
+only the CG, inside the edge at the plan's heading (the low-speed lane changes obstacles force run at 0.2-0.3 rad).
+--friction replaces the tyre-road mu of the scenarios (rows are then labelled e.g. 'h2_mu1.05').
 Writes results/haul_obstacles_<date>/: episodes.jsonl (one row per episode, appended as each finishes; a rerun skips
 the jobs already in it), episodes.csv, summary.json (per scenario and policy), and with --store numbered
 results/run_NNN_... folders (GIF, plots, metrics) for the episodes of those seeds.
@@ -118,13 +119,14 @@ def _store(ep, label):
 
 def episode(job):
     """One episode -> haul_metrics row (in a worker process)."""
-    scenario, policy, seed, duration, store = job
+    scenario, policy, seed, duration, store, friction = job
     import multiprocessing
     if multiprocessing.current_process().name != 'MainProcess' and not getattr(episode, 'quiet', False):
         os.dup2(os.open(os.devnull, os.O_WRONLY), 1)   # acados prints a line per failed QP (C stdout): not in the log
         episode.quiet = True
     from nohesi.evaluation.metrics import metrics
-    cfg = env_cfg_for(scenario, EDGE_FIX if policy == 'ppo_edge' else ())
+    cfg = env_cfg_for(scenario, EDGE_FIX if policy.endswith('_edge') else ())
+    mu = (lambda sc: replace(sc, vehicle=replace(sc.vehicle, friction=friction))) if friction else (lambda sc: sc)
     started = time.perf_counter()
     if policy in ('ppo', 'ppo_edge'):
         import torch
@@ -133,6 +135,7 @@ def episode(job):
         from nohesi.rl.evaluate import load_policy, resolve
         model, normalize = load_policy(*resolve(PPO_RUN, PPO_MODEL))
         env = NoHesiEnv(cfg)
+        env.scenario = mu(env.scenario)
         if duration:
             env.scenario = replace(env.scenario, timing=replace(env.scenario.timing, duration=float(duration)))
         obs, _ = env.reset(seed=int(seed))
@@ -147,14 +150,17 @@ def episode(job):
         from nohesi.evaluation.runner import run
         from nohesi.rl.evaluate import scenario_for
         sc, planner, score = scenario_for(cfg)
+        sc = mu(sc)
         if duration:
             sc = replace(sc, timing=replace(sc.timing, duration=float(duration)))
-        ep = run(sc, int(seed), policy, planner, score=score)
+        ep = run(sc, int(seed), policy.removesuffix('_edge'), planner, score=score)
     row = haul_metrics(ep, metrics(ep))
     row['policy'] = policy
+    if friction:
+        row['scenario'] = f'{scenario}_mu{friction:g}'
     row['wall_s'] = round(time.perf_counter()-started, 1)
     if store:
-        row['stored'] = _store(ep, f'{scenario}_{policy}'+(f'-{PPO_RUN.name}' if policy != 'overtaker' else '') +
+        row['stored'] = _store(ep, f"{row['scenario']}_{policy}"+(f'-{PPO_RUN.name}' if 'ppo' in policy else '') +
                                f'_score{SCORE}_seed{seed}_dynamic_nmpc_haul_obstacles')
     return row
 
@@ -181,7 +187,7 @@ def summarize(rows):
 
 POLICY_STYLE = {'ppo': ('PPO policy (milestone 8)', '#2a78d6'),
                 'ppo_edge': ('PPO + corner-aware edge bound', '#eb6834'),
-                'overtaker': ('Scripted overtaker (same planner)', '#1baf7a')}
+                'overtaker': ('Scripted overtaker (same planner)', '#1baf7a')}   # the chart's three series
 SCENARIO_NAME = {'h1': 'h1: trained speeds\n(up to 60 m/s, tarmac)', 'h2': 'h2: mining envelope\n(5-16.7 m/s, gravel)'}
 
 
@@ -191,8 +197,10 @@ def plot_summary(summary, path):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     res = summary['results']
-    scenarios = list(res)
+    scenarios = [s for s in SCENARIO_NAME if s in res]   # the main scenarios (diagnostic variants stay in the tables)
     policies = [p for p in POLICY_STYLE if all(p in res[s] for s in scenarios)]
+    if not scenarios or not policies:
+        return
     panels = (('crash_rate', 'Episodes ending in a crash', lambda v: f'{100*v:.0f}%', 100.0),
               ('distance_m', 'Distance covered per car (m)', lambda v: f'{v:,.0f}', 1.0),
               ('stopped_share', 'Share of driving time stopped', lambda v: f'{100*v:.0f}%', 100.0))
@@ -245,14 +253,19 @@ def main(argv=None):
     p.add_argument('--store', default='', help='seeds whose episodes are saved to results/ with a GIF')
     p.add_argument('--duration', type=float, default=None, help='episode length (s); default the scenario (120 s)')
     p.add_argument('--out', default=None)
+    p.add_argument('--friction', type=float, default=None, help='tyre-road mu in place of the scenarios\' own')
     p.add_argument('--plot-only', action='store_true', help='redraw summary.png from the output folder\'s summary.json')
     a = p.parse_args(argv)
     scenarios, policies, seeds = a.scenarios.split(','), a.policies.split(','), _seeds(a.seeds)
+    tags = [f'{s}_mu{a.friction:g}' if a.friction else s for s in scenarios]
     store = set(_seeds(a.store)) if a.store else set()
     out = Path(a.out) if a.out else ROOT/'results'/f'haul_obstacles_{date.today().isoformat()}'
     out.mkdir(parents=True, exist_ok=True)
-    if a.plot_only:
-        plot_summary(json.loads((out/'summary.json').read_text(encoding='utf-8')), out/'summary.png')
+    if a.plot_only:   # summary.json and summary.png again from episodes.jsonl (the current metrics)
+        rows = [json.loads(line) for line in (out/'episodes.jsonl').read_text(encoding='utf-8').splitlines()]
+        tags = sorted({r['scenario'] for r in rows}) if a.scenarios == 'all' else tags
+        policies = list(dict.fromkeys(r['policy'] for r in rows)) if a.policies == 'all' else policies
+        write_summary(rows, tags, policies, seeds, out)
         return
     # Build the acados solvers once per scenario before the pool starts (workers then only load them).
     from nohesi.rl.evaluate import scenario_for
@@ -260,16 +273,17 @@ def main(argv=None):
     from nohesi.coordination.centralized import CentralizedTeam
     from nohesi.rl.scripted import LaneKeeping
     for name in scenarios:
-        for extra in ((), EDGE_FIX) if 'ppo_edge' in policies else ((),):
+        for extra in ((), EDGE_FIX) if any(p.endswith('_edge') for p in policies) else ((),):
             sc, planner, _ = scenario_for(env_cfg_for(name, extra))
+            sc = replace(sc, vehicle=replace(sc.vehicle, friction=a.friction)) if a.friction else sc
             CentralizedTeam(sc, World(sc, 0), LaneKeeping(sc, World(sc, 0).road, World(sc, 0).plant), planner)
     jsonl = out/'episodes.jsonl'
     done = [json.loads(line) for line in jsonl.read_text(encoding='utf-8').splitlines()] if jsonl.exists() else []
     have = {(r['scenario'], r['policy'], r['seed']) for r in done}
-    jobs = [(s, pol, seed, a.duration, seed in store) for s in scenarios for pol in policies
-            for seed in seeds if (s, pol, seed) not in have]
-    jobs.sort(key=lambda j: j[1] == 'overtaker')   # PPO episodes (the long ones) first
-    rows, started = [r for r in done if r['scenario'] in scenarios and r['policy'] in policies and r['seed'] in seeds], \
+    jobs = [(s, pol, seed, a.duration, seed in store, a.friction) for s, tag in zip(scenarios, tags) for pol in policies
+            for seed in seeds if (tag, pol, seed) not in have]
+    jobs.sort(key=lambda j: 'overtaker' in j[1])   # PPO episodes (the long ones) first
+    rows, started = [r for r in done if r['scenario'] in tags and r['policy'] in policies and r['seed'] in seeds], \
         time.perf_counter()
     print(f'{len(rows)} episodes already in {jsonl}, {len(jobs)} to run', flush=True)
     with ProcessPoolExecutor(max_workers=a.workers) as pool:
@@ -284,6 +298,12 @@ def main(argv=None):
                   f"{r['distance_m']:.0f} m, {r['mean_speed_mps']:.1f} m/s, stopped {r['stopped_s']:.1f} s, "
                   f"passed {r['obstacles_passed']}, min clearance {r['min_obstacle_clearance_m']} m, "
                   f"emergencies {r['emergencies']} ({r['wall_s']:.0f} s)", flush=True)
+    write_summary(rows, tags, policies, seeds, out)
+    print(f'results in {out}')
+
+
+def write_summary(rows, scenarios, policies, seeds, out):
+    """episodes.csv, summary.json and summary.png in out from the episode rows."""
     rows.sort(key=lambda r: (r['scenario'], r['policy'], r['seed']))
     fields = list(dict.fromkeys(k for r in rows for k in r))
     with (out/'episodes.csv').open('w', newline='', encoding='utf-8') as stream:
@@ -292,12 +312,12 @@ def main(argv=None):
         writer.writerows(rows)
     summary = {'ppo_run': str(PPO_RUN.relative_to(ROOT)), 'ppo_model': PPO_MODEL, 'score': SCORE,
                'planner_overrides': PLANNER_OVERRIDES, 'seeds': seeds, 'near_miss_m': NEAR_MISS,
-               'results': {s: {pol: summarize([r for r in rows if r['scenario'] == s and r['policy'] == pol])
-                               for pol in policies} for s in scenarios}}
+               'results': {s: {pol: summarize(sel) for pol in policies
+                               if (sel := [r for r in rows if r['scenario'] == s and r['policy'] == pol])}
+                           for s in scenarios}}
     (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n', encoding='utf-8')
     plot_summary(summary, out/'summary.png')
     print(json.dumps(summary['results'], indent=2), flush=True)
-    print(f'results in {out}')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,90 @@
+{
+  "ppo_run": "models/ppo_v10_e5_dyn_b11c_2.75m",
+  "ppo_model": "final",
+  "score": "v10",
+  "planner_overrides": [
+    [
+      "retry_cooldown",
+      1.0
+    ],
+    [
+      "w_lateral",
+      10.0
+    ]
+  ],
+  "seeds": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1005,
+    1006,
+    1007,
+    1008,
+    1009,
+    1010,
+    1011,
+    1012,
+    1013,
+    1014,
+    1015,
+    1016,
+    1017,
+    1018,
+    1019
+  ],
+  "near_miss_m": 0.5,
+  "results": {
+    "h2_mu1.05": {
+      "overtaker": {
+        "episodes": 20,
+        "crashes": 5,
+        "crash_rate": 0.25,
+        "crash_kinds": {
+          "traffic": 0,
+          "edge": 4,
+          "team": 1
+        },
+        "crash_seeds": [
+          1002,
+          1003,
+          1006,
+          1009,
+          1013
+        ],
+        "crash_times_s": [
+          24.35,
+          29.95,
+          23.65,
+          48.4,
+          20.1
+        ],
+        "distance_m": 1202.755,
+        "mean_speed_mps": 12.444,
+        "progress_mps": 12.4,
+        "stopped_s": 11.449,
+        "stuck_s": 12.008,
+        "obstacles_passed": 50.15,
+        "near_misses": 0.15,
+        "min_pass_clearance_m": 0.844,
+        "min_obstacle_clearance_m": 0.585,
+        "min_teammate_clearance_m": 3.262,
+        "peak_brake_mps2": 7.448,
+        "hard_brake_s": 3.052,
+        "peak_lat_accel_mps2": 9.814,
+        "emergencies": 85.65,
+        "fallbacks": 453.85,
+        "lane_changes": 21.65,
+        "lane_changes_cancelled": 3.25,
+        "mean_spread_m": 224.435,
+        "max_spread_m": 530.305,
+        "solve_ms_mean": 8.468,
+        "duration_s": 97.322,
+        "stopped_share": 0.106,
+        "clean_episodes": 13,
+        "worst_min_obstacle_clearance_m": 0.08
+      }
+    }
+  }
+}

@@ -23,7 +23,7 @@ On macOS/Linux use `.venv/bin/python`. If `python` opens the Microsoft Store, us
 
 | Setting | Options |
 |---|---|
-| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic · `'v5'` BMW M3s, 45–60 mph traffic · `'v6'` v5 where traffic never blocks every lane · `'v7'` v6 with fewer traffic lane changes · `'v8'` v7 with lane speeds: 60–65 mph right and middle, 70–80 mph left · `'v9'` v8 denser: 45 cars, 55–62 / 62–68 / 70–80 mph, 3× the traffic lane changes (default) |
+| `SCENARIO` | `'v0'` 60 s, 8 traffic cars · `'v1'` 120 s, 10 cars · `'v2'` 120 s, 20 cars · `'v3'`/`'v4'` = v1/v2 with lane-changing traffic · `'v5'` BMW M3s, 45–60 mph traffic · `'v6'` v5 where traffic never blocks every lane · `'v7'` v6 with fewer traffic lane changes · `'v8'` v7 with lane speeds: 60–65 mph right and middle, 70–80 mph left · `'v9'` v8 denser: 45 cars, 55–62 / 62–68 / 70–80 mph, 3× the traffic lane changes (default) · `'h1'` v9 with 12 static obstacles in place of traffic (haul-road test) · `'h2'` h1 at mining speeds (5–60 km/h) on gravel |
 | `POLICY` | `'ppo'` (trained team policy, default) · `'overtaker'` (lane changes + MPC) · `'overtake_macro'` (the overtaker with the overtake intention) · `'lane_keeping'` (stays in its lane, no MPC) |
 | `PPO_RUN` | trained model folder: `'models/ppo_v10_e5_dyn_b11c_2.75m'` (milestone 8, trained on v9, default) · `'models/ppo_v10_e5_dyn_b10_3m'` (batch 10, the best on v8) · `'models/ppo_v10_e5_dyn_b9b_6.5m'` (milestone 7) · `'models/ppo_v10_e5_dyn_b7_10m'` (milestone 6) · `'models/ppo_v8_e5_dyn_b2c_3m'` (milestone 5: use `SCENARIO = 'v7'`, `SCORE = 'v8'`) · `'models/ppo_v8_e4_10m'` (kinematic car: use `SCENARIO = 'v5'`, `PLANT = 'kinematic'`, `MPC = 'linear'`) |
 | `PPO_MODEL` | `'final'` (default) or `'best'` model of `PPO_RUN` |
@@ -407,6 +407,28 @@ Scenario v8 (30 cars):
 - **Planner m4.4 on it:** −19k ± 94k against m4.3 (noise). Edge crashes fall from 2 to 0 and fallbacks from 6.2 to 4.7 per episode.
 - **On v8, batch 10's final is the best:** 4,472k, 0 crashes, +900k ± 253k over 11c's final. Milestone 7's model runs batch 11c's planner settings here, which it wasn't trained with. With its own settings and planner m4.4 it scores 3,973k with 0 crashes, −219k ± 275k against m4.3's 4,192k, which is noise (`models/ppo_v10_e5_dyn_b9b_6.5m/eval_50seeds_1000-1049_6.5M_m4.4.json`).
 - **Seed 1007, 300 s** (`results/run_071_...`; `run_sim.py` with `SEED = 1007`, `DURATION = 300.0`): 5,118k with 0 collisions, 98 s as a train, 8.5 km. A CARLA replay of it was rendered (chase camera, detailed cars); the mp4 stays local (git-ignored).
+
+## Haul-road obstacle test (2026-11-15)
+
+This test asks whether the stack is a basis for autonomous heavy-truck convoys on mining and logging roads. It runs the milestone 8 stack exactly as `run_sim.py` does, with the traffic replaced by static obstacles. Full write-up: `results/haul_obstacles_2026-11-15/REPORT.md`.
+
+- **Scenarios:**
+  - `h1`: v9's road, cars and speeds with 12 car-sized obstacles (`Traffic.static`).
+  - `h2`: h1 at 5–60 km/h on gravel (μ 0.6, `Scenario.team_speed_min`).
+- **Runs:** 20 seeds per scenario, policy and diagnostic (`experiments/haul_road_obstacles.py`).
+- **Results:**
+  - **The PPO policy does not transfer.** It crashes on 10/20 seeds on both scenarios, and stopped cars deadlock.
+    - It drives 38–51 m/s target speeds into the obstacle field, beyond what the emergency layer can stop.
+    - Blocked cars stop 0.2 m behind an obstacle. With no reverse, no forward path exists and every MPC solve is infeasible: the cars stay there.
+  - **The planner with the scripted overtaker manages h1:** 3/20 crashes, 11/20 clean runs and 2.8× the PPO's distance.
+  - **At mining speeds the planner fails:** 16/20 crashes on gravel, 5/20 on tarmac.
+    - Below ~7 m/s the nonlinear MPC stops solving (its tyre model has a 5 m/s floor).
+    - The lane-keep fallback law then lets the heading swing to ~30°, and the car crosses the road.
+    - The corner-aware edge bound (`nmpc_edge_yaw`) doesn't help (17/20).
+- **Verdict:**
+  - Keep the layered architecture, the team coordinator, the MPC core and the tooling.
+  - Add a 0–15 m/s planner regime (low-speed model, standstill margin and reverse, obstacle-aware speed limits) and a truck model.
+  - Retrain the policy on a haulage objective.
 
 ## Training (milestone 3)
 
