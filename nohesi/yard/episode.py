@@ -191,8 +191,9 @@ class YardRun:
             return f.backing is not None and not f.parked   # continuing a back-off is allowed
         if f.path.s[f.progress] < 1.0:
             return False
-        target = self._back_target(f)
-        held = self.coordinator.held_ranges(i) if hasattr(self.coordinator, 'held_ranges') else []
+        target, c = self._back_target(f), self.coordinator
+        # Never back into a zone (gate included) whose token another truck holds.
+        held = [(z.side(i)[0]-c.gate, z.side(i)[1]) for z, o in zip(c.zones, c.owner) if i in (z.a, z.b) and o not in (None, i)]
         return not any(lo <= f.progress and hi >= target for lo, hi in held)
 
     def masks(self):
@@ -284,8 +285,9 @@ class YardRun:
     def _control(self):
         """Shield, trackers: new commands for every follower (held until the next mpc_step)."""
         progress = np.array([f.progress for f in self.f])
-        wants = np.array([f.path is not None and not f.parked and f.backing is None and f.action in (GO, CREEP)
-                          for f in self.f])
+        # A truck still rolling keeps wanting (the coordinator must not release its token while it brakes).
+        wants = np.array([f.path is not None and not f.parked and f.backing is None and
+                          (f.action in (GO, CREEP) or abs(self.world.states[i, 3]) > MOVING) for i, f in enumerate(self.f)])
         self.stop_index = self.coordinator.update(progress, wants)
         self._cmd = []
         for i, f in enumerate(self.f):

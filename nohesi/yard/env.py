@@ -24,7 +24,7 @@ from dataclasses import dataclass
 import numpy as np
 import gymnasium
 from gymnasium import spaces
-from .episode import ACTIONS, BACK_OFF, CREEP, GO, HOLD, REPLAN, YardRun
+from .episode import ACTIONS, GO, HOLD, REPLAN, YardRun
 from .scenarios import YARD_SCENARIOS
 from .truck import wrap
 
@@ -147,7 +147,7 @@ class YardEnv(gymnasium.Env):
                 if j < run.n:
                     dx, dy, dyaw = rel(st[j])
                     o[:7] = 1.0, dx/50, dy/50, np.sin(dyaw), np.cos(dyaw), st[j, 3]/3.0, float(run.f[j].parked)
-                    z = zones[i].get(j) if isinstance(zones[i], dict) else None
+                    z = zones[i][j]
                     if z is not None:
                         o[7:11] = 1.0, z[0]/50, z[1]/50, float(z[2])
                 others.append(o)
@@ -177,8 +177,9 @@ def scripted_actions(env):
             continue
         wait = run.coordinator.priority_wait(i, progress)
         if wait:
+            rank = {j: r for r, j in enumerate(run.coordinator.order)}
             z = run.coordinator.zones_of(i)
-            gate = min((v[0] for j, v in (z.items() if isinstance(z, dict) else []) if v is not None), default=np.inf)
+            gate = min((v[0] for j, v in enumerate(z) if v is not None and rank[j] < rank[i]), default=np.inf)
             out[i] = HOLD if gate <= 1.0 else GO
         else:
             out[i] = GO

@@ -102,9 +102,9 @@ def dubins_sample(start, word, lengths, radius, sample):
     x, y, yaw = (float(v) for v in start[:3])
     parts = [np.array([[x, y, yaw]])]
     for letter, ell in zip(word, lengths):
-        if ell <= 0:
+        if ell <= 1e-9:            # a rounding-level segment: no sample (the endpoint check bounds the error)
             continue
-        u = np.linspace(0.0, ell, int(math.ceil(ell/sample-1e-9))+1)[1:]
+        u = np.linspace(0.0, ell, max(1, int(math.ceil(ell/sample-1e-9)))+1)[1:]
         px, py, pyaw = _arc(x, y, yaw, _TURN[letter]/radius, u)
         parts.append(np.column_stack((px, py, pyaw)))
         x, y, yaw = px[-1], py[-1], pyaw[-1]
@@ -147,6 +147,7 @@ class HybridAStar:
     pruned. Every analytic_every-th expansion within analytic_range of the goal tries the forward and the reverse
     Dubins shot to the goal (turning radius Truck.min_radius); the cheaper collision-free one ends the search."""
     anytime = False
+    staged = ()
 
     def __init__(self, truck, planning):
         self.truck, self.planning = truck, planning
@@ -278,6 +279,14 @@ class HybridAStar:
             if path is not None:
                 cost = path.length*(1.0 if direction > 0 else p.reverse_cost)+p.switch_cost*(d != 0 and d != direction)
                 cands.append((cost, direction, path))
+        for L in self.staged:
+            gyaw = float(goal[2])
+            stage = (goal[0]+L*math.cos(gyaw), goal[1]+L*math.sin(gyaw), gyaw)
+            fwd = dubins(state, stage, self.radius, p.path_sample, 1)
+            back = dubins(stage, goal, self.radius, p.path_sample, -1)
+            if fwd is not None and back is not None:
+                cost = fwd.length+p.switch_cost*(1+(d == -1))+p.reverse_cost*back.length
+                cands.append((cost, 2, Path.concat([fwd, back])))
         for cost, _, path in sorted(cands, key=lambda c: c[:2]):
             if collision_free(self.truck, p, clearance, path.states[1:]).all():
                 return cost, path
