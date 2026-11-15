@@ -41,9 +41,11 @@ CUSP_REACH = 0.4        # m: a cusp is reached within this of the segment's last
 PARK_YAW = 0.1          # rad: arrival heading tolerance (Planning.park_tolerance is the position one)
 HOLD_MARGIN = 0.3       # m: a hold at stop_index aims this far short of that sample
 PROGRESS_WINDOW = 6.0   # m: progress is searched this far ahead of the previous progress
-STEER_WINDOW = 4.0      # m of path over which the steering may take Truck.steer_rate to follow the reference
-STEER_REACH = 4.0       # m: the steering-rate speed cap applies this far either side of a steering change
-SMOOTH_STEER = True
+END_REACH = 2.0         # m: a cusp or the path end counts as reached only with progress this close to it
+STEER_WINDOW = 3.0      # m of path over which the steering reference spreads a change of the path's steering
+STEER_REACH = 3.0       # m: the steering-rate speed cap applies this far either side of such a change
+W_STEER = 8.0           # cost weight on the steering angle's deviation from the (smoothed) reference steering
+SPEED_MARGIN = 0.02     # m/s kept under v_forward_max / v_reverse_max (the accel lag overshoots slightly)
 W_SLACK = (2e3, 2e2)    # speed-bound slack weights: quadratic, linear
 SOLVED = (1, 2)         # OSQP status_val accepted: solved, solved inaccurate (if finite)
 NX, NU = 6, 2
@@ -64,7 +66,7 @@ class _Segment:
         self.steer_ref = self._smoothed_steer()
         ak = np.abs(kappa)
         k_sample = np.maximum(np.r_[ak[0], ak], np.r_[ak, ak[-1]])
-        vmax = truck.v_forward_max if d > 0 else truck.v_reverse_max
+        self.vmax = vmax = (truck.v_forward_max if d > 0 else truck.v_reverse_max)-SPEED_MARGIN
         cap = np.minimum(vmax, np.sqrt(truck.lat_accel_max/np.maximum(k_sample, 1e-9)))
         cap = np.minimum(cap, self._steer_rate_cap(truck))
         prof = cap.copy()
@@ -105,10 +107,8 @@ class _Segment:
         return np.interp(s, self.s, self.x), np.interp(s, self.s, self.y), np.interp(s, self.s, self.yaw)
 
     def steer_at(self, s):
-        if SMOOTH_STEER:
-            return np.interp(s, self.s, self.steer_ref)
-        j = np.clip(np.searchsorted(self.s, s, 'right')-1, 0, len(self.s)-2)
-        return self.steer[j]
+        """Reference steering (smoothed) at arc lengths s."""
+        return np.interp(s, self.s, self.steer_ref)
 
     def point_ahead(self, s):
         """(x, y) at arc length s, extended beyond the segment's end along its last heading (pure-pursuit target)."""
@@ -171,8 +171,13 @@ class PathTracker:
         lateral = -sin(yaw_p)*(x-px)+cos(yaw_p)*(y-py)
         return float(s0), float(lateral), float(wrap(yaw-yaw_p))
 
+    def _near_end(self, seg):
+        return self.path.s[seg.i1]-self.path.s[self.progress] <= END_REACH
+
     def _reached_end(self, seg, x, y):
         """At the segment's last sample: within CUSP_REACH of it, or past it along its heading (an overshoot)."""
+        if not self._near_end(seg):
+            return False
         dx, dy = x-seg.x[-1], y-seg.y[-1]
         along = seg.direction*(dx*cos(seg.yaw[-1])+dy*sin(seg.yaw[-1]))
         return hypot(dx, dy) <= CUSP_REACH or (along > 0 and hypot(dx, dy) < self.planning.track_tolerance)
@@ -194,14 +199,15 @@ class PathTracker:
             return self._hold(seg, steer, 'arrived', *self._project(seg, x, y, yaw)[1:])
         self._update_progress(seg, x, y)
         status = None
-        if not last and abs(v) < STOPPED and self._reached_end(seg, x, y):
+        held = stop_index is not None and int(stop_index) <= seg.i1   # may not pass the cusp: no shift
+        if not last and not held and abs(v) < STOPPED and self._reached_end(seg, x, y):
             self.segment += 1
             seg, last, status = self._segs[self.segment], self.segment == len(self._segs)-1, 'cusp'
             self.progress = seg.i0
             self._update_progress(seg, x, y)
         s0, lateral, heading = self._project(seg, x, y, yaw)
-        if last and abs(v) < STOPPED and hypot(x-seg.x[-1], y-seg.y[-1]) <= pl.park_tolerance and \
-                abs(wrap(yaw-seg.yaw[-1])) <= PARK_YAW:
+        if last and abs(v) < STOPPED and self._near_end(seg) and \
+                hypot(x-seg.x[-1], y-seg.y[-1]) <= pl.park_tolerance and abs(wrap(yaw-seg.yaw[-1])) <= PARK_YAW:
             self.arrived = True
             return self._hold(seg, steer, 'arrived', lateral, heading)
         if abs(lateral) > pl.track_tolerance:
@@ -342,6 +348,7 @@ class PathTracker:
         diag[X(ks, 0)] = diag[X(ks, 1)] = 2*pl.w_pos
         diag[X(ks, 2)] = 2*pl.w_yaw
         diag[X(ks, 3)] = 2*pl.w_speed
+        diag[X(ks, 4)] = 2*W_STEER
         diag[U(k, 0)] = 2*pl.w_accel
         diag[U(k, 1)] = 2*pl.w_steer_rate
         diag[S(ks)] = 2*W_SLACK[0]
@@ -398,9 +405,9 @@ class PathTracker:
         v0 = max(z0[3], 0.0) if d > 0 else min(z0[3], 0.0)
         init = np.array([0.0, 0.0, yawr[0]+float(wrap(z0[2]-yawr[0])), v0, z0[4], z0[5]])
         if d > 0:
-            c_lo, c_hi, v_lo, v_hi = -t.brake_max, t.accel_max, 0.0, t.v_forward_max
+            c_lo, c_hi, v_lo, v_hi = -t.brake_max, t.accel_max, 0.0, seg.vmax
         else:
-            c_lo, c_hi, v_lo, v_hi = -t.accel_max, t.brake_max, -t.v_reverse_max, 0.0
+            c_lo, c_hi, v_lo, v_hi = -t.accel_max, t.brake_max, -seg.vmax, 0.0
         inf = np.full(N, np.inf)
         lo = np.concatenate([init, rhs.ravel(), np.full(N, c_lo), np.full(N, -t.steer_rate), np.full(N, -t.steer_max),
                              np.full(N, v_lo), -inf, np.zeros(N)])
@@ -411,6 +418,7 @@ class PathTracker:
         qv[X(ks, 1)] = -2*pl.w_pos*yr[1:]
         qv[X(ks, 2)] = -2*pl.w_yaw*yawr[1:]
         qv[X(ks, 3)] = -2*pl.w_speed*vr[1:]
+        qv[X(ks, 4)] = -2*W_STEER*steer_r[1:]
         qv[U(k, 0)] = -2*pl.w_accel*np.clip(ar, c_lo, c_hi)
         qv[U(k, 1)] = -2*pl.w_steer_rate*rate_r
         qv[S(ks)] = W_SLACK[1]

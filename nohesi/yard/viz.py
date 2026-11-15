@@ -34,7 +34,8 @@ REVEAL_FLASH = 4.0      # s an obstacle stays highlighted after a follower revea
 EVENT_WINDOW = 4.0      # s an event stays in the animation's event line
 FRAME_DT = 0.5          # s of simulation per GIF frame (default stride)
 END_HOLD = 2.0          # s the GIF pauses on its last frame
-GIF_DPI, PNG_DPI = 90, 150
+GIF_DPI, PNG_DPI = 110, 150
+PATH_OFFSET = 0.55     # m: followers' drawn paths are shifted sideways by this much each, so shared routes stay visible
 REVERSE = (0, (4.0, 2.5))   # dash pattern of reverse segments
 
 
@@ -87,16 +88,24 @@ def _view(ep):
     return lo[0]-1.0, hi[0]+1.0, lo[1]-1.0, hi[1]+1.0
 
 
-def _segments(path):
-    """Forward and reverse polylines of a Path ((m, 2) each, NaN rows between segments) and its cusp points."""
+def _offset(i, n):
+    """Sideways shift (m, to the truck's left) of follower i's drawn path: overlapping routes become parallel lines."""
+    return (i-(n-1)/2)*PATH_OFFSET
+
+
+def _segments(path, offset=0.0):
+    """Forward and reverse polylines of a Path ((m, 2) each, NaN rows between segments) and its cusp points, shifted
+    `offset` m to the truck's left."""
+    yaw = np.asarray(path.yaw, float)
+    x, y = path.x-offset*np.sin(yaw), path.y+offset*np.cos(yaw)
     fwd, rev = [], []
     for a, b in path.segments():
-        xy = np.column_stack((path.x[a:b+1], path.y[a:b+1]))
+        xy = np.column_stack((x[a:b+1], y[a:b+1]))
         (fwd if path.direction[a] > 0 else rev).append(np.vstack((xy, [[np.nan, np.nan]])))
     empty = np.zeros((0, 2))
     cusps = np.asarray(path.cusps, int)
     return (np.vstack(fwd) if fwd else empty, np.vstack(rev) if rev else empty,
-            np.column_stack((path.x[cusps], path.y[cusps])) if len(cusps) else empty)
+            np.column_stack((x[cusps], y[cusps])) if len(cusps) else empty)
 
 
 def _grow(c, m):
@@ -130,12 +139,18 @@ def _figure(view, width, top, bottom, dpi, left=0.42, right=0.14):
 
 
 def _draw_scan(ax, grid):
+    """The scan under everything, and its OCCUPIED cells (the lidar hits) again above the obstacle fills: the faces the
+    leader saw get a dark rim, an obstacle it missed has none."""
     if grid is None:
         return
     cells = np.asarray(grid.cells)
     ny, nx = cells.shape
+    extent = (grid.x0, grid.x0+nx*grid.res, grid.y0, grid.y0+ny*grid.res)
     ax.imshow(cells, origin='lower', cmap=ListedColormap(SCAN), vmin=0, vmax=2, interpolation='nearest',
-              extent=(grid.x0, grid.x0+nx*grid.res, grid.y0, grid.y0+ny*grid.res), zorder=0)
+              extent=extent, zorder=0)
+    hits = np.zeros((ny, nx, 4))
+    hits[cells == 2] = to_rgba(SCAN[2], 0.9)
+    ax.imshow(hits, origin='lower', interpolation='nearest', extent=extent, zorder=1.6)
 
 
 def _obstacle_style(poly, kind, hidden):
@@ -351,7 +366,6 @@ def _frame_indices(ep, stride=None):
 def animate(ep, path, fps=10, stride=None):
     """Top-down GIF of a YardEpisode, one frame per `stride` record samples (default: about FRAME_DT s of
     simulation) plus the last sample, which carries the end reason and is held for END_HOLD s."""
-    from .truck import corners
     truck = ep.scenario.truck
     shapes = _shapes(truck)
     n, time = int(ep.n), np.asarray(ep.time, float)
@@ -373,13 +387,14 @@ def animate(ep, path, fps=10, stride=None):
     _draw_leader(ax, ep, shapes)
 
     # Rejected picks, shown from their pick time on.
-    rejected = [(float(p['time']), _draw_rejected(ax, truck, p)) for p in ep.picks if not p.get('accepted', False)]
+    picks = [p for p in ep.picks if p.get('pose') is not None]
+    rejected = [(float(p['time']), _draw_rejected(ax, truck, p)) for p in picks if not p.get('accepted', False)]
     # Spots: the latest accepted pick at or before t; ep.spots[i] when the record has no accepted pick for i.
-    accepted = [[(float(p['time']), np.asarray(p['pose'], float)) for p in ep.picks
+    accepted = [[(float(p['time']), np.asarray(p['pose'], float)) for p in picks
                  if p.get('accepted', False) and int(p['follower']) == i] for i in range(n)]
     spot_art = [_spot_artists(ax, i) for i in range(n)]
     # Paths: per follower the latest plan at or before t.
-    plans = [[(float(tp), _segments(p)) for tp, j, p in ep.paths if int(j) == i] for i in range(n)]
+    plans = [[(float(tp), _segments(p, _offset(i, n))) for tp, j, p in ep.paths if int(j) == i] for i in range(n)]
     plan_times = [np.array([tp for tp, _ in plans[i]]) for i in range(n)]
     lines = [(ax.plot([], [], color=_color(i), lw=1.7, zorder=3.0, solid_capstyle='round')[0],
               ax.plot([], [], color=_color(i), lw=1.7, ls=REVERSE, zorder=3.0)[0],
@@ -483,13 +498,14 @@ def plot(ep, path):
         ax.text(c[:, 0].mean(), c[:, 1].max()+0.4, note, fontsize=6, color=INK, ha='center', va='bottom', zorder=6.6,
                 bbox=dict(boxstyle='round,pad=0.1', facecolor='white', edgecolor='none', alpha=0.75))
     _draw_leader(ax, ep, shapes)
-    for p in ep.picks:
+    picks = [p for p in ep.picks if p.get('pose') is not None]
+    for p in picks:
         if not p.get('accepted', False):
             _draw_rejected(ax, truck, p)
     for i in range(n):
         color = _color(i)
         final = ep.spots[i] if i < len(ep.spots) else None
-        for p in ep.picks:   # accepted picks superseded by a reassignment: faint dotted outlines
+        for p in picks:   # accepted picks superseded by a reassignment: faint dotted outlines
             if p.get('accepted', False) and int(p['follower']) == i and \
                     (final is None or not np.allclose(np.asarray(p['pose'], float)[:3], np.asarray(final, float)[:3])):
                 ax.add_patch(Polygon(corners(truck, np.asarray(p['pose'], float)[None, :3])[0], closed=True,
@@ -498,7 +514,7 @@ def plot(ep, path):
             _place_spot(truck, *_spot_artists(ax, i), final)
         mine = [p for _, j, p in ep.paths if int(j) == i]
         for m, p in enumerate(mine):
-            fwd, rev, cusp = _segments(p)
+            fwd, rev, cusp = _segments(p, _offset(i, n))
             current = m == len(mine)-1
             kw = dict(color=color, lw=1.5 if current else 0.9, alpha=1.0 if current else 0.35, zorder=3.0 if current
                       else 2.6)
