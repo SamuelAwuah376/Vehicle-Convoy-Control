@@ -1,0 +1,17 @@
+{
+  "seed": 0,
+  "success": true,
+  "parked": 3,
+  "followers": 3,
+  "collision": false,
+  "end_reason": "parked",
+  "duration_s": 117.2,
+  "replans": 1,
+  "replans_failed": 0,
+  "safety_stops": 0,
+  "back_off_m": 0.0,
+  "picks_rejected": 3,
+  "reassigned": 1,
+  "path_length_m": 233.6332327438842,
+  "driven_m": 247.8549764215284
+}

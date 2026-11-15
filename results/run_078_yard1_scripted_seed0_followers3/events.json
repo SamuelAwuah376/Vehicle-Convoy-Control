@@ -1,0 +1,113 @@
+{
+  "events": [
+    {
+      "time": 23.8,
+      "follower": 0,
+      "kind": "parked",
+      "detail": "0.05 m"
+    },
+    {
+      "time": 47.1,
+      "follower": 1,
+      "kind": "parked",
+      "detail": "0.05 m"
+    },
+    {
+      "time": 76.5,
+      "follower": 2,
+      "kind": "reassigned",
+      "detail": "occupied"
+    },
+    {
+      "time": 76.5,
+      "follower": 2,
+      "kind": "replan",
+      "detail": "new spot"
+    },
+    {
+      "time": 117.2,
+      "follower": 2,
+      "kind": "parked",
+      "detail": "0.01 m"
+    }
+  ],
+  "picks": [
+    {
+      "time": 0.0,
+      "follower": 0,
+      "pose": [
+        40.244,
+        42.09,
+        -2.23
+      ],
+      "accepted": false,
+      "reason": "occupied"
+    },
+    {
+      "time": 0.0,
+      "follower": 0,
+      "pose": [
+        32.694,
+        8.284,
+        -0.774
+      ],
+      "accepted": false,
+      "reason": "unscanned"
+    },
+    {
+      "time": 0.0,
+      "follower": 0,
+      "pose": [
+        25.5,
+        49.85,
+        1.571
+      ],
+      "accepted": true,
+      "reason": ""
+    },
+    {
+      "time": 0.0,
+      "follower": 1,
+      "pose": [
+        25.5,
+        16.15,
+        -1.571
+      ],
+      "accepted": true,
+      "reason": ""
+    },
+    {
+      "time": 0.0,
+      "follower": 2,
+      "pose": [
+        55.15,
+        55.5,
+        3.142
+      ],
+      "accepted": true,
+      "reason": ""
+    },
+    {
+      "time": 76.5,
+      "follower": 2,
+      "pose": [
+        87.43,
+        59.908,
+        -0.751
+      ],
+      "accepted": false,
+      "reason": "unscanned"
+    },
+    {
+      "time": 76.5,
+      "follower": 2,
+      "pose": [
+        22.5,
+        22.85,
+        1.571
+      ],
+      "accepted": true,
+      "reason": ""
+    }
+  ]
+}
