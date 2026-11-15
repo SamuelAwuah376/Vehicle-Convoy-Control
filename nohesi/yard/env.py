@@ -88,7 +88,17 @@ class YardEnv(gymnasium.Env):
             out[:self.run.n] = self.run.masks()
         return out.ravel()
 
+    step_started = None   # monotonic start of the step in progress (the training workers' watchdog reads it)
+
     def step(self, action):
+        import time
+        self.step_started = time.monotonic()
+        try:
+            return self._step(action)
+        finally:
+            self.step_started = None
+
+    def _step(self, action):
         run, cfg = self.run, self.cfg
         if run is None or run.done:
             raise RuntimeError('call reset() first')
@@ -176,19 +186,28 @@ def scripted_actions(env):
             else:
                 out[i] = REPLAN if run.can_replan(i) else HOLD
             continue
-        wait = run.coordinator.priority_wait(i, progress)
-        if wait:
+        out[i] = GO
+        if run.coordinator.priority_wait(i, progress):
+            # Wait before the gate of a zone a higher-priority truck has not cleared, starting a full comfortable stop
+            # (plus a decision's travel and 1 m) ahead; never hold once inside a zone: that would block the truck
+            # waited for (it stops at its own gate for the zone this truck holds).
             rank = {j: r for r, j in enumerate(run.coordinator.order)}
-            z = run.coordinator.zones_of(i)
-            gate = min((v[0] for j, v in enumerate(z) if v is not None and rank[j] < rank[i]), default=np.inf)
-            out[i] = HOLD if gate <= 1.0 else GO
-        else:
-            out[i] = GO
+            v = abs(run.world.states[i, 3])
+            reach = v*v/(2*run.truck.brake_comfort)+v*run.cfg.decision_interval+1.0
+            gates = [z[0] for j, z in enumerate(run.coordinator.zones_of(i)) if z is not None and rank[j] < rank[i]]
+            if any(0 <= g <= reach for g in gates):
+                out[i] = HOLD
     return out
 
 
 def make_env(cfg=YardEnvConfig(), rank=0, base_seed=0, seed_pool=None):
-    """Thunk for SubprocVecEnv: env RNG seeded with base_seed + rank (episode seeds drawn >= 2000)."""
+    """Thunk for SubprocVecEnv: env RNG seeded with base_seed + rank (episode seeds drawn >= 2000). Worker processes
+    run the step watchdog (nohesi.rl.watchdog) when the trainer has set NOHESI_HANG_DIR."""
     def thunk():
-        return YardEnv(cfg, seed_pool, rng_seed=base_seed+rank)
+        import multiprocessing
+        env = YardEnv(cfg, seed_pool, rng_seed=base_seed+rank)
+        if multiprocessing.current_process().name != 'MainProcess':
+            from ..rl.watchdog import watch
+            watch(env)
+        return env
     return thunk

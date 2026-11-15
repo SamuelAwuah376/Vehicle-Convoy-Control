@@ -204,6 +204,36 @@ def test_pure_pursuit_fallback_tracks_forward_and_reverse(monkeypatch, result):
     assert v.max() <= TRUCK.v_forward_max and v.min() >= -TRUCK.v_reverse_max
 
 
+def test_new_path_on_the_move_brakes_before_shifting():
+    """A back-off retrace given while driving forward at speed: brake in the forward gear (no instant stop by the
+    plant's direction selector), shift, reverse back to the retrace's end."""
+    path = chain((0.0, 0.0, 0.0), [(0.0, 30.0, 1)])
+    tracker, plant = PathTracker(TRUCK, PLAN), TruckPlant(TRUCK, PLAN.dt)
+    tracker.set_path(path)
+    state, steer, accel = np.zeros(4), 0.0, 0.0
+    for i in range(80):
+        if i % 2 == 0:
+            steer_cmd, accel_cmd, gear, info = tracker.command(state, steer, accel, TRUCK.v_forward_max)
+        state, steer, accel = plant.step(state, steer, accel, steer_cmd, accel_cmd, gear)
+    assert state[3] > 2.5
+    back = path.retrace(tracker.progress, 0)
+    tracker.set_path(back, 0)
+    v, gears = [state[3]], []
+    for i in range(1000):
+        if i % 2 == 0:
+            steer_cmd, accel_cmd, gear, info = tracker.command(state, steer, accel, TRUCK.v_forward_max)
+        state, steer, accel = plant.step(state, steer, accel, steer_cmd, accel_cmd, gear)
+        v.append(state[3]); gears.append(gear)
+        if tracker.arrived:
+            break
+    v, gears = np.array(v), np.array(gears)
+    braking = v[:-1] > 0.05
+    assert np.diff(v)[braking].min()/PLAN.dt > -1.05*TRUCK.brake_comfort   # braked, not clamped to zero
+    assert v.min() < -1.0                                                     # then reversed
+    assert np.all(gears[v[1:] > 0.05] == 1)
+    assert tracker.arrived and np.hypot(state[0]-back.x[-1], state[1]-back.y[-1]) <= PLAN.park_tolerance
+
+
 def test_off_path_commands_a_stop():
     tracker = PathTracker(TRUCK, PLAN)
     tracker.set_path(chain((0.0, 0.0, 0.0), [(0.0, 30.0, 1)]))

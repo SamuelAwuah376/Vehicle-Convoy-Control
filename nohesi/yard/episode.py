@@ -29,6 +29,7 @@ BACK_OFF_DISTANCE = 6.0   # m reversed per BACK_OFF manoeuvre
 SAFETY_MARGIN = 0.3       # m: the supervisor stops a truck whose path ahead comes this close to anything
 BLOCK_BUFFER = 4.0        # m: a truck whose path is blocked stops this far before the first blocked sample
 MOVING = 0.05             # m/s: slower counts as standing still
+REASSIGN_AFTER = 2        # failed replans in a row after which the driver picks the follower a new spot
 
 
 @dataclass
@@ -63,6 +64,7 @@ class Follower:
     blocked: int = None           # first sample of `path` a revealed obstacle blocks
     backing: dict = None          # BACK_OFF in progress: {'k0', 'target', 'stopping'}
     last_replan: float = -np.inf
+    failed_replans: int = 0       # in a row: after REASSIGN_AFTER the driver is asked for a new spot
     last_move: float = 0.0        # time the truck last moved
     safety: bool = False          # the supervisor is braking it
     action: int = HOLD
@@ -153,17 +155,23 @@ class YardRun:
             result = self.planner.plan(self.grid.clearance(extra=extra), start, f.spot)
             if result.path is not None:
                 self._set_path(i, result.path)
+                f.failed_replans = 0
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'replan', 'detail': ''})
                 return True
+            f.failed_replans += 1
             reason, _ = validate(self.scenario, self.grid, f.spot, [g.spot for j, g in enumerate(self.f)
                                                                      if j != i and g.spot is not None], self.leader_foot)
             if reason not in ('', 'unreachable', 'too_close'):   # the spot itself is no longer safe: a new one
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'reassigned', 'detail': reason})
+            elif f.failed_replans >= REASSIGN_AFTER:   # no way there from here: the driver picks another spot
+                self.events.append({'time': self.time, 'follower': i, 'kind': 'reassigned',
+                                    'detail': f'unreachable after {f.failed_replans} replans'})
             else:
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'replan_failed', 'detail': result.reason})
                 return False
         assigned = [g.spot for j, g in enumerate(self.f) if j != i and g.spot is not None]
         ok = self._assign(i, assigned, self._obstacles_for(i))
+        f.failed_replans = 0
         if ok:
             self.events.append({'time': self.time, 'follower': i, 'kind': 'replan', 'detail': 'new spot'})
         return ok

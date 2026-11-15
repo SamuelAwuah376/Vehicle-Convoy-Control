@@ -28,14 +28,20 @@ QP: variables z_0..z_N, u_0..u_{N-1} and one slack per step on the speed bounds.
 (yaw error; the yaw is unwrapped against the reference, so the error is wrapped), w_speed, w_accel and w_steer_rate
 (deviations of a_cmd and steer_rate from the reference's). Hard bounds: |steer| <= steer_max, |steer_rate| <=
 Truck.steer_rate, a_cmd in the gear's range ([-brake_max, accel_max] forward, [-accel_max, brake_max] reverse). Soft
-bounds (slack, heavy weight): v in [0, v_forward_max] on forward segments, [-v_reverse_max, 0] on reverse ones; soft
-because at a stop the lagged acceleration carries the linear model through zero speed where the plant's gear clamps it.
+bounds (slack, heavy weight): v in [0, v_forward_max - SPEED_MARGIN] on forward segments, [-(v_reverse_max -
+SPEED_MARGIN), 0] on reverse ones; soft because at a stop the lagged acceleration carries the linear model through zero
+speed where the plant's gear clamps it.
 One OSQP instance is set up once with a fixed sparsity pattern; each call updates its data (q, l, u, A values).
 
 A (nearly) stopped truck whose steering is off the reference where it stands (at a cusp after a lock-to-lock shift, at
-the path's start) first steers in place: the reference waits at zero speed for the steering time. A truck standing at
-(or past) the path's end outside park_tolerance reports 'off_path' (this path cannot park it: replan), as it does when
-the lateral error exceeds track_tolerance.
+the path's start) first steers in place: the reference waits at zero speed for the steering time. A stop_index at or
+before the segment's last sample also forbids the shift there. A new path whose first segment runs against the truck's
+motion (a replan or back-off on the move) is started by braking in the current gear, then shifting.
+
+Status: 'tracking'; 'cusp' (stopping for a cusp, shifting, steering in place before driving off, or braking to reverse
+for a new path); 'holding' (stopping or stopped for stop_index, or speed_limit 0); 'arrived'; 'off_path' (lateral error
+> track_tolerance, or standing at or past the path's end outside park_tolerance: this path cannot park it, replan);
+'fallback' (pure pursuit this step).
 """
 from math import atan, cos, hypot, sin, sqrt
 from time import perf_counter
@@ -117,8 +123,14 @@ class _Segment:
         return np.where(change > 1e-6, truck.steer_rate*STEER_WINDOW/np.maximum(change, 1e-6), np.inf)
 
     def at(self, s):
-        """Interpolated (x, y, yaw) at arc lengths s (clamped to the segment)."""
-        return np.interp(s, self.s, self.x), np.interp(s, self.s, self.y), np.interp(s, self.s, self.yaw)
+        """Interpolated (x, y, yaw) at arc lengths s (N,): clamped at the segment's end, extended before its start
+        along the start heading (a truck that stands behind the start drives onto it)."""
+        x, y, yaw = np.interp(s, self.s, self.x), np.interp(s, self.s, self.y), np.interp(s, self.s, self.yaw)
+        before = s < self.s[0]
+        if before.any():
+            sig = self.direction*(s[before]-self.s[0])               # signed travel along the heading (< 0 ahead)
+            x[before], y[before] = self.x[0]+sig*cos(self.yaw[0]), self.y[0]+sig*sin(self.yaw[0])
+        return x, y, yaw
 
     def steer_at(self, s):
         """Reference steering (smoothed) at arc lengths s."""
@@ -172,13 +184,15 @@ class PathTracker:
         self.progress = max(self.progress, self.path.nearest((x, y), lo, hi+1))
 
     def _project(self, seg, x, y, yaw):
-        """(s0, lateral error, heading error) of the rear axle against the segment polyline next to progress."""
+        """(s0, lateral error, heading error) of the rear axle against the segment polyline next to progress (the
+        first interval extended backward: s0 < the segment's start when the truck stands behind it)."""
         j, n, best = self.progress-seg.i0, len(seg.s), None
         for i in (j-1, j):
             if 0 <= i < n-1:
                 ex, ey = seg.x[i+1]-seg.x[i], seg.y[i+1]-seg.y[i]
                 l2 = ex*ex+ey*ey
-                u = min(max(((x-seg.x[i])*ex+(y-seg.y[i])*ey)/l2, 0.0), 1.0) if l2 > 1e-12 else 0.0
+                u = min(max(((x-seg.x[i])*ex+(y-seg.y[i])*ey)/l2, -np.inf if i == 0 else 0.0), 1.0) \
+                    if l2 > 1e-12 else 0.0
                 px, py = seg.x[i]+u*ex, seg.y[i]+u*ey
                 d2 = (x-px)**2+(y-py)**2
                 if best is None or d2 < best[0]:
@@ -236,6 +250,13 @@ class PathTracker:
                 self._reached_end(seg, x, y):
             # Standing at (or past) the path's end outside park_tolerance: this path cannot park it; replan.
             return self._stop(seg, v, steer, lateral, heading)
+        if seg.direction*v < -STOPPED:
+            # Still rolling the other way (a new path given on the move): brake in the current gear, steering
+            # toward the new reference, then shift.
+            rate = t.steer_rate*self.h
+            steer_cmd = steer+float(np.clip(float(seg.steer_at(s0))-steer, -rate, rate))
+            return steer_cmd, -float(np.sign(v))*t.brake_comfort, int(np.sign(v)), \
+                self._info(lateral, heading, 'cusp')
 
         ref = self._reference(seg, s0, v, steer, speed_limit, stop_index)
         if status is None and ref['wait'] > 0 and self.segment > 0 and s0-seg.s[0] < CUSP_REACH:
@@ -274,9 +295,9 @@ class PathTracker:
         return steer, -seg.direction*self.truck.brake_comfort, seg.direction, self._info(lateral, heading, status)
 
     def _stop(self, seg, v, steer, lateral, heading):
-        """off_path: brake to a stop at brake_comfort, steering held."""
-        sign = np.sign(v) if abs(v) > 1e-3 else seg.direction
-        return steer, -float(sign)*self.truck.brake_comfort, seg.direction, self._info(lateral, heading, 'off_path')
+        """off_path: brake to a stop at brake_comfort in the gear of the motion, steering held."""
+        sign = int(np.sign(v)) if abs(v) > STOPPED else seg.direction
+        return steer, -float(sign)*self.truck.brake_comfort, sign, self._info(lateral, heading, 'off_path')
 
     # -------------------------------------------------------------------------------------------------- reference
     def _reference(self, seg, s0, v, steer, speed_limit, stop_index):
