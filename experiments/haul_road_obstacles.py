@@ -173,8 +173,60 @@ def summarize(rows):
             'crash_seeds': [r['seed'] for r in crashes],
             'crash_times_s': [r['duration_s'] for r in crashes],
             **{k: mean(k) for k in keys},
+            'stopped_share': round(float(np.mean([r['stopped_s']/max(r['duration_s'], 1e-9) for r in rows])), 3),
+            'clean_episodes': sum(not r['collision'] and r['stopped_s'] < 0.25*r['duration_s'] for r in rows),
             'worst_min_obstacle_clearance_m': min((r['min_obstacle_clearance_m'] for r in rows
                                                    if r['min_obstacle_clearance_m'] != ''), default=None)}
+
+
+POLICY_STYLE = {'ppo': ('PPO policy (milestone 8)', '#2a78d6'),
+                'ppo_edge': ('PPO + corner-aware edge bound', '#eb6834'),
+                'overtaker': ('Scripted overtaker (same planner)', '#1baf7a')}
+SCENARIO_NAME = {'h1': 'h1: trained speeds\n(up to 60 m/s, tarmac)', 'h2': 'h2: mining envelope\n(5-16.7 m/s, gravel)'}
+
+
+def plot_summary(summary, path):
+    """Small multiples: crash rate, distance covered and time stopped per scenario and policy (summary.json)."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    res = summary['results']
+    scenarios = list(res)
+    policies = [p for p in POLICY_STYLE if all(p in res[s] for s in scenarios)]
+    panels = (('crash_rate', 'Episodes ending in a crash', lambda v: f'{100*v:.0f}%', 100.0),
+              ('distance_m', 'Distance covered per car (m)', lambda v: f'{v:,.0f}', 1.0),
+              ('stopped_share', 'Share of driving time stopped', lambda v: f'{100*v:.0f}%', 100.0))
+    ink, muted, grid, surface = '#0b0b0b', '#52514e', '#e4e3df', '#fcfcfb'
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.3), facecolor=surface)
+    width = 0.8/len(policies)
+    for ax, (key, title, fmt, scale) in zip(axes, panels):
+        ax.set_facecolor(surface)
+        for j, pol in enumerate(policies):
+            vals = [res[s][pol][key] or 0.0 for s in scenarios]
+            x = np.arange(len(scenarios))+(j-(len(policies)-1)/2)*width
+            bars = ax.bar(x, [v*scale for v in vals], width*0.92, color=POLICY_STYLE[pol][1], label=POLICY_STYLE[pol][0],
+                          zorder=2)
+            for b, v in zip(bars, vals):
+                ax.text(b.get_x()+b.get_width()/2, b.get_height(), fmt(v), ha='center', va='bottom', fontsize=8,
+                        color=muted)
+        ax.set_title(title, loc='left', fontsize=11, color=ink)
+        ax.set_xticks(np.arange(len(scenarios)), [SCENARIO_NAME.get(s, s) for s in scenarios], fontsize=9, color=ink)
+        ax.tick_params(axis='y', labelsize=8, colors=muted, length=0)
+        ax.tick_params(axis='x', length=0)
+        ax.grid(axis='y', color=grid, lw=0.8, zorder=0)
+        for side in ('top', 'right', 'left'):
+            ax.spines[side].set_visible(False)
+        ax.spines['bottom'].set_color(grid)
+        if key in ('crash_rate', 'stopped_share'):
+            ax.set_ylim(0, 100)
+    n = summary['results'][scenarios[0]][policies[0]]['episodes']
+    fig.legend(*axes[0].get_legend_handles_labels(), loc='upper center', ncol=len(policies), frameon=False, fontsize=9,
+               bbox_to_anchor=(0.5, 1.0), labelcolor=ink)
+    fig.text(0.01, 0.01, f'{n} seeds per bar (1000-{999+n}), 120 s episodes, 3-vehicle team, 12 static obstacles in view; '
+             'dynamic tyre model + nonlinear MPC', fontsize=8, color=muted)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.92))
+    fig.savefig(path, dpi=150, facecolor=surface)
+    plt.close(fig)
 
 
 def _seeds(text):
@@ -193,11 +245,15 @@ def main(argv=None):
     p.add_argument('--store', default='', help='seeds whose episodes are saved to results/ with a GIF')
     p.add_argument('--duration', type=float, default=None, help='episode length (s); default the scenario (120 s)')
     p.add_argument('--out', default=None)
+    p.add_argument('--plot-only', action='store_true', help='redraw summary.png from the output folder\'s summary.json')
     a = p.parse_args(argv)
     scenarios, policies, seeds = a.scenarios.split(','), a.policies.split(','), _seeds(a.seeds)
     store = set(_seeds(a.store)) if a.store else set()
     out = Path(a.out) if a.out else ROOT/'results'/f'haul_obstacles_{date.today().isoformat()}'
     out.mkdir(parents=True, exist_ok=True)
+    if a.plot_only:
+        plot_summary(json.loads((out/'summary.json').read_text(encoding='utf-8')), out/'summary.png')
+        return
     # Build the acados solvers once per scenario before the pool starts (workers then only load them).
     from nohesi.rl.evaluate import scenario_for
     from nohesi.world import World
@@ -239,6 +295,7 @@ def main(argv=None):
                'results': {s: {pol: summarize([r for r in rows if r['scenario'] == s and r['policy'] == pol])
                                for pol in policies} for s in scenarios}}
     (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n', encoding='utf-8')
+    plot_summary(summary, out/'summary.png')
     print(json.dumps(summary['results'], indent=2), flush=True)
     print(f'results in {out}')
 
