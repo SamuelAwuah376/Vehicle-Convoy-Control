@@ -112,8 +112,9 @@ class Coordinator:
        partners) form a cluster, which is requested whole: all its tokens at once or none, and a denied truck drops
        the reservations it has there. The shield therefore stops trucks only outside every hold range, and nobody
        waits while holding a zone: no hold-and-wait deadlock, pairwise or cyclic, except through a truck that stands
-       inside a zone (HOLD there, or parked at the end of its path: it holds the zone for good, which blocking()
-       exposes) or a replan that puts a zone under a truck;
+       inside a zone (HOLD there, or parked at the end of its path: it would hold the zone for good, which blocking()
+       exposes; the yard episode instead takes a parked truck out of the coordinator, set_path(i, None), and treats it
+       as a static obstacle) or a replan that puts a zone under a truck;
     3. a truck is stopped at the entry gate (first in - gate - 1, clipped to >= its progress) of the first cluster on
        its path in which another truck holds a zone; the stop moves on to the gate of the first zone it does not hold
        when it is already inside the cluster.

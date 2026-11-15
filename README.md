@@ -430,6 +430,24 @@ This test asks whether the stack is a basis for autonomous heavy-truck convoys o
   - Add a 0–15 m/s planner regime (low-speed model, standstill margin and reverse, obstacle-aware speed limits) and a truck model.
   - Retrain the policy on a haulage objective.
 
+## Convoy parking in a staging yard (new, `nohesi/yard/`)
+
+A separate stack, built on the haul-road verdict: a human-driven leader and 1–3 autonomous rigid haul trucks (9.5 m × 3.8 m, up to 3.0 m/s forward and 1.5 m/s in reverse) park in a 100 m × 70 m yard with berms, rock piles, parked machines and windrows. Design and reasons: [docs/yard_parking_design.md](docs/yard_parking_design.md). Module interfaces: [docs/yard_interfaces.md](docs/yard_interfaces.md).
+
+- **How it works:**
+  - The leader scans the yard with its roof lidar (60 m in dust; it misses 15 % of the low obstacles). Unscanned ground counts as blocked.
+  - Its driver picks a spot per follower. A safety check rejects unsafe picks with a reason, and every accepted spot comes with a Hybrid A* path, forward and reverse (nose-out spots are reversed into).
+  - A token shield on the paths' conflict zones keeps the trucks apart. A kinematic MPC (OSQP) tracks the paths through their cusps, and a safety supervisor brakes a truck whose path ahead comes within 0.3 m of anything.
+  - The followers' near-field sensors (10 m) reveal what the scan missed. A blocked path stops its truck 4 m short until it replans, and a parked truck becomes a static obstacle.
+- **Actions:** 5 per follower every 0.5 s: HOLD, CREEP (0.7 m/s), GO (the yard limits), BACK_OFF (retrace up to 6 m) and REPLAN. They replace the road's 51-action space only in this environment (`nohesi.yard.env.YardEnv`); the road stack and its models are unchanged.
+- **Run one episode:** `run_yard.py`. Edit the settings at the top and run it:
+  - `SCENARIO`: `'yard1'` (default) or `'yard1_clear'` (a perfect scan);
+  - `POLICY`: `'scripted'` (the prioritized baseline, default) or `'ppo'` (a trained run: `PPO_RUN`, `PPO_MODEL`);
+  - `SEED` (the layout, follower count and driver picks), `FOLLOWERS` (e.g. `(3, 3)`; `()` keeps 1–3) and `ANIMATE`.
+  - Outputs go to `results/run_NNN_<scenario>_<policy>_seed<seed>_followers<n>/`: `yard.gif`, `yard.png`, `metrics.json` and `events.json`.
+- **Train:** `train_yard.py` (settings at the top), or `.venv\Scripts\python -m nohesi.yard.train --run-id yard_ppo_001 --timesteps 2000000 --envs 8`. It trains MaskablePPO with invalid actions masked, evaluates on held-out seeds 1000–1019, and runs the scripted baseline once on the same seeds. Outputs go to `runs_rl/<run_id>/`. Both scripts need the `rl` extra.
+- **Results (scripted baseline, `yard1`, seeds 0–39, 300 s limit):** 40/40 episodes parked every follower (89/89 followers), with 0 collisions and 0 safety stops. Mean time to park the convoy: 78.5 s (35.6 s with 1 follower, 72.4 s with 2, 104.7 s with 3). 11 replans and 1 failed replan in total. About 2 s of wall time per episode on one CPU core. Reference run: `results/run_078_yard1_scripted_seed0_followers3/` (3 followers parked in 117 s).
+
 ## Training (milestone 3)
 
 Needs the `rl` extra (`pip install -e ".[test,rl]"`). For GPU learning (`DEVICE = 'cuda'` in `train_rl.py`), install the CUDA build: `pip install --force-reinstall --no-deps torch==2.14.1 --index-url https://download.pytorch.org/whl/cu130`. `train_rl.py` works like `run_sim.py`: edit the settings at the top (`RUN_ID`, `SCENARIO`, `SCORE`, `N_ENVS`, `TOTAL_TIMESTEPS`, ...) and run it, or use `.venv\Scripts\python -m nohesi.rl.train --run-id ppo_v4_001 --timesteps 10000000` (`--resume runs_rl/<id>/checkpoints/model_<t>.zip` continues a run; `--init-from <model>.zip` starts a new run from a trained model, for fine-tuning; `--vf-warmup N` then trains only the value network for the first N decisions, so its estimates fit the new score before the policy changes). It trains sb3-contrib `MaskablePPO` on `nohesi.rl.env.NoHesiEnv`. One timestep is one team decision (0.5 s), and invalid lane commands are masked.
