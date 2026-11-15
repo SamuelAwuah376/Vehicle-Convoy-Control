@@ -194,9 +194,9 @@ class Coordinator:
     zones: list[Zone]; owner: list   # owner parallel to zones: the token holder (truck index) or None
     def set_path(self, i, path, progress=0)
         # (Re)computes truck i's zones against every other truck with a path; None: truck i has no path and conflicts
-        # with nothing (episode.py calls set_path(i, None) when truck i parks: it becomes a static obstacle). A
-        # partner's reservation (not a hold of i) carries over to the new zones that overlap, on the partner's path, a
-        # zone it had reserved.
+        # with nothing (episode.py calls set_path(i, None) when truck i parks, and when the driver finds it no spot:
+        # either way it becomes a static obstacle). A partner's reservation (not a hold of i) carries over to the new
+        # zones that overlap, on the partner's path, a zone it had reserved.
     def update(self, progress, wants) -> list
         # progress: (n,) current sample per truck (clipped to its path); wants: (n,) bool, the truck wants to move along
         # its path now. Returns per truck the last sample it may reach now (None: no limit). Token rules below.
@@ -211,22 +211,28 @@ class Coordinator:
         # is past its gate.
 ```
 
-**Token rules** (`update`, every `mpc_step`). Tokens persist from one update to the next.
+**Token rules** (`update`; `episode.py` calls it at the start of every decision and then every `mpc_step`). Tokens
+persist from one update to the next.
 
 1. **Hold.** A truck whose progress lies in a zone's hold range, [in − gate, out], holds its token. If both trucks are
    inside (the shield never allows it, but a replan can), the current owner keeps it, else the one earlier in `order`.
    An owner outside its hold range keeps the token (a reservation) until it has passed out or no longer wants to move.
    Callers must report a truck that is still rolling as wanting (`episode.py` does): releasing its token while it
    brakes could let the partner in.
-2. **Request.** In `order`, a truck that wants to move and is within gate + `look` samples of its first cluster's
-   entry requests the whole cluster. Zones closer than a gate apart along its path, with any partners, form a cluster.
-   It gets every token or none; a denied truck drops the reservations it has there.
+2. **Request.** Zones closer than a gate apart along a truck's path, with any partners, form a cluster. In `order`, a
+   truck that wants to move requests its clusters in turn along its path: every one whose entry gate (in − gate of
+   its first zone) lies within `look` samples of its progress, also while it is still inside an earlier one, up to
+   the first denial. It gets a cluster's every token or none. A denied truck drops the reservations it has in that
+   cluster and beyond, so its reservations are always a prefix of its clusters.
 3. **Stop.** A truck is stopped at the entry gate (in − gate − 1, never behind its progress) of the first cluster on
    its path in which another truck holds a zone. Already inside the cluster, it stops at the gate of the first zone it
    does not hold.
 
-Zones the truck or its partner has passed are ignored. No truck waits while holding a zone, so there is no
-hold-and-wait deadlock except through a truck that stands inside a zone or a replan that puts a zone under a truck.
+Zones the truck or its partner has passed are ignored. A moving truck learns of every stop at least `look` − 1 samples
+(5.5 m) ahead, at the latest when its request for that cluster is denied (barring a zone that another truck's replan
+creates closer ahead of it), and the stop lies past every cluster it holds (clusters are more than a gate apart). No
+truck waits while holding a zone, so there is no hold-and-wait deadlock except through a truck that stands inside a
+zone or a replan that puts a zone under a truck.
 
 ## `spots.py`: driver picks and the safety check
 
@@ -270,6 +276,7 @@ SAFETY_MARGIN = 0.3       # m: the supervisor's stop margin
 BLOCK_BUFFER = 4.0        # m: a blocked truck stops this far before the first blocked sample
 MOVING = 0.05             # m/s: slower counts as standing still
 REASSIGN_AFTER = 2        # failed replans in a row after which the driver picks the follower a new spot
+REPLAN_IDLE = 10.0        # s standing still after which REPLAN is offered without a block (deadlock breaking)
 
 @dataclass
 class YardEpisode:                 # what viz.py draws
@@ -293,43 +300,88 @@ class YardEpisode:                 # what viz.py draws
 class YardRun:                     # one episode, advanced one decision at a time
     def __init__(self, scenario, seed, n_followers=None)
         # The leader scans; the driver assigns spots in queue order, each pick checked and planned (spots.Driver.pick
-        # with the planner); the accepted pick's result is the follower's first path.
+        # with the planner); the accepted pick's result is the follower's first path. A follower the driver finds no
+        # spot for starts without a path ('no_spot').
     n; world; grid; grid0; missed; revealed; revealed_at; planner; coordinator; driver
     f: list                        # per follower a Follower: tracker, spot, path, progress, parked, blocked, backing,
-                                   # last_replan, failed_replans, last_move, safety, action, status, lateral_error, driven
+                                   # last_replan, failed_replans, failed_key (the inputs of the last failed replan),
+                                   # last_remaining (the remaining length when its last path was dropped), last_move,
+                                   # safety, action, status, lateral_error, driven
     time; stop_index; picks; paths; events; end_reason
+    initial_path_length: float     # m: the first paths' summed length (metrics 'path_length_m')
     done: bool                     # property
     def masks(self) -> np.ndarray  # (n, 5) bool: parked -> HOLD only; no path -> HOLD and REPLAN when allowed
-    def can_replan(self, i) -> bool      # not parked, |v| < 0.2 m/s, replan_cooldown since the last, not backing off
-    def can_back_off(self, i) -> bool    # >= 1 m driven on the path, the retrace enters no zone (gate included) another
-                                         # truck holds; continuing a back-off is always allowed
-    def replan(self, i) -> bool    # REPLAN; True on a new path (see below)
+    def needs_replan(self, i) -> bool    # a replan can change something: no path, the path blocked, the tracker
+                                         # 'off_path', or standing still >= REPLAN_IDLE while trying to move (below)
+    def can_replan(self, i) -> bool      # not parked, |v| < 0.2 m/s, replan_cooldown since the last, not backing off,
+                                         # and needs_replan(i)
+    def can_back_off(self, i) -> bool    # standing still (|v| <= MOVING), >= 1 m along the path, and the retrace
+                                         # touches no zone another truck holds or could request now (below);
+                                         # continuing a back-off in progress is always allowed
+    def replan(self, i) -> str     # REPLAN: 'ok' (a new path, a new spot's included), 'failed' (no path, same spot
+                                   # kept) or 'no_spot' (reassigned, and the driver found none) (see below)
     def step(self, actions) -> dict
-        # Applies one decision's actions (n,) (a masked action becomes HOLD) and simulates decision_interval; returns
-        # the decision's tally {'parked', 'safety_stops', 'replans', 'replans_failed', 'back_off_m', 'collision',
-        # 'progress_m'}. RuntimeError once the episode is over.
-    def remaining(self) -> list    # per follower: path length left (m), 0 when parked, None without a path
+        # Applies one decision's actions (n,) (a masked action becomes HOLD; a REPLAN runs at once, then the follower
+        # HOLDs for the decision) and simulates decision_interval; returns the decision's tally {'parked',
+        # 'safety_stops', 'replans' (replan() 'ok'), 'replans_failed' ('failed' or 'no_spot'), 'back_off_m',
+        # 'collision', 'progress_m'}. RuntimeError once the episode is over.
+    def remaining(self) -> list    # per follower: path length left (m), 0 when parked; without a path the last
+                                   # remaining length (last_remaining), None if it never had a path
     def episode(self) -> YardEpisode
     def metrics(self) -> dict      # the episode_metrics dict below
 ```
 
 Semantics the env and the baseline rely on:
 
-- **Wants.** Every `mpc_step` the coordinator gets `wants[i]` = has a path, not parked, not backing off, and (action
-  GO or CREEP, or still rolling above `MOVING`).
+- **Control.** `_control` runs at the start of every decision, so the actions take effect at once, and then every
+  `mpc_step` (0, 0.2 and 0.4 s into each 0.5 s decision). It first refreshes the progress of each truck that has a
+  path and is neither parked nor backing off (the nearest path sample from its current progress to the end of its
+  current segment; the trackers' own is one `mpc_step` old), then updates the coordinator, then commands the trackers.
+- **Wants.** The coordinator gets `wants[i]` = has a path, not parked, not backing off, and (action GO or CREEP, or
+  still rolling above `MOVING`).
 - **Parking.** A follower parks standing still within `park_tolerance` and 0.1 rad of its spot, at its path's last 3
   samples. It then leaves the coordinator (`Coordinator.set_path(i, None)`) and becomes a static obstacle.
-- **Blocks.** After every reveal and every parking, `_check_blocks` sets `Follower.blocked` to the first sample of the
-  remaining path that fails `collision_free` on the map plus the leader and the parked trucks (None if none). A blocked
-  truck stops `BLOCK_BUFFER` short and needs a REPLAN.
-- **REPLAN.** Hybrid A* from where the truck stands to its spot, around the leader, every other follower where it
-  stands, and the spots of unparked followers earlier in `coordinator.order`. With no path, the spot is checked again
-  (`spots.validate`, static checks). A reason other than 'unreachable' or 'too_close' gets a new spot from the driver
-  at once ('reassigned'). Otherwise the replan fails ('replan_failed'), and after `REASSIGN_AFTER` failures in a row the
-  driver picks a new spot ('reassigned', detail 'unreachable after 2 replans').
-- **Progress.** `progress_m` = sum over followers of (remaining before − remaining after) over the decision, skipping a
-  follower without a path at either end. It is negative when a replan or a back-off lengthens the remaining path
-  (potential-based progress).
+- **No path.** A follower the driver finds no spot for (at the start, or after a reassignment) has no path: it leaves
+  the coordinator (`set_path(i, None)`), brakes to a standstill at `brake_comfort` and stays there, and counts as a
+  static obstacle. Its REPLAN asks the driver for a spot again.
+- **Blocks.** After every reveal, every parking and every 'no_spot' after t = 0, `_check_blocks` sets
+  `Follower.blocked` to the first sample of the remaining path that fails `collision_free` on the map plus the
+  footprints that stay put (`_static_feet`: the leader, the parked followers and the followers standing without a
+  path), or None. A blocked truck stops `BLOCK_BUFFER` short and needs a REPLAN.
+- **REPLAN.** Hybrid A* from where the truck stands to its spot, around the footprints that stay put (`_static_feet`)
+  and the spots of unparked followers earlier in `coordinator.order` (prioritized planning). Followers that are not
+  parked and have a path are not obstacles: the new path's conflict zones keep the trucks apart (a follower queued on
+  the access road would otherwise wall the road off for the ones behind it). The planner is deterministic, so a
+  repeat of the last failed replan (`failed_key`: the same pose, rounded to 0.1 m and 0.1 rad, spot, number of
+  revealed obstacles and obstacle footprints) is not searched again and fails at once (reason 'repeat'). With no
+  path, the spot is checked again (`spots.validate`, static checks). A reason other than 'unreachable' or 'too_close'
+  gets a new spot from the driver at once ('reassigned'). Otherwise the replan fails ('replan_failed', returns
+  'failed'), and after `REASSIGN_AFTER` failures in a row the driver picks a new spot ('reassigned', detail
+  'unreachable after 2 replans'). A new spot is planned around the same obstacles plus every assigned spot; if the
+  driver finds none, `replan` returns 'no_spot'.
+- **REPLAN mask.** `can_replan` also requires `needs_replan(i)`: no path, a blocked path, tracker status 'off_path',
+  or standing still (`time − last_move`) for at least `REPLAN_IDLE` while the action is GO or CREEP and no coordinator
+  zone is what stops it (`coordinator.blocking(i)` empty). Otherwise the planner would return about the same path, so
+  REPLAN is masked as a nuisance action.
+- **BACK_OFF.** It starts only from standstill (|v| ≤ `MOVING`, so the coordinator's progress stays true) at least
+  1 m along the path, toward a sample up to `BACK_OFF_DISTANCE` behind; the tracker drives the retrace
+  (`Path.retrace`) at `v_creep`, and `progress` follows it back down the planned path. `_back_conflicts` refuses a
+  retrace that touches the hold range [in − gate, out] of a zone that another truck holds, or whose partner could
+  request it now (the partner's progress within [in − gate − look, out] on its own path). While a back-off runs,
+  `_control` checks the retrace up to the stopping distance (v²/(2 `brake_max`)) + 0.5 m ahead the same way and stops
+  the back-off before such a zone. Another action also stops it; it ends at the target or once stopped, the truck
+  rejoins its path at the sample reached, and a BACK_OFF still in force becomes HOLD.
+- **Supervisor.** Every `dt`, `_supervise` tests the current pose, a pose 0.25 m ahead in the direction of motion (or
+  of the gear, from standstill) and the path ahead (every second sample within v²/(2 `brake_max`) + 1 m, in the
+  direction of motion; while backing off, the retrace) against the obstacles whose polygon distance from the footprint
+  is within `near_range` + that reach (missed ones too), the leader and the other followers. It brakes at
+  `brake_emergency` when the step ahead is within `SAFETY_MARGIN` and closer than the current pose, or any pose ahead
+  is within `SAFETY_MARGIN`. The current pose alone never triggers a stop, so a truck already within the margin can
+  still move away.
+- **Progress.** `progress_m` = sum over followers of (remaining before − remaining after) over the decision.
+  `remaining()` is the potential: 0 once parked, and without a path the last remaining length, which carries over
+  until a new path. Only a follower that has never had a path (None) is skipped. It is negative when a replan, a new
+  spot or a back-off lengthens the remaining path (potential-based progress).
 
 ## `env.py`: the RL env and the scripted baseline
 
@@ -350,7 +402,8 @@ class YardEnvConfig:               # bump version whenever the observation, the 
     w_safety: float = 0.5          # per safety-stop onset
     w_replan: float = 0.2
     w_replan_fail: float = 0.5
-    w_back: float = 0.02           # per metre backed off
+    w_back: float = 0.0            # per metre backed off: 0, the progress potential already charges the reversed
+                                   # metres and pays them back when driven again, so a back-off costs only its time
     w_stall: float = 5.0
 
 class YardEnv(gymnasium.Env):
@@ -365,8 +418,8 @@ class YardEnv(gymnasium.Env):
         # terminated on 'parked' (all followers) or 'collision'; truncated on 'timeout' or 'stalled'.
         # info['tally'] every step (YardRun.step's tally). info['episode_metrics'] at episode end: {'seed', 'success'
         # (all parked), 'parked', 'followers', 'collision', 'end_reason', 'duration_s', 'replans' (including 'new spot'
-        # replans), 'replans_failed', 'safety_stops', 'back_off_m', 'picks_rejected', 'reassigned', 'path_length_m'
-        # (the first paths), 'driven_m'}
+        # replans), 'replans_failed' ('replan_failed' events plus 'no_spot' events after t = 0), 'safety_stops',
+        # 'back_off_m', 'picks_rejected', 'reassigned', 'path_length_m' (the first paths), 'driven_m'}
     def action_masks(self) -> np.ndarray                      # (15,) bool, flattened per slot (absent slots: HOLD only)
     def episode(self) -> YardEpisode
 

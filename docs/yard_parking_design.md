@@ -3,9 +3,11 @@
 This document gives the reasons behind the yard parking stack in `nohesi/yard/`. `docs/yard_interfaces.md` is the
 module reference and `nohesi/yard/config.py` holds every parameter. Values quoted here are config versions `t1`, `s1`,
 `y1`, `p1` (scenario `yard1`) and the current `YardEnvConfig` defaults (version string `ye1`). "Start" marks a starting
-value to tune, not a validated one. This version matches the code as built: parked trucks become static obstacles
-(section 6), progress is potential-based and the collision weight is 50 (section 8), and the planner stages its
-reverse-in parks (section 5). Section 8 ends with the scripted baseline's measured results.
+value to tune, not a validated one. This version matches the code as built. The planner stages its reverse-in parks
+(section 5). Parked and pathless trucks are static obstacles, and replans avoid only what stays put (section 6). The
+supervisor never stops a truck for where it already is (section 7). Progress is potential-based, the collision weight
+is 50 and the back-off weight 0, and REPLAN and BACK_OFF are offered only where they are useful and safe (section 8).
+Section 8 ends with the scripted baseline's measured results.
 
 **Why.** The haul-road test (`results/haul_obstacles_2026-11-15/REPORT.md`) ran the road ('No Hesi') stack on static
 obstacles. A car stopped 0.2 m behind an obstacle had no forward-only way out and no reverse: on `h1` seed 1000 all
@@ -86,10 +88,10 @@ flowchart TD
 | Shared map | `sensors.OccupancyGrid`, `reveal`, `ClearanceMap` (for the planner) | Reveal every `dt` (0.1 s) |
 | Driver pick, spot check | `spots.Driver`, `spots.validate`, `spots.candidates` | Per pick, and when a spot is reassigned |
 | Path planning | `hybrid_astar.HybridAStar.plan`, `collision_free` | Per accepted pick and per REPLAN |
-| Coordination | `coordination.conflict_zones`, `Coordinator.update` | Zones per new path; tokens and stop limits every `mpc_step` (0.2 s) |
-| Path blocks | `episode.YardRun._check_blocks` (`collision_free` on the map, the leader and the parked trucks) | After every reveal and every parking |
+| Coordination | `coordination.conflict_zones`, `Coordinator.update` | Zones per new path; tokens and stop limits at the start of every decision and then every `mpc_step` (0, 0.2 and 0.4 s into each decision) |
+| Path blocks | `episode.YardRun._check_blocks` (`collision_free` on the map and the trucks that stay put: the leader, parked trucks, trucks standing without a path) | After every reveal, every parking and every follower left without a spot after the start |
 | Policy | `env.YardEnv`, trained by `nohesi/yard/train.py` (MaskablePPO); baseline `env.scripted_actions` | Every `decision_interval` (0.5 s) |
-| Tracking | `mpc.PathTracker.command` | Every `mpc_step`, predicting 15 × 0.2 s = 3 s |
+| Tracking | `mpc.PathTracker.command` | Right after each coordination update, predicting 15 × 0.2 s = 3 s |
 | Safety supervisor | `episode.YardRun` (true geometry within `near_range`) | Every `dt` |
 | Plant, ground truth | `truck.TruckPlant`, `world.YardWorld` | Every `dt` |
 | Loop, record, plots | `episode.YardRun`, `YardEpisode`, `viz.py`; parameters `config.py`, `scenarios.py` | |
@@ -183,7 +185,7 @@ which are usually unsafe and exercise the rejection path. Its other picks favour
 | `too_close` | Within `spot_spacing` of another assigned spot | 2.5 m | Both trucks' clearance and parking error (below); access on foot |
 | `occupied` | A cell within `spot_margin` of the footprint is OCCUPIED | 1.0 m | A known obstacle or berm. Checked before `unscanned`, since the lidar maps only an obstacle's near face. |
 | `unscanned` | A cell within `spot_margin` is UNKNOWN (or off the grid) | 1.0 m | Unknown is not free (below) |
-| `unreachable` | Hybrid A* finds no path from the follower's pose | 6,000 expansions | The path avoids the map, the leader, followers later in the queue where they stand, and the spots already assigned |
+| `unreachable` | Hybrid A* finds no path from the follower's pose | 6,000 expansions | The path avoids the map, the leader, followers later in the queue where they stand, and the spots already assigned (at a reassignment, the trucks that stay put instead of the queue, section 6) |
 
 **Why unknown ground is not free.** A ray certifies only what it saw: free space up to its first hit. The ground
 behind a parked machine or a rock pile was never seen, and a rock, a hole or a person may be there. Part of the yard is
@@ -200,8 +202,12 @@ REPLAN. When a REPLAN finds no path, the spot is checked again (`spots.validate`
 - **Otherwise** the replan counts as failed ('replan_failed'). After `REASSIGN_AFTER` = 2 failed replans in a row
   (`episode.py`), the driver picks a new spot ('reassigned', detail 'unreachable after 2 replans').
 
-A new spot comes with its path, logged as a 'replan' with detail 'new spot'. A driver who finds no acceptable spot in
-12 attempts leaves the follower without one ('no_spot').
+The planner is deterministic, so a REPLAN that repeats the last failed one (same pose, spot, revealed obstacles and
+obstacle footprints) is not searched again: it fails at once and counts toward the 2. A new spot comes with its path,
+logged as a 'replan' with detail 'new spot'. A driver who finds no acceptable spot in 12 attempts leaves the follower
+without one ('no_spot', a failed replan when it follows a REPLAN). The follower then has no path: it leaves the
+coordinator, brakes to a standstill and is a static obstacle for the others (section 6), and its next REPLAN asks the
+driver again.
 
 **The margins add up.** The planner keeps 0.6 m between the body and anything non-free. The cover disks over-cover
 the body by up to 0.34 m at the sides, and the clearance map subtracts half a cell diagonal (0.35 m). The 2.5 m spot
@@ -286,18 +292,22 @@ far along it each truck may go. Truck-to-truck collisions reduce to conflicts al
 path, give the zones: pairs of sample ranges [a_in, a_out] and [b_in, b_out], disjoint on both paths. Every
 conflicting pair of samples lies inside one zone on both paths.
 
-**Token shield** (`Coordinator.update`, every 0.2 s). Each zone has one token (`Coordinator.owner`), and tokens
-persist from one update to the next.
+**Token shield** (`Coordinator.update`, at the start of every decision and then every 0.2 s). Each zone has one token
+(`Coordinator.owner`), and tokens persist from one update to the next. Before each update `episode.py` refreshes each
+truck's progress to the nearest path sample between its current progress and the end of its current segment.
 
 1. **Holding.** A truck whose progress lies in a zone's hold range, [in − gate, out] with gate 2.0 m (4 samples),
    holds its token. If both trucks are inside (the shield never allows it, but a replan can), the current owner keeps
    it, else the one earlier in the order. An owner outside its hold range keeps the token, as a reservation, until it
    has passed out or no longer wants to move. `episode.py` reports a truck that is still rolling (above 0.05 m/s) as
    wanting, so no token is released while its owner brakes.
-2. **Requesting.** A truck that wants to move requests a zone within gate + 6 m (`LOOKAHEAD`) of it. Requests are
-   served in `Coordinator.order` (the queue order), so ties go to the earlier truck. Zones closer than a gate apart on
-   a truck's path form a cluster (a truck stopped at the later zone's gate would still hold the earlier zone). A
-   cluster is requested whole: all its tokens or none, and a denied truck drops the reservations it has there.
+2. **Requesting.** Zones closer than a gate apart on a truck's path form a cluster (a truck stopped at the later
+   zone's gate would still hold the earlier zone). A truck that wants to move requests its clusters in turn along its
+   path: every one whose entry gate lies within 6 m (`LOOKAHEAD`) of its progress, also while it is still inside an
+   earlier one, up to the first denial. Requests are served in `Coordinator.order` (the queue order), so ties go to the
+   earlier truck. A cluster is requested whole: all its tokens or none. A denied truck drops the reservations it has in
+   that cluster and beyond, so its reservations are always a prefix of its clusters, and a moving truck learns of
+   every stop at least 5.5 m ahead (`LOOKAHEAD` less one sample).
 3. **Stopping.** A truck is stopped at the gate (in − gate − 1 sample, never behind its progress) of the first
    cluster where another truck holds a token. Already inside a cluster, it stops at the gate of the first zone it does not
    hold. The MPC holds 0.3 m short of that sample (`HOLD_MARGIN`).
@@ -306,8 +316,8 @@ Zones that either truck has passed are ignored. A new path (a replan) gets new z
 carries over to the new zones that overlap, on the partner's path, a zone it had reserved.
 
 **Safety argument.** No two moving trucks are ever inside the same zone. Outside zones their cover disks, and so their
-bodies, are at least `zone_margin` apart. This holds under three conditions, which the tests must cover, and a fourth
-point covers parked trucks:
+bodies, are at least `zone_margin` apart. This holds under three conditions, which the tests must cover; a fourth
+point covers parked and pathless trucks, and a fifth covers back-offs:
 
 1. **Updates are frequent enough.** A truck moves at most 0.6 m between updates (3 m/s × 0.2 s), less than the 2 m
    gate, so no truck goes from outside a gate to inside a zone unseen.
@@ -315,8 +325,10 @@ point covers parked trucks:
    trucks' tracking errors sum to less than 1.0 m. `track_tolerance` is 1.5 m, so between 0.5 m of error per truck
    and 'off_path', the supervisor is the backstop. Measure tracking error in the MPC tests, then tighten
    `track_tolerance` or derive `zone_margin` from it.
-3. **A denied truck can stop before its gate.** Tokens are exclusive and kept while wanted, so a truck is denied at
-   the latest at its request point, 6 m before its gate.
+3. **A denied truck can stop before its gate.** Tokens are exclusive and kept while wanted, and a truck requests
+   every cluster on its path 6 m before its gate (not only the first, and also from inside an earlier one), so it is
+   denied at the latest at that request point. The exception is a zone that another truck's replan creates closer
+   ahead of it.
    - The tracker brakes harder than comfort (up to `brake_max`) when a stop is closer than the comfort distance.
    - From 3 m/s it needs 3.0 m at 2.0 m/s² with the lag, inside the about 5.2 m left (6 m less one sample and the
      hold margin).
@@ -324,7 +336,14 @@ point covers parked trucks:
 4. **A parked truck is a static obstacle, not a zone holder.** It leaves the coordinator (`Coordinator.set_path(i,
    None)` in `episode._update_parking`), and every remaining path is checked against it (below). Against a parked
    truck the margin is therefore the planner's 0.6 m clearance, not `zone_margin`, with the supervisor as the backstop
-   for tracking error.
+   for tracking error. A truck left without a path (the driver found it no spot) is treated the same way: it leaves
+   the coordinator, brakes to a standstill and stays there.
+5. **A back-off never backs into another truck's way.** The shield's stops act only forward along a path, and a
+   back-off moves the truck's progress back down the same path. BACK_OFF therefore starts only from standstill, and
+   is refused when its retrace touches the hold range of a zone that another truck holds or whose partner could
+   request it now (the partner within 6 m of its own gate for that zone, or inside the zone). While it runs, the
+   retrace within the stopping distance + 0.5 m is checked the same way at every update, and the back-off stops before
+   such a zone.
 
 The shield gives safety, not progress. A deadlock is safe and ends the episode as 'stalled' after 40 s.
 
@@ -334,17 +353,20 @@ disks reach 1.05 m past the bumpers). The planner keeps only 0.6 m. Had a parked
 around it (a REPLAN, or a first path past an earlier truck's spot) could have been blocked by it for good. So one rule
 now covers everything static:
 
-- When a truck parks, its path leaves the coordinator and its footprint joins the leader's as an obstacle for
-  `_check_blocks`.
-- `_check_blocks` runs after every reveal and every parking. It tests each unparked truck's remaining path with
-  `collision_free` (the planner's test: map, leader, parked trucks) and flags the first failing sample as `blocked`.
+- When a truck parks, or is left without a path, its path leaves the coordinator and its footprint joins the leader's
+  as an obstacle for `_check_blocks` (`_static_feet`: what stays put).
+- `_check_blocks` runs after every reveal, every parking and every follower left without a spot after the start. It
+  tests each unparked truck's remaining path with `collision_free` (the planner's test: map, leader, parked and
+  pathless trucks) and flags the first failing sample as `blocked`.
 - A blocked truck stops 4 m short (`BLOCK_BUFFER`) and needs a REPLAN, exactly as for a revealed obstacle. The replan
-  plans around every truck where it stands, the parked ones included.
+  plans around what stays put (the leader, parked and pathless trucks) and the spots of higher-priority unparked
+  trucks. Trucks that still have a path to drive, moving or waiting, are left to the new path's conflict zones: as
+  obstacles where they stand, a follower queued on the access road would wall the road off for the ones behind it.
 
 **Where deadlocks come from.** Because clusters are requested whole, no truck waits while holding a zone, so there is
 no hold-and-wait deadlock, pairwise or cyclic, except through a truck that stands inside a zone:
 
-- **Halted inside a zone** by a HOLD, a block or a safety stop.
+- **Halted inside a zone** by a HOLD, a block, a safety stop or a back-off stopped there (condition 5).
 - **A zone put under a standing truck** by a replan.
 - **The queue:** a later truck's path passes where an earlier one still stands on the access road.
 
@@ -354,9 +376,11 @@ exists.
 
 **What resolves them.** *Ordering*: do not let a truck park in a spot another truck's path still crosses; hold it
 back, or let the deep spots go first. That saves a replan, or a stall where no other route exists. The policy can learn
-this, and the baseline enforces it with `priority_wait`. *REPLAN*: plan around the truck in the way, now an obstacle
-where it stands, when another route exists. *BACK_OFF*: retrace up to 6 m of one's own path to leave a zone and
-release it, with no new route needed.
+this, and the baseline enforces it with `priority_wait`. *REPLAN*: plan around a parked or pathless truck in the way
+when another route exists. REPLAN is offered only when it can change something (section 8), which includes a truck
+that has stood still for 10 s (`REPLAN_IDLE`) under GO or CREEP with no zone holding it. *BACK_OFF*: retrace up to 6 m
+of one's own path, with no new route needed, to open a gap. It never touches a zone another truck holds or could
+request now (condition 5), so it cannot back a truck out of a zone whose partner is already waiting at its gate.
 
 **Upgrade path.** Space-time reservation (cooperative A*, Silver 2005) plans each truck against the others' reserved,
 time-indexed footprints instead of fixed paths. Conflict-based search (Sharon et al., 2015, with car-like variants such
@@ -398,12 +422,18 @@ question.
 **Fallback.** When OSQP fails, pure pursuit at the rear axle takes over: a 2.5–6 m lookahead, mirrored behind the
 truck in reverse, with the reference's acceleration. A truck more than 1.5 m off its path, or standing at its path's
 end outside the park tolerance, reports 'off_path': it brakes to a stop in the gear of its motion with its steering
-held, and waits for a REPLAN. A new path whose first segment runs against the truck's motion (a replan or a back-off
-given on the move) starts by braking in the current gear, then shifting.
+held, and waits for a REPLAN. A new path whose first segment runs against the truck's motion (a replan given while
+the truck still rolls, below 0.2 m/s) starts by braking in the current gear, then shifting. BACK_OFF starts only from
+standstill.
 
-**Safety supervisor** (`episode.YardRun`, every 0.1 s). It brakes at `brake_emergency` (3.5 m/s²) when the truck's
-footprint, or its path ahead in the direction of motion, comes within 0.3 m of an obstacle in near-field range (missed
-ones too), the leader or another follower. It looks ahead v²/(2 × `brake_max`) + 1 m, which is 3.25 m at 3 m/s.
+**Safety supervisor** (`episode.YardRun._supervise`, every 0.1 s). It brakes at `brake_emergency` (3.5 m/s²) when the
+truck's path ahead in the direction of motion (while backing off: the retrace, the planned path backward from the
+current sample) comes within 0.3 m of an obstacle in near-field range (missed ones too), the leader or another
+follower. It looks ahead v²/(2 × `brake_max`) + 1 m, which is 3.25 m at 3 m/s. The current pose never triggers a stop
+by itself: a truck already within 0.3 m of something is stopped only when a step of 0.25 m ahead brings it closer, so
+it can still move away instead of being frozen in both directions. Obstacles count as in near-field range by polygon
+distance from the footprint (within `near_range` + the look-ahead), not by their corners: a berm is long and has
+corners only at its ends.
 
 Stopping distances on `TruckPlant`, with its 0.4 s lag, from the moment braking is commanded:
 
@@ -415,9 +445,8 @@ Stopping distances on `TruckPlant`, with its 0.4 s lag, from the moment braking 
 
 The emergency stop from 3 m/s (2.0 m) fits inside the 3.25 m look-ahead. A real system adds sensing and actuation
 latency, still to be measured: each 0.1 s adds 0.3 m at 3 m/s. In v1 the supervisor sees the true geometry (no false
-negatives, no false stops), and while a truck backs off it projects a straight line instead of the retraced path.
-Every onset is logged ('safety_stop') and costs reward, so the policy learns to stay out of near misses rather than
-rely on them.
+negatives, no false stops). A truck without a path is checked only at the step ahead of its pose. Every onset is
+logged ('safety_stop') and costs reward, so the policy learns to stay out of near misses rather than rely on them.
 
 ## 8. RL formulation
 
@@ -433,18 +462,20 @@ overtakes, one slot of which is FOLLOW). The lean and overtake variants are gone
 | HOLD | Stop at 0.5 m/s² and stay stopped; wants no zones once stopped | Always; the only action for an absent or parked follower |
 | CREEP | Follow the path at up to 0.7 m/s, either direction; requests zones | The follower has a path and is not parked |
 | GO | Follow the path at the yard limits (3.0 forward, 1.5 reverse, lateral cap); requests zones | As CREEP |
-| BACK_OFF | Retrace up to 6 m of the path just driven at creep speed, then rejoin the same path where it stopped; continues while chosen | At least 1 m of the path driven, and the retrace does not enter a stretch another truck holds; continuing is allowed |
-| REPLAN | Hybrid A* from where the truck stands, around the leader, all other trucks where they stand (parked ones included) and higher-priority unparked spots. With no path: a new spot from the driver at once if the spot became unsafe, or after 2 failed replans in a row (section 4) | Stopped (below 0.2 m/s), 2 s since its last replan, not backing off, not parked |
+| BACK_OFF | Retrace up to 6 m of the path just driven at creep speed, then rejoin the same path where it stopped; continues while chosen, and stops before a zone another truck holds or could request (section 6, condition 5) | Standing still (at most 0.05 m/s), at least 1 m along the path, and the retrace touches no zone (gate included) that another truck holds or could request now; continuing is allowed |
+| REPLAN | Hybrid A* from where the truck stands, around what stays put (the leader, parked trucks, trucks standing without a path) and higher-priority unparked spots; trucks that still have a path are left to the zones. A repeat of the last failed replan fails at once. With no path: a new spot from the driver at once if the spot became unsafe, or after 2 failed replans in a row (section 4) | Stopped (below 0.2 m/s), 2 s since its last replan, not backing off, not parked, and a replan can change something: no path, a blocked path, off its path, or standing still for 10 s (`REPLAN_IDLE`) under GO or CREEP with no zone holding it |
 
-A truck stops when a revealed obstacle or a parked truck blocks its path (4 m short), when it is off its path, or when
-it has no path. Recovering is the policy's REPLAN: nothing replans on its own.
+A truck stops when a revealed obstacle or a truck that stays put (parked, or standing without a path) blocks its path
+(4 m short), when it is off its path, or when it has no path. Recovering is the policy's REPLAN: nothing replans on
+its own. Where none of those holds, the planner would return about the same path, so REPLAN is masked as a nuisance
+action.
 
 **Observation** (`env.py`): 152 floats, 3 slots × 50 plus 2 global. Slot k is follower k in queue order; an absent
 follower is all zeros. Features are scaled to about ±1, and VecNormalize standardises them.
 
 | Group | Size | Contents |
 |---|---|---|
-| Own state and path | 16 | Present, parked, speed, steer, direction of the current segment, remaining path, distance to the segment's end (cusp or spot), distance and heading error to the spot, lateral error, time since it last moved, safety stop, blocked (no path, a path blocked by a revealed obstacle or a parked truck, or off its path), can replan, backing off, cusps left |
+| Own state and path | 16 | Present, parked, speed, steer, direction of the current segment, remaining path, distance to the segment's end (cusp or spot), distance and heading error to the spot, lateral error, time since it last moved, safety stop, blocked (no path, a path blocked by a revealed obstacle or a truck that stays put, or off its path), can replan (the REPLAN mask), backing off, cusps left |
 | Near field | 8 | Free distance along 8 rays in the truck frame, / 10 m |
 | Each other follower | 2 × 11 | Present, relative x and y in the own frame, sin and cos of the relative heading, speed, parked, shares a zone ahead, own distance to that zone's gate, the other's distance to its gate (negative inside), the other holds that zone's token |
 | Leader | 4 | Relative x and y, sin and cos of the relative heading |
@@ -463,8 +494,8 @@ input off (`OBS_CLOCK`).
 | Collision | −50 | Collision (ends the episode) |
 | Safety stop | −0.5 | Supervisor onset |
 | Replan | −0.2 | Successful REPLAN (a new spot with its path included) |
-| Failed replan | −0.5 | REPLAN without a path |
-| Back-off | −0.02 | Metre reversed in BACK_OFF |
+| Failed replan | −0.5 | REPLAN without a new path ('replan_failed', or a reassignment that finds no spot) |
+| Back-off | 0 | Metre reversed in BACK_OFF (the progress term already charges it, below) |
 | Stall | −5 | Episode stalled |
 
 **How the terms balance.** 1 m of progress equals 1 s of one truck's time: a truck at 3 m/s nets +0.04/s, and a
@@ -472,9 +503,12 @@ waiting truck pays 0.02/s. The park bonus equals 250 s of one truck waiting.
 
 Progress is potential-based. Per decision, `progress_m` (`episode.YardRun.step`) is the drop in the followers'
 summed remaining path length (before − after), and an increase counts against it. An episode's total progress is
-therefore the first paths' length less what remains at the end, whatever the route or the spot. A replan that
-lengthens a path, or a back-off, cannot be farmed. Backing off d metres costs 0.02 d of progress plus 0.02 d of
-`w_back`, and driving them again earns 0.02 d back: a net 0.02 d, plus the time.
+therefore the first paths' length less what remains at the end, whatever the route or the spot. The potential also
+carries over an interval without a path (a reassignment that found no spot): `remaining()` keeps the last remaining
+length until a new path arrives, and the step from it to the new path's length counts like any other change. A
+replan that lengthens a path, or a back-off, cannot be farmed. Backing off d metres costs 0.02 d of progress, and
+driving them again earns 0.02 d back, so a back-off costs only its time. `w_back` is 0 for that reason: at 0.02 it
+charged the reversed metres a second time.
 
 **Two fixes made before the first long run.**
 
@@ -486,7 +520,10 @@ lengthens a path, or a back-off, cannot be farmed. Backing off d metres costs 0.
   added L metres was earned back when driven, and it paid once L exceeded about 15 m (0.02 L, minus the time at
   3 m/s, minus 0.2).
 
-Both landed before any policy was trained on the yard env, so 'ye1' is the first trained definition; bump the version with the next reward change.
+Both landed before any policy was trained on the yard env, and so did the later changes to the reward (`w_back` 0)
+and the masks (REPLAN only when needed, BACK_OFF only from standstill and clear of others' zones): the first training
+run, `runs_rl/yard_ppo_001`, was started on the current code. So 'ye1' is the first trained definition; bump the
+version with the next change to the observation, the masks or the reward.
 
 **Episode end.** Terminated on 'parked' (all followers) or 'collision'. Truncated on 'timeout' (300 s) or 'stalled'
 (40 s with no truck moving, −5). MaskablePPO bootstraps truncated episodes from the final state's value
@@ -506,21 +543,18 @@ order is priority (`Coordinator.order`).
 
 It never uses BACK_OFF or CREEP, so the policy's gain from those is measured against it.
 
-**Measured baseline** (scripted policy, scenario `yard1`, seeds 0–39, the 300 s limit; 2026-11-15). These seeds lie
-outside the training (≥ 2000) and selection (1000–1019) ranges. Reproduce with
+**Measured baseline** (scripted policy, scenario `yard1`, seeds 0–39, the 300 s limit; 2026-11-15, on the current
+code). These seeds lie outside the training (≥ 2000) and selection (1000–1019) ranges. Reproduce with
 `nohesi.yard.train.baseline(YardEnvConfig(), range(40))`.
 
-| Followers | Episodes | All parked | Mean time to park the convoy | Longest |
-|---|---|---|---|---|
-| 1 | 10 | 10/10 | 35.6 s | 53.0 s |
-| 2 | 11 | 11/11 | 72.4 s | 101.2 s |
-| 3 | 19 | 19/19 | 104.7 s | 185.0 s |
-| **All** | **40** | **40/40 (89/89 followers)** | **78.5 s** | 185.0 s |
-
+- All followers parked in 40 of 40 episodes (89 of 89 followers), in 79.2 s on average.
 - 0 collisions, 0 safety stops, no stalls or timeouts.
-- 11 replans and 1 failed replan in total. 5 spots were reassigned, each followed by a 'new spot' replan (counted in
-  the 11). The check rejected 56 driver picks.
-- About 2 s of wall time per episode on one CPU core (1.8–2.5 s measured).
+- The split by follower count and the replan, reassignment and rejected-pick counts have not been measured again on
+  this version.
+
+**Random masked policy.** A policy that draws among the allowed actions had 0 collisions on 8 seeds, at about 15 ms of
+wall time per decision. `tests/test_yard_env.py` (12 integration tests) runs such a policy on 3 seeds and checks that
+it never collides.
 
 **Evaluation protocol.**
 
@@ -570,7 +604,10 @@ outside the training (≥ 2000) and selection (1000–1019) ranges. Reproduce wi
   and flags the paths it blocks; deadlocks resolved by REPLAN and BACK_OFF.
 - **Supervisor:** a missed obstacle on the path, driven at 3 m/s; the truck stops before contact.
 - **Whole episodes:** the baseline on 100 seeds with 0 collisions (seeds 0–39 so far: 40/40 parked, 0 collisions,
-  section 8); every stall inspected in a GIF; the same seed gives the same episode.
+  section 8); a random masked policy never collides (8 seeds so far, 0 collisions); every stall inspected in a GIF;
+  the same seed gives the same episode. `tests/test_yard_env.py` has 12 integration tests of the episode loop and the
+  env (spaces and masks, seeding and reproducibility, the baseline, reversing, the random policy, BACK_OFF, REPLAN
+  masking, stalls, the record, the reward, a collision).
 
 **Stage 2: a physics simulator with a truck model**, CARLA through the repo's bridge or another one. CARLA ships a few
 large vehicles but, as far as we know, no haul truck, so a custom vehicle asset may be needed. Add what v1 leaves out:
