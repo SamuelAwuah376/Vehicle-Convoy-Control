@@ -71,6 +71,10 @@ def simulate(paths, order=None, ticks=3000, coord=None):
         stops = coord.update(p, [True]*n)
         for z in coord.zones:
             assert not (coord._hold(z.a, z) and coord._hold(z.b, z)), z
+        if stops_hist:   # a rolling truck learns of a new (or nearer) stop at least LOOKAHEAD - 1 sample ahead of it
+            for i, (s, prev) in enumerate(zip(stops, stops_hist[-1])):
+                if hist[-1][i] > hist[-2][i] and s is not None and (prev is None or s < prev):
+                    assert s-p[i] >= coord.look-1, (i, int(p[i]), s)
         stops_hist.append(stops)
         limit = np.array([e if s is None else min(s, e) for s, e in zip(stops, ends)])
         p = p+(p < limit)
@@ -188,6 +192,54 @@ def test_three_trucks_order_sets_the_crossing_sequence_at_a_shared_centre():
         coord, hist, _ = simulate(STAR, order)
         enter = [first_reach(hist, i, min(z.side(i)[0] for z in coord.zones if i in (z.a, z.b))) for i in range(3)]
         assert list(np.argsort(enter)) == list(order)
+
+
+def abc(lead):
+    """Review repro: A drives along y = 0, crossing B at x = 30 and C at x = 51, so A's zones with B and with C are
+    separate clusters a little over a gate apart, and A is already within reach of requesting AC while still inside
+    AB. C is trimmed to reach its own request window `lead` ticks after A reaches A's (both moving a sample a tick).
+    Returns (paths, A's request sample for AC)."""
+    paths = [towards(0, 0, 80, 0), towards(30, -45, 30, 40), towards(51, -70, 51, 40)]
+    coord = Coordinator(T, P, 3)
+    for i, path in enumerate(paths):
+        coord.set_path(i, path, 0)
+    ab, ac = (next(z for z in coord.zones if (z.a, z.b) == pair) for pair in ((0, 1), (0, 2)))
+    ask = ac.a_in-GATE-coord.look
+    assert ab.a_out < ac.a_in-GATE-1 and ab.a_in-GATE < ask+lead <= ab.a_out
+    paths[2] = paths[2].sub(ac.b_in-(ask+lead+GATE+coord.look), len(paths[2])-1)
+    return paths, ask
+
+
+def zone(coord, a, b):
+    return next(z for z in coord.zones if (z.a, z.b) == (a, b))
+
+
+@pytest.mark.parametrize('order', list(itertools.permutations(range(3))))
+def test_a_truck_inside_one_cluster_requests_the_next_in_time(order):
+    # C wants AC while A, inside AB, is already within reach of it: A asked first and gets both, whatever the order
+    paths, ask = abc(5)
+    coord, hist, stops = simulate(paths, order)
+    ac = zone(coord, 0, 2)
+    assert (hist[-1] == [len(p)-1 for p in paths]).all()
+    assert all(s[0] is None for s in stops)
+    assert first_reach(hist, 0, ac.a_in) < first_reach(hist, 2, ac.b_in)
+    assert any(s[2] == ac.b_in-GATE-1 for s in stops)
+
+
+@pytest.mark.parametrize('order', [[2, 0, 1], [1, 2, 0], [0, 2, 1]])
+def test_a_tie_for_the_next_cluster_is_denied_a_lookahead_ahead(order):
+    # A (inside AB) and C reach their AC windows on the same tick: the earlier in order takes AC, and when that is C
+    # A hears of its stop LOOKAHEAD - 1 sample before it (simulate() checks this for every stop)
+    paths, ask = abc(0)
+    coord, hist, stops = simulate(paths, order)
+    ac = zone(coord, 0, 2)
+    assert (hist[-1] == [len(p)-1 for p in paths]).all()
+    if order.index(2) < order.index(0):
+        t = next(t for t, s in enumerate(stops) if s[0] is not None)
+        assert hist[t][0] == ask and stops[t][0] == ac.a_in-GATE-1 == ask+coord.look-1
+        assert first_reach(hist, 2, ac.b_in) < first_reach(hist, 0, ac.a_in)
+    else:
+        assert all(s[0] is None for s in stops)
 
 
 def test_parked_truck_in_the_zone_blocks_the_other_for_good():

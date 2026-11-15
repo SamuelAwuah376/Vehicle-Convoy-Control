@@ -47,7 +47,8 @@ class YardEnvConfig:
     w_safety: float = 0.5
     w_replan: float = 0.2
     w_replan_fail: float = 0.5
-    w_back: float = 0.02
+    w_back: float = 0.0            # per metre backed off: 0, the progress potential already charges it (and pays it
+                                   # back when driven again), so a back-off costs only its time
     w_stall: float = 5.0
 
 
@@ -181,7 +182,8 @@ def scripted_actions(env):
             continue
         stuck = f.path is None or f.blocked is not None or f.status == 'off_path'
         if stuck:
-            if f.blocked is not None and f.path is not None and f.progress < f.blocked-int(6/run.cfg.path_sample):
+            if f.status != 'off_path' and f.blocked is not None and f.path is not None and \
+                    f.path.s[f.blocked]-f.path.s[f.progress] > 6.0:
                 out[i] = GO   # drive up to the block first
             else:
                 out[i] = REPLAN if run.can_replan(i) else HOLD

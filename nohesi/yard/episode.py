@@ -30,6 +30,7 @@ SAFETY_MARGIN = 0.3       # m: the supervisor stops a truck whose path ahead com
 BLOCK_BUFFER = 4.0        # m: a truck whose path is blocked stops this far before the first blocked sample
 MOVING = 0.05             # m/s: slower counts as standing still
 REASSIGN_AFTER = 2        # failed replans in a row after which the driver picks the follower a new spot
+REPLAN_IDLE = 10.0        # s standing still after which REPLAN is offered (deadlock breaking) without a block
 
 
 @dataclass
@@ -65,6 +66,8 @@ class Follower:
     backing: dict = None          # BACK_OFF in progress: {'k0', 'target', 'stopping'}
     last_replan: float = -np.inf
     failed_replans: int = 0       # in a row: after REASSIGN_AFTER the driver is asked for a new spot
+    failed_key: tuple = None      # the inputs of the last failed replan (a repeat is not searched again)
+    last_remaining: float = None  # remaining path when its last path was dropped (progress potential without a path)
     last_move: float = 0.0        # time the truck last moved
     safety: bool = False          # the supervisor is braking it
     action: int = HOLD
@@ -106,6 +109,7 @@ class YardRun:
             assigned = [g.spot for g in self.f[:i] if g.spot is not None]
             others = np.concatenate((self.leader_foot, starts[i+1:]))
             self._assign(i, assigned, others)
+        self.initial_path_length = sum(f.path.length for f in self.f if f.path is not None)
         self.stop_index = [None]*self.n
         self._snapshot()
 
@@ -118,8 +122,11 @@ class YardRun:
                                'accepted': bool(p['accepted']), 'reason': p['reason']})
         f = self.f[i]
         if pose is None:
-            f.spot, f.path = None, None
+            f.spot = None
+            self._set_path(i, None)   # out of the coordinator: a standing pathless truck is a static obstacle
             self.events.append({'time': self.time, 'follower': i, 'kind': 'no_spot', 'detail': ''})
+            if self.time > 0:
+                self._check_blocks()
             return False
         result = next(p.get('result') for p in picks if p['accepted'])
         f.spot = np.asarray(pose, float)
@@ -128,36 +135,53 @@ class YardRun:
 
     def _set_path(self, i, path):
         f = self.f[i]
+        if f.path is not None and not f.parked:
+            f.last_remaining = f.path.remaining(f.progress)
         f.path, f.progress, f.blocked, f.backing = path, 0, None, None
         if path is not None:
             f.tracker.set_path(path, 0)
             self.paths.append((self.time, i, path))
         self.coordinator.set_path(i, path, 0)
 
-    def _obstacles_for(self, i):
-        """Footprints follower i's replanned path must avoid: the leader, every other follower where it stands, and the
-        spots of followers earlier in the coordinator's order that are not parked yet."""
+    def _static_feet(self, exclude=None):
+        """Footprints that stay put: the leader, parked followers and standing followers without a path."""
         feet = self.world.footprints()
+        still = [feet[j] for j, g in enumerate(self.f) if j != exclude and (g.parked or g.path is None)]
+        return np.concatenate([self.leader_foot]+([np.array(still)] if still else []))
+
+    def _obstacles_for(self, i):
+        """Footprints follower i's replanned path must avoid: what stays put, i.e. the leader, the parked followers, and
+        the spots of followers earlier in the coordinator's order that are not parked yet (prioritized planning). The
+        followers still on the move are not obstacles: the conflict zones of the new path keep the trucks apart (a
+        follower queued on the access road would otherwise wall the road off for the ones behind it)."""
         rank = {j: r for r, j in enumerate(self.coordinator.order)}
         early = [corners(self.truck, g.spot[None])[0] for j, g in enumerate(self.f)
                  if j != i and g.spot is not None and not g.parked and rank[j] < rank[i]]
-        parts = [self.leader_foot, feet[np.arange(self.n) != i]]+([np.array(early)] if early else [])
-        return np.concatenate(parts)
+        return np.concatenate([self._static_feet(i)]+([np.array(early)] if early else []))
 
     def replan(self, i):
-        """REPLAN for follower i; returns True on a new path."""
+        """REPLAN for follower i; returns 'ok' (a new path), 'failed' (no path, same spot) or 'no_spot' (the spot was
+        reassigned and the driver found none)."""
         from .spots import validate
         f = self.f[i]
         f.last_replan = self.time
         start = self.world.states[i, :3].copy()
         if f.spot is not None:
             extra = self._obstacles_for(i)
-            result = self.planner.plan(self.grid.clearance(extra=extra), start, f.spot)
+            # The planner is deterministic: from the same pose against the same map and obstacles it fails the same way,
+            # so a repeat of the last failed replan is not searched again.
+            key = (tuple(np.round(start, 1)), tuple(np.round(f.spot, 2)), int(self.revealed.sum()),
+                   tuple(np.round(extra, 1).ravel()))
+            if key == f.failed_key:
+                result = type('Cached', (), {'path': None, 'reason': 'repeat'})()
+            else:
+                result = self.planner.plan(self.grid.clearance(extra=extra), start, f.spot)
+                f.failed_key = None if result.path is not None else key
             if result.path is not None:
                 self._set_path(i, result.path)
                 f.failed_replans = 0
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'replan', 'detail': ''})
-                return True
+                return 'ok'
             f.failed_replans += 1
             reason, _ = validate(self.scenario, self.grid, f.spot, [g.spot for j, g in enumerate(self.f)
                                                                      if j != i and g.spot is not None], self.leader_foot)
@@ -168,42 +192,68 @@ class YardRun:
                                     'detail': f'unreachable after {f.failed_replans} replans'})
             else:
                 self.events.append({'time': self.time, 'follower': i, 'kind': 'replan_failed', 'detail': result.reason})
-                return False
+                return 'failed'
         assigned = [g.spot for j, g in enumerate(self.f) if j != i and g.spot is not None]
         ok = self._assign(i, assigned, self._obstacles_for(i))
         f.failed_replans = 0
         if ok:
             self.events.append({'time': self.time, 'follower': i, 'kind': 'replan', 'detail': 'new spot'})
-        return ok
+        return 'ok' if ok else 'no_spot'
 
     def _check_blocks(self):
-        """After a reveal: the first sample of each follower's remaining path that the shared map now blocks."""
+        """After a reveal, a parking or a failed assignment: the first sample of each follower's remaining path that the
+        shared map or a truck that stays put (parked, or standing without a path) now blocks."""
         from .hybrid_astar import collision_free
-        parked = [corners(self.truck, self.world.states[j][None])[0] for j, g in enumerate(self.f) if g.parked]
-        clearance = self.grid.clearance(extra=np.concatenate([self.leader_foot]+([np.array(parked)] if parked else [])))
-        for f in self.f:
+        for i, f in enumerate(self.f):
             if f.path is None or f.parked:
                 continue
+            clearance = self.grid.clearance(extra=self._static_feet(i))
             ok = collision_free(self.truck, self.cfg, clearance, f.path.states[f.progress:])
             bad = np.flatnonzero(~ok)
             f.blocked = f.progress+int(bad[0]) if bad.size else None
 
     # ------------------------------------------------------------------ masks
+    def needs_replan(self, i):
+        """A replan can change something: no path, the path is blocked by a revealed obstacle or a parked truck, the
+        truck is off its path, or it has stood still for REPLAN_IDLE s (a deadlock to break). Otherwise the planner (with
+        the same static obstacles) would return about the same path, so REPLAN is masked: a nuisance action. Standing
+        still counts only while the truck is trying to move (GO or CREEP) and no other truck's zone is what stops it."""
+        f = self.f[i]
+        stuck = f.action in (GO, CREEP) and self.time-f.last_move >= REPLAN_IDLE and not self.coordinator.blocking(i)
+        return f.path is None or f.blocked is not None or f.status == 'off_path' or stuck
+
     def can_replan(self, i):
         f = self.f[i]
         return not f.parked and abs(self.world.states[i, 3]) < 0.2 and \
-            self.time-f.last_replan >= self.cfg.replan_cooldown and f.backing is None
+            self.time-f.last_replan >= self.cfg.replan_cooldown and f.backing is None and self.needs_replan(i)
 
     def can_back_off(self, i):
+        """BACK_OFF starts only from standstill (so the coordinator's progress stays true) and not toward a zone that
+        another truck holds or is close enough to request; a back-off in progress may continue (_control re-checks
+        it every mpc_step and stops it before such a zone)."""
         f = self.f[i]
         if f.parked or f.path is None or f.backing is not None:
-            return f.backing is not None and not f.parked   # continuing a back-off is allowed
-        if f.path.s[f.progress] < 1.0:
+            return f.backing is not None and not f.parked
+        if f.path.s[f.progress] < 1.0 or abs(self.world.states[i, 3]) > MOVING:
             return False
-        target, c = self._back_target(f), self.coordinator
-        # Never back into a zone (gate included) whose token another truck holds.
-        held = [(z.side(i)[0]-c.gate, z.side(i)[1]) for z, o in zip(c.zones, c.owner) if i in (z.a, z.b) and o not in (None, i)]
-        return not any(lo <= f.progress and hi >= target for lo, hi in held)
+        return not self._back_conflicts(i, f.progress, self._back_target(f))
+
+    def _back_conflicts(self, i, k_from, k_to):
+        """Does retracing samples k_from -> k_to (k_to < k_from) enter the hold range of a zone that another truck holds,
+        or that its partner could request now (within gate + look of its entry)?"""
+        c = self.coordinator
+        for z, o in zip(c.zones, c.owner):
+            if i not in (z.a, z.b):
+                continue
+            lo, hi = z.side(i)[0]-c.gate, z.side(i)[1]
+            if hi < k_to or lo > k_from:
+                continue
+            j = z.other(i)
+            j_in, j_out = z.side(j)
+            pj = c.progress[j] if c.progress is not None else 0
+            if o not in (None, i) or (j_in-c.gate-c.look <= pj <= j_out):
+                return True
+        return False
 
     def masks(self):
         """(n, 5) bool: absent or parked -> HOLD only; no path -> HOLD, REPLAN when allowed."""
@@ -241,11 +291,7 @@ class YardRun:
             if f.backing is not None and a != BACK_OFF:
                 f.backing['stopping'] = True
             if a == REPLAN:
-                n0 = len(self.events)
-                ok = self.replan(i)
-                tally['replans' if ok else 'replans_failed'] += 1
-                if not ok and self.events[n0:] and self.events[-1]['kind'] == 'reassigned':
-                    tally['replans_failed'] -= 1
+                tally['replans' if self.replan(i) == 'ok' else 'replans_failed'] += 1
                 a = HOLD
             elif a == BACK_OFF and f.backing is None:
                 k0, target = f.progress, self._back_target(f)
@@ -256,9 +302,9 @@ class YardRun:
             f.action = a
         steps = int(round(self.cfg.decision_interval/self.cfg.dt))
         plan_every = int(round(self.cfg.mpc_step/self.cfg.dt))
-        for _ in range(steps):
+        for n in range(steps):
             x_before = self.world.states[:, :2].copy()
-            if self.k % plan_every == 0:
+            if n % plan_every == 0:   # a decision's actions take effect at once, then every mpc_step
                 self._control()
             stops = self._advance()
             tally['safety_stops'] += stops
@@ -288,11 +334,17 @@ class YardRun:
         return tally
 
     def remaining(self):
-        """Per follower: path length left to its spot (m), 0 when parked, None without a path."""
-        return [0.0 if f.parked else (f.path.remaining(f.progress) if f.path is not None else None) for f in self.f]
+        """Per follower: path length left to its spot (m), 0 when parked; without a path the last remaining length
+        (the progress potential carries over until a new path; None if it never had one)."""
+        return [0.0 if f.parked else (f.path.remaining(f.progress) if f.path is not None else f.last_remaining)
+                for f in self.f]
 
     def _control(self):
         """Shield, trackers: new commands for every follower (held until the next mpc_step)."""
+        for i, f in enumerate(self.f):   # fresh progress for the shield (the trackers' is one mpc_step old)
+            if f.path is not None and not f.parked and f.backing is None:
+                end = f.path.segments()[f.path.segment_of(f.progress)][1]
+                f.progress = f.path.nearest(self.world.states[i, :2], f.progress, end+1)
         progress = np.array([f.progress for f in self.f])
         # A truck still rolling keeps wanting (the coordinator must not release its token while it brakes).
         wants = np.array([f.path is not None and not f.parked and f.backing is None and
@@ -301,9 +353,16 @@ class YardRun:
         self._cmd = []
         for i, f in enumerate(self.f):
             st, steer, accel = self.world.states[i], self.world.steer[i], self.world.accel[i]
-            if f.parked or f.path is None:
-                self._cmd.append((steer, 0.0, int(np.sign(st[3])) if abs(st[3]) > MOVING else 0)); continue
+            if f.parked or f.path is None:   # brake to a standstill and stay there
+                moving = abs(st[3]) > MOVING
+                self._cmd.append((steer, -np.sign(st[3])*self.truck.brake_comfort if moving else 0.0,
+                                  int(np.sign(st[3])) if moving else 0)); continue
             if f.backing is not None:
+                # Stop before re-entering a zone another truck holds or may request (stopping distance + 0.5 m ahead).
+                v = abs(st[3])
+                look = int(np.ceil((v*v/(2*self.truck.brake_max)+0.5)/self.cfg.path_sample))+1
+                if self._back_conflicts(i, f.progress, max(f.backing['target'], f.progress-look)):
+                    f.backing['stopping'] = True
                 limit = 0.0 if f.backing['stopping'] else self.truck.v_creep
                 cmd = f.tracker.command(st, steer, accel, limit, None)
                 f.progress = max(f.backing['target'], f.backing['k0']-f.tracker.progress)
@@ -364,30 +423,32 @@ class YardRun:
         if direction == 0 or f.parked:
             return False
         reach = v*v/(2*self.truck.brake_max)+1.0
-        poses = [st[:3]]
-        path, k = (f.path, f.progress) if f.backing is None else (None, None)
-        if path is not None:
+        poses = []
+        if f.backing is None and f.path is not None:   # the path ahead in the direction of motion
+            path, k = f.path, f.progress
             ahead = np.flatnonzero((path.s > path.s[k]) & (path.s <= path.s[k]+reach))
             same = ahead[path.direction[np.maximum(ahead-1, 0)] == direction]
             poses += [path.states[j] for j in same[::2]]
-        else:   # backing off, or no path: straight-line projection of the current motion
-            for d in np.arange(0.5, reach+0.5, 0.5):
-                poses.append(st[:3]+direction*d*np.array([np.cos(st[2]), np.sin(st[2]), 0.0]))
-        feet = corners(self.truck, np.array(poses))
+        elif f.backing is not None:   # the retrace ahead (the planned path backwards from the current sample)
+            path, k = f.path, f.progress
+            behind = np.flatnonzero((path.s < path.s[k]) & (path.s >= path.s[k]-reach))[::-1]
+            poses += [path.states[j] for j in behind[::2]]
+        step = st[:3]+direction*0.25*np.array([np.cos(st[2]), np.sin(st[2]), 0.0])   # just ahead of the current pose
+        feet = corners(self.truck, np.array([st[:3], step]+poses))
         obs = self.world.obstacles.corners
-        centre = st[:2]
-        near = np.flatnonzero(np.min(np.hypot(obs[..., 0]-centre[0], obs[..., 1]-centre[1]), axis=1) <
-                              self.scenario.sensors.near_range+self.truck.length+reach)
-        others = [obs[near], self.leader_foot] + [self.world.footprints()[np.arange(self.n) != i]]
-        targets = np.concatenate(others)
-        if not len(targets):
-            return False
+        # Obstacles in near-field range of the footprint (polygon distance: a berm is long and has corners only at its
+        # ends), the leader and the other followers.
+        here = np.repeat(feet[:1], len(obs), 0)
+        near = np.flatnonzero(clearances(here, obs) < self.scenario.sensors.near_range+reach)
+        targets = np.concatenate([obs[near], self.leader_foot, self.world.footprints()[np.arange(self.n) != i]])
         A = np.repeat(feet, len(targets), 0)
         B = np.tile(targets, (len(feet), 1, 1))
         gaps = clearances(A, B).reshape(len(feet), len(targets))
-        # Ignore what the truck already touches only at its current pose with zero motion (a collision is detected
-        # separately); stop if anything ahead is too close.
-        return bool(np.any(gaps < SAFETY_MARGIN))
+        # The current pose itself never triggers a stop: a truck already within the margin of something may move as long
+        # as the step ahead does not bring it closer to it (else it would be frozen in both directions); everything
+        # ahead must keep the margin.
+        closer = (gaps[1] < SAFETY_MARGIN) & (gaps[1] < gaps[0]-1e-6)
+        return bool(np.any(closer) or np.any(gaps[2:] < SAFETY_MARGIN))
 
     def _update_parking(self):
         """Mark followers that reached their spot standing still; returns how many parked this step."""
@@ -428,9 +489,10 @@ class YardRun:
         count = lambda kind: sum(e['kind'] == kind for e in ev)
         return {'seed': self.seed, 'success': self.end_reason == 'parked', 'parked': int(sum(f.parked for f in self.f)),
                 'followers': self.n, 'collision': self.end_reason == 'collision', 'end_reason': self.end_reason,
-                'duration_s': float(self.time), 'replans': count('replan'), 'replans_failed': count('replan_failed'),
+                'duration_s': float(self.time), 'replans': count('replan'),
+                'replans_failed': count('replan_failed')+sum(e['kind'] == 'no_spot' and e['time'] > 0 for e in ev),
                 'safety_stops': count('safety_stop'), 'back_off_m': float(self.totals['back_off_m']),
                 'picks_rejected': sum(not p['accepted'] for p in self.picks),
                 'reassigned': count('reassigned'),
-                'path_length_m': float(sum(p.length for t, i, p in self.paths if t == 0.0)),
+                'path_length_m': float(self.initial_path_length),
                 'driven_m': float(sum(f.driven for f in self.f))}

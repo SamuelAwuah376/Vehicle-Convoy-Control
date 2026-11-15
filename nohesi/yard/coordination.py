@@ -109,8 +109,12 @@ class Coordinator:
        inside loses it once it has passed out or no longer wants to move;
     2. to a truck that wants to move and is within gate + LOOKAHEAD of entering: trucks request in self.order, so on
        simultaneous requests the earlier one wins. Zones that lie closer than a gate apart on a truck's path (with any
-       partners) form a cluster, which is requested whole: all its tokens at once or none, and a denied truck drops
-       the reservations it has there. The shield therefore stops trucks only outside every hold range, and nobody
+       partners) form a cluster, which is requested whole: all its tokens at once or none. A truck requests its
+       clusters in turn along its path, every one whose entry gate lies within LOOKAHEAD of its progress (also while
+       it is still inside an earlier one), up to the first denial; a denied truck drops the reservations it has in
+       that cluster and beyond, so its reservations are always a prefix of its clusters. A denial thus comes at least
+       LOOKAHEAD - 1 sample before the stop, and the stop is past every cluster the truck holds (clusters lie more
+       than a gate apart). The shield therefore stops trucks only outside every hold range, and nobody
        waits while holding a zone: no hold-and-wait deadlock, pairwise or cyclic, except through a truck that stands
        inside a zone (HOLD there, or parked at the end of its path: it would hold the zone for good, which blocking()
        exposes; the yard episode instead takes a parked truck out of the coordinator, set_path(i, None), and treats it
@@ -187,18 +191,18 @@ class Coordinator:
             self.owner[k] = o
         clusters = [self._clusters(x) for x in range(self.n)]
         for x in self.order:
-            if not wants[x] or not clusters[x]:
+            if not wants[x]:
                 continue
-            c = clusters[x][0]
-            if p[x] < min(self.zones[k].side(x)[0] for k in c)-g-self.look:
-                continue
-            if all(self.owner[k] in (None, x) for k in c):
+            for m, c in enumerate(clusters[x]):
+                if p[x] < min(self.zones[k].side(x)[0] for k in c)-g-self.look:
+                    break
+                if any(self.owner[k] not in (None, x) for k in c):
+                    for k in (k for later in clusters[x][m:] for k in later):
+                        if self.owner[k] == x and not self._hold(x, self.zones[k]):
+                            self.owner[k] = None
+                    break
                 for k in c:
                     self.owner[k] = x
-            else:
-                for k in c:
-                    if self.owner[k] == x and not self._hold(x, self.zones[k]):
-                        self.owner[k] = None
         stops = [None]*self.n
         for x in range(self.n):
             self._blockers[x] = []
