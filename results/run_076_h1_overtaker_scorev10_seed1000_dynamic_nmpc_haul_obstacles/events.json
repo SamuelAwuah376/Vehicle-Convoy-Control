@@ -1,0 +1,4962 @@
+{
+  "overtakes": [
+    {
+      "time": 0.35000000000000003,
+      "vehicle": 0,
+      "traffic_id": 8,
+      "min_clearance": 1.6999999999999995,
+      "speed": 31.873553575711828
+    },
+    {
+      "time": 1.0,
+      "vehicle": 1,
+      "traffic_id": 10,
+      "min_clearance": 1.700000000000001,
+      "speed": 33.704528359372866
+    },
+    {
+      "time": 1.2000000000000002,
+      "vehicle": 1,
+      "traffic_id": 8,
+      "min_clearance": 1.6999999999999962,
+      "speed": 34.466444432394574
+    },
+    {
+      "time": 1.7000000000000002,
+      "vehicle": 0,
+      "traffic_id": 4,
+      "min_clearance": 1.5392575688530798,
+      "speed": 34.174301877523845
+    },
+    {
+      "time": 1.8,
+      "vehicle": 2,
+      "traffic_id": 10,
+      "min_clearance": 1.6355833920294294,
+      "speed": 36.750648818117064
+    },
+    {
+      "time": 2.0,
+      "vehicle": 2,
+      "traffic_id": 8,
+      "min_clearance": 1.7962486245907314,
+      "speed": 37.4524163798582
+    },
+    {
+      "time": 2.15,
+      "vehicle": 0,
+      "traffic_id": 2,
+      "min_clearance": 1.966475935924885,
+      "speed": 35.279798381203236
+    },
+    {
+      "time": 2.45,
+      "vehicle": 1,
+      "traffic_id": 4,
+      "min_clearance": 1.6485845105675947,
+      "speed": 35.94364761611918
+    },
+    {
+      "time": 2.9000000000000004,
+      "vehicle": 1,
+      "traffic_id": 2,
+      "min_clearance": 1.8573214432117993,
+      "speed": 34.91842000924724
+    },
+    {
+      "time": 3.25,
+      "vehicle": 2,
+      "traffic_id": 4,
+      "min_clearance": 1.3621417457091545,
+      "speed": 33.35926266755108
+    },
+    {
+      "time": 3.7,
+      "vehicle": 2,
+      "traffic_id": 2,
+      "min_clearance": 2.08794537555219,
+      "speed": 30.27170534554264
+    },
+    {
+      "time": 4.75,
+      "vehicle": 0,
+      "traffic_id": 1,
+      "min_clearance": 1.6829912593037193,
+      "speed": 30.44233389183066
+    },
+    {
+      "time": 5.7,
+      "vehicle": 1,
+      "traffic_id": 1,
+      "min_clearance": 1.725256216406239,
+      "speed": 24.82815985058895
+    },
+    {
+      "time": 7.2,
+      "vehicle": 0,
+      "traffic_id": 6,
+      "min_clearance": 1.854845003452633,
+      "speed": 29.359528671275037
+    },
+    {
+      "time": 7.95,
+      "vehicle": 0,
+      "traffic_id": 5,
+      "min_clearance": 1.7310703616240108,
+      "speed": 25.692020104921948
+    },
+    {
+      "time": 8.4,
+      "vehicle": 2,
+      "traffic_id": 1,
+      "min_clearance": 0.84902413141048,
+      "speed": 7.2816608516963965
+    },
+    {
+      "time": 10.0,
+      "vehicle": 0,
+      "traffic_id": 11,
+      "min_clearance": 1.767666717392738,
+      "speed": 38.003164023647685
+    },
+    {
+      "time": 12.450000000000001,
+      "vehicle": 0,
+      "traffic_id": 12,
+      "min_clearance": 1.6162735313629002,
+      "speed": 30.035644152545476
+    },
+    {
+      "time": 13.950000000000001,
+      "vehicle": 1,
+      "traffic_id": 5,
+      "min_clearance": 0.6911679682695323,
+      "speed": 16.098382344286772
+    },
+    {
+      "time": 15.850000000000001,
+      "vehicle": 2,
+      "traffic_id": 0,
+      "min_clearance": 1.0817078513824985,
+      "speed": 12.971678803021007
+    },
+    {
+      "time": 15.9,
+      "vehicle": 0,
+      "traffic_id": 14,
+      "min_clearance": 1.8468189433108315,
+      "speed": 39.70670278047971
+    },
+    {
+      "time": 16.5,
+      "vehicle": 1,
+      "traffic_id": 11,
+      "min_clearance": 1.7715723200601732,
+      "speed": 34.98789998386869
+    },
+    {
+      "time": 18.1,
+      "vehicle": 2,
+      "traffic_id": 6,
+      "min_clearance": 1.3864915415711005,
+      "speed": 27.402755221943526
+    },
+    {
+      "time": 18.95,
+      "vehicle": 2,
+      "traffic_id": 5,
+      "min_clearance": 1.9876552357360375,
+      "speed": 24.75015484068847
+    },
+    {
+      "time": 19.0,
+      "vehicle": 1,
+      "traffic_id": 12,
+      "min_clearance": 1.6092006530749867,
+      "speed": 30.075009133928894
+    },
+    {
+      "time": 21.05,
+      "vehicle": 2,
+      "traffic_id": 11,
+      "min_clearance": 1.7372181966891118,
+      "speed": 37.80687489679924
+    },
+    {
+      "time": 22.25,
+      "vehicle": 1,
+      "traffic_id": 14,
+      "min_clearance": 1.8204638503882713,
+      "speed": 39.91783150692713
+    },
+    {
+      "time": 23.450000000000003,
+      "vehicle": 2,
+      "traffic_id": 12,
+      "min_clearance": 1.612083255071308,
+      "speed": 30.199974931093294
+    },
+    {
+      "time": 26.75,
+      "vehicle": 2,
+      "traffic_id": 14,
+      "min_clearance": 1.79629386250407,
+      "speed": 40.09376951937985
+    },
+    {
+      "time": 28.75,
+      "vehicle": 0,
+      "traffic_id": 17,
+      "min_clearance": 0.9515052615805851,
+      "speed": 16.02772351029633
+    },
+    {
+      "time": 32.65,
+      "vehicle": 0,
+      "traffic_id": 19,
+      "min_clearance": 1.4133151959158672,
+      "speed": 28.027962141395403
+    },
+    {
+      "time": 33.65,
+      "vehicle": 0,
+      "traffic_id": 20,
+      "min_clearance": 1.8839908007597872,
+      "speed": 29.307302978368128
+    },
+    {
+      "time": 34.9,
+      "vehicle": 1,
+      "traffic_id": 17,
+      "min_clearance": 0.7640294882974817,
+      "speed": 19.181420053495124
+    },
+    {
+      "time": 36.2,
+      "vehicle": 1,
+      "traffic_id": 18,
+      "min_clearance": 3.260031233594148,
+      "speed": 17.40415029062505
+    },
+    {
+      "time": 36.550000000000004,
+      "vehicle": 0,
+      "traffic_id": 21,
+      "min_clearance": 1.7683217136652758,
+      "speed": 35.707941448212885
+    },
+    {
+      "time": 38.2,
+      "vehicle": 0,
+      "traffic_id": 24,
+      "min_clearance": 1.3223727865392119,
+      "speed": 22.943402251937545
+    },
+    {
+      "time": 38.650000000000006,
+      "vehicle": 1,
+      "traffic_id": 19,
+      "min_clearance": 1.250676989858712,
+      "speed": 28.23890351772586
+    },
+    {
+      "time": 39.5,
+      "vehicle": 2,
+      "traffic_id": 17,
+      "min_clearance": 0.5425632309838099,
+      "speed": 19.13201864810377
+    },
+    {
+      "time": 39.650000000000006,
+      "vehicle": 1,
+      "traffic_id": 20,
+      "min_clearance": 1.8896274783810765,
+      "speed": 29.338899164807092
+    },
+    {
+      "time": 40.800000000000004,
+      "vehicle": 2,
+      "traffic_id": 18,
+      "min_clearance": 3.0470681580414003,
+      "speed": 17.26044008995582
+    },
+    {
+      "time": 41.300000000000004,
+      "vehicle": 0,
+      "traffic_id": 25,
+      "min_clearance": 3.8764508204553656,
+      "speed": 22.502432328386067
+    },
+    {
+      "time": 42.150000000000006,
+      "vehicle": 0,
+      "traffic_id": 26,
+      "min_clearance": 1.3114863803252728,
+      "speed": 29.076317510732487
+    },
+    {
+      "time": 43.550000000000004,
+      "vehicle": 2,
+      "traffic_id": 19,
+      "min_clearance": 1.1457879062052174,
+      "speed": 25.93017562514271
+    },
+    {
+      "time": 44.6,
+      "vehicle": 2,
+      "traffic_id": 20,
+      "min_clearance": 1.6570844878855164,
+      "speed": 28.87599050842453
+    },
+    {
+      "time": 47.550000000000004,
+      "vehicle": 2,
+      "traffic_id": 21,
+      "min_clearance": 1.7954238672406404,
+      "speed": 35.53180270039461
+    },
+    {
+      "time": 49.2,
+      "vehicle": 2,
+      "traffic_id": 24,
+      "min_clearance": 1.315808062788885,
+      "speed": 22.96218194018667
+    },
+    {
+      "time": 52.300000000000004,
+      "vehicle": 2,
+      "traffic_id": 25,
+      "min_clearance": 3.8833523213855825,
+      "speed": 22.547173936906322
+    },
+    {
+      "time": 53.2,
+      "vehicle": 2,
+      "traffic_id": 26,
+      "min_clearance": 1.3120782663434272,
+      "speed": 29.475351285160258
+    },
+    {
+      "time": 53.650000000000006,
+      "vehicle": 0,
+      "traffic_id": 29,
+      "min_clearance": 1.1044009950444138,
+      "speed": 20.47164646755298
+    },
+    {
+      "time": 55.0,
+      "vehicle": 0,
+      "traffic_id": 30,
+      "min_clearance": 3.741311026678187,
+      "speed": 30.54239218249634
+    },
+    {
+      "time": 64.65,
+      "vehicle": 2,
+      "traffic_id": 29,
+      "min_clearance": 1.105327486613315,
+      "speed": 20.44766142698299
+    },
+    {
+      "time": 66.0,
+      "vehicle": 2,
+      "traffic_id": 30,
+      "min_clearance": 3.7444164172818537,
+      "speed": 30.52464133772902
+    }
+  ],
+  "close_passes": [
+    {
+      "time": 3.25,
+      "vehicle": 2,
+      "traffic_id": 4,
+      "min_clearance": 1.3621417457091545,
+      "speed": 33.35926266755108,
+      "points": 1951.3479898966066
+    },
+    {
+      "time": 8.4,
+      "vehicle": 2,
+      "traffic_id": 1,
+      "min_clearance": 0.84902413141048,
+      "speed": 7.2816608516963965,
+      "points": 37.29208756012372
+    },
+    {
+      "time": 13.950000000000001,
+      "vehicle": 1,
+      "traffic_id": 5,
+      "min_clearance": 0.6911679682695323,
+      "speed": 16.098382344286772,
+      "points": 88.4963352750798
+    },
+    {
+      "time": 15.850000000000001,
+      "vehicle": 2,
+      "traffic_id": 0,
+      "min_clearance": 1.0817078513824985,
+      "speed": 12.971678803021007,
+      "points": 88.86953429365452
+    },
+    {
+      "time": 18.1,
+      "vehicle": 2,
+      "traffic_id": 6,
+      "min_clearance": 1.3864915415711005,
+      "speed": 27.402755221943526,
+      "points": 210.54560635648843
+    },
+    {
+      "time": 28.75,
+      "vehicle": 0,
+      "traffic_id": 17,
+      "min_clearance": 0.9515052615805851,
+      "speed": 16.02772351029633,
+      "points": 78.17311257067426
+    },
+    {
+      "time": 32.65,
+      "vehicle": 0,
+      "traffic_id": 19,
+      "min_clearance": 1.4133151959158672,
+      "speed": 28.027962141395403,
+      "points": 158.8269343542766
+    },
+    {
+      "time": 34.9,
+      "vehicle": 1,
+      "traffic_id": 17,
+      "min_clearance": 0.7640294882974817,
+      "speed": 19.181420053495124,
+      "points": 204.23376005806878
+    },
+    {
+      "time": 38.2,
+      "vehicle": 0,
+      "traffic_id": 24,
+      "min_clearance": 1.3223727865392119,
+      "speed": 22.943402251937545,
+      "points": 229.10997611445214
+    },
+    {
+      "time": 38.650000000000006,
+      "vehicle": 1,
+      "traffic_id": 19,
+      "min_clearance": 1.250676989858712,
+      "speed": 28.23890351772586,
+      "points": 352.8497407479829
+    },
+    {
+      "time": 39.5,
+      "vehicle": 2,
+      "traffic_id": 17,
+      "min_clearance": 0.5425632309838099,
+      "speed": 19.13201864810377,
+      "points": 391.7977174279469
+    },
+    {
+      "time": 42.150000000000006,
+      "vehicle": 0,
+      "traffic_id": 26,
+      "min_clearance": 1.3114863803252728,
+      "speed": 29.076317510732487,
+      "points": 467.5786488272244
+    },
+    {
+      "time": 43.550000000000004,
+      "vehicle": 2,
+      "traffic_id": 19,
+      "min_clearance": 1.1457879062052174,
+      "speed": 25.93017562514271,
+      "points": 515.143341839596
+    },
+    {
+      "time": 49.2,
+      "vehicle": 2,
+      "traffic_id": 24,
+      "min_clearance": 1.315808062788885,
+      "speed": 22.96218194018667,
+      "points": 92.0779087724692
+    },
+    {
+      "time": 53.2,
+      "vehicle": 2,
+      "traffic_id": 26,
+      "min_clearance": 1.3120782663434272,
+      "speed": 29.475351285160258,
+      "points": 177.68602157637213
+    },
+    {
+      "time": 53.650000000000006,
+      "vehicle": 0,
+      "traffic_id": 29,
+      "min_clearance": 1.1044009950444138,
+      "speed": 20.47164646755298,
+      "points": 184.79063177950462
+    },
+    {
+      "time": 64.65,
+      "vehicle": 2,
+      "traffic_id": 29,
+      "min_clearance": 1.105327486613315,
+      "speed": 20.44766142698299,
+      "points": 92.24195730652818
+    }
+  ],
+  "maneuvers": [
+    {
+      "time": 7.299999999999982,
+      "vehicle": 0,
+      "kind": "base",
+      "points": -300.0,
+      "start_time": 3.0,
+      "lane_change_time": 4.25,
+      "from_lane": 1,
+      "to_lane": 0,
+      "size": 1,
+      "pass_time": null,
+      "follow_up_time": null
+    },
+    {
+      "time": 17.750000000000117,
+      "vehicle": 0,
+      "kind": "base",
+      "points": -300.0,
+      "start_time": 12.950000000000001,
+      "lane_change_time": 14.700000000000001,
+      "from_lane": 0,
+      "to_lane": 2,
+      "size": 2,
+      "pass_time": null,
+      "follow_up_time": null
+    },
+    {
+      "time": 24.30000000000021,
+      "vehicle": 1,
+      "kind": "base",
+      "points": -300.0,
+      "start_time": 19.450000000000003,
+      "lane_change_time": 21.25,
+      "from_lane": 0,
+      "to_lane": 2,
+      "size": 2,
+      "pass_time": null,
+      "follow_up_time": null
+    },
+    {
+      "time": 28.750000000000274,
+      "vehicle": 2,
+      "kind": "base",
+      "points": -300.0,
+      "start_time": 23.950000000000003,
+      "lane_change_time": 25.700000000000003,
+      "from_lane": 0,
+      "to_lane": 2,
+      "size": 2,
+      "pass_time": null,
+      "follow_up_time": null
+    }
+  ],
+  "collisions": [],
+  "intentions": [
+    {
+      "time": 3.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 25.527963958432473
+    },
+    {
+      "time": 3.7,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 4.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 8.394729276615031
+    },
+    {
+      "time": 4.65,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 4.8500000000000005,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 5.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 29.1863215269889
+    },
+    {
+      "time": 5.550000000000001,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 5.7,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 6.4,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 7.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 21.693528977492768
+    },
+    {
+      "time": 7.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 29.963956834077315
+    },
+    {
+      "time": 7.0,
+      "vehicle": 1,
+      "kind": "rejected",
+      "reason": "mpc_grip",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 7.1000000000000005,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 7.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 117.8064976762221
+    },
+    {
+      "time": 7.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 24.123168822190813
+    },
+    {
+      "time": 8.15,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 8.15,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 8.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 18.569253989019465
+    },
+    {
+      "time": 8.6,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 15.195712520541598
+    },
+    {
+      "time": 9.200000000000001,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.450000000000001,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.5,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 9.55,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 10.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 53.62268255640313
+    },
+    {
+      "time": 10.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 27.400201599839157
+    },
+    {
+      "time": 10.05,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 10.100000000000001,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 10.100000000000001,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 42.519758937863365
+    },
+    {
+      "time": 11.200000000000001,
+      "vehicle": 1,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 52.14268255640311
+    },
+    {
+      "time": 11.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 31.31858179674932
+    },
+    {
+      "time": 11.55,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 11.600000000000001,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 12.5,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 12.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 167.91116461071837
+    },
+    {
+      "time": 13.0,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 13.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 46.363853998329056
+    },
+    {
+      "time": 13.0,
+      "vehicle": 0,
+      "kind": "cancelled",
+      "reason": "escape",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 13.05,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 13.350000000000001,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 13.4,
+      "vehicle": 2,
+      "kind": "cancelled",
+      "reason": "emergency",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 13.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 89.11468894234214
+    },
+    {
+      "time": 14.3,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 15.350000000000001,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 18.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 117.04133290681223
+    },
+    {
+      "time": 19.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 171.36798907153943
+    },
+    {
+      "time": 19.150000000000002,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 19.5,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 20.25,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 20.950000000000003,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 23.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 167.45313479943113
+    },
+    {
+      "time": 24.0,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 25.400000000000002,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 28.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 36.673999973624596
+    },
+    {
+      "time": 28.650000000000002,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 30.3,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 30.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 69.90442213520733
+    },
+    {
+      "time": 31.25,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 31.900000000000002,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 34.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 71.7784288368161
+    },
+    {
+      "time": 34.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 38.5637820191832
+    },
+    {
+      "time": 34.65,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 34.9,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 35.800000000000004,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.5,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 36.5,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 69.06239102322384
+    },
+    {
+      "time": 37.300000000000004,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 38.0,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 38.5,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 23.515936550530533
+    },
+    {
+      "time": 38.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 37.299399433338486
+    },
+    {
+      "time": 38.95,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.050000000000004,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 39.85,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 40.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 111.75699298629452
+    },
+    {
+      "time": 40.0,
+      "vehicle": 1,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 14.585276474150724
+    },
+    {
+      "time": 40.45,
+      "vehicle": 1,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 40.650000000000006,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.1,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.400000000000006,
+      "vehicle": 1,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.45,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 41.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 69.45635097904797
+    },
+    {
+      "time": 42.25,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 42.95,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 45.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 71.45865639393783
+    },
+    {
+      "time": 45.900000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 46.75,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 49.5,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": 23.422454020312408
+    },
+    {
+      "time": 49.95,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 50.85,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 1,
+      "gap_margin": NaN
+    },
+    {
+      "time": 51.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": 111.75483627218951
+    },
+    {
+      "time": 51.650000000000006,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 52.45,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 2,
+      "gap_margin": NaN
+    },
+    {
+      "time": 53.0,
+      "vehicle": 0,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 270.4553533224395
+    },
+    {
+      "time": 53.650000000000006,
+      "vehicle": 0,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 55.35,
+      "vehicle": 0,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 64.0,
+      "vehicle": 2,
+      "kind": "accepted",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": 270.4427184117075
+    },
+    {
+      "time": 64.65,
+      "vehicle": 2,
+      "kind": "committed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    },
+    {
+      "time": 66.35000000000001,
+      "vehicle": 2,
+      "kind": "completed",
+      "reason": "",
+      "lane": 0,
+      "gap_margin": NaN
+    }
+  ],
+  "fallbacks": [
+    {
+      "time": 2.4000000000000004,
+      "vehicle": 0,
+      "level": "emergency"
+    },
+    {
+      "time": 7.1000000000000005,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 8.6,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 9.1,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 9.200000000000001,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 9.3,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 9.5,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 10.100000000000001,
+      "vehicle": 1,
+      "level": "emergency"
+    },
+    {
+      "time": 10.100000000000001,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 11.200000000000001,
+      "vehicle": 1,
+      "level": "emergency"
+    },
+    {
+      "time": 11.600000000000001,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 11.700000000000001,
+      "vehicle": 1,
+      "level": "shifted"
+    },
+    {
+      "time": 13.0,
+      "vehicle": 0,
+      "level": "escape"
+    },
+    {
+      "time": 13.200000000000001,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 13.3,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 13.4,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 13.600000000000001,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 13.8,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 14.0,
+      "vehicle": 2,
+      "level": "emergency"
+    },
+    {
+      "time": 14.3,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 14.4,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 14.5,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 14.600000000000001,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 14.700000000000001,
+      "vehicle": 2,
+      "level": "shifted"
+    },
+    {
+      "time": 14.8,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 14.9,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.0,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.100000000000001,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.200000000000001,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.3,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.4,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.5,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 15.600000000000001,
+      "vehicle": 2,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.0,
+      "vehicle": 1,
+      "level": "escape"
+    },
+    {
+      "time": 54.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 54.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 55.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 56.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 57.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 58.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 59.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 60.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 61.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 62.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.1,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.300000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.400000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.6,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.800000000000004,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 63.900000000000006,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 64.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 65.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 66.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 67.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 68.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 69.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 70.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 71.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 72.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 73.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 74.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.8,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 75.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.3,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 76.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 77.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 78.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 79.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 80.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 81.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 82.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 83.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 84.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 85.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 86.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 87.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 88.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 89.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 90.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 91.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 92.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 93.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 94.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 95.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 96.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 97.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 98.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 99.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 100.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 101.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 102.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 103.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 104.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 105.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 106.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 107.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 108.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 109.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 110.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 111.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 112.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 113.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 114.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 115.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 116.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 117.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 118.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.0,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.10000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.2,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.30000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.4,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.5,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.60000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.7,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.80000000000001,
+      "vehicle": 1,
+      "level": "lane_keep"
+    },
+    {
+      "time": 119.9,
+      "vehicle": 1,
+      "level": "lane_keep"
+    }
+  ],
+  "plan_conflicts": [
+    {
+      "time": 2.4000000000000004,
+      "vehicle": 0,
+      "other": [
+        "traffic",
+        1
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 10.600000000000001,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 10.9,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 11.200000000000001,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 11.700000000000001,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 11.9,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 12.100000000000001,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 12.3,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 12.5,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 12.700000000000001,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 12.9,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 30,
+      "resolution": "replanned"
+    },
+    {
+      "time": 14.0,
+      "vehicle": 2,
+      "other": [
+        "traffic",
+        0
+      ],
+      "step": 29,
+      "resolution": "emergency"
+    },
+    {
+      "time": 54.0,
+      "vehicle": 1,
+      "other": [
+        "traffic",
+        22
+      ],
+      "step": 16,
+      "resolution": "emergency"
+    }
+  ]
+}

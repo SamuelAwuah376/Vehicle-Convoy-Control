@@ -58,3 +58,6 @@ run,time,folder,scenario,policy,score,seed,planner,vehicle_model,team_score,coll
 071,2026-11-10T04:21:08,run_071_v9_ppo-ppo_v10_e5_dyn_b11c_2.75m_scorev10_seed1007_dynamic_nmpc_retry_cooldown1_w_lateral10_300s,v9,ppo-ppo_v10_e5_dyn_b11c_2.75m,v10,1007,m4.4,dynamic,5117761.1,0,time
 072,2026-11-15T06:06:50,run_072_h1_ppo-ppo_v10_e5_dyn_b11c_2.75m_scorev10_seed1000_dynamic_nmpc_haul_obstacles,h1,ppo-ppo_v10_e5_dyn_b11c_2.75m,v10,1000,m4.4,dynamic,-17476.5,0,time
 073,2026-11-15T06:18:28,run_073_h1_ppo_edge-ppo_v10_e5_dyn_b11c_2.75m_scorev10_seed1000_dynamic_nmpc_haul_obstacles,h1,ppo-ppo_v10_e5_dyn_b11c_2.75m,v10,1000,m4.4,dynamic,-66155.0,0,time
+074,2026-11-15T06:37:48,run_074_h2_ppo-ppo_v10_e5_dyn_b11c_2.75m_scorev10_seed1000_dynamic_nmpc_haul_obstacles,h2,ppo-ppo_v10_e5_dyn_b11c_2.75m,v10,1000,m4.4,dynamic,4349.6,0,time
+075,2026-11-15T06:47:43,run_075_h2_ppo_edge-ppo_v10_e5_dyn_b11c_2.75m_scorev10_seed1000_dynamic_nmpc_haul_obstacles,h2,ppo-ppo_v10_e5_dyn_b11c_2.75m,v10,1000,m4.4,dynamic,-56007.0,0,time
+076,2026-11-15T07:01:02,run_076_h1_overtaker_scorev10_seed1000_dynamic_nmpc_haul_obstacles,h1,centralized/overtaker,v10,1000,m4.4,dynamic,-89389.1,0,time
