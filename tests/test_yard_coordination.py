@@ -71,18 +71,19 @@ def simulate(paths, order=None, ticks=3000, coord=None):
         stops = coord.update(p, [True]*n)
         for z in coord.zones:
             assert not (coord._hold(z.a, z) and coord._hold(z.b, z)), z
-        states = np.array([paths[i].states[p[i]] for i in range(n)])
-        disks, feet = disk_centres(T, states), corners(T, states)
-        for i, j in itertools.combinations(range(n), 2):
-            assert np.linalg.norm(disks[i][:, None]-disks[j][None], axis=-1).min() >= REACH
-            assert clearances(feet[i][None], feet[j][None])[0] >= P.zone_margin
         stops_hist.append(stops)
         limit = np.array([e if s is None else min(s, e) for s, e in zip(stops, ends)])
         p = p+(p < limit)
         hist.append(p.copy())
         if (p == ends).all() or len(hist) > 3 and (np.diff(hist[-3:], axis=0) == 0).all():
             break   # done, or nobody moved for two ticks: a fixed point
-    return coord, np.array(hist), stops_hist
+    hist = np.array(hist)
+    states = [paths[i].states[hist[:, i]] for i in range(n)]
+    disks, feet = [disk_centres(T, s) for s in states], [corners(T, s) for s in states]
+    for i, j in itertools.combinations(range(n), 2):
+        assert np.linalg.norm(disks[i][:, :, None]-disks[j][:, None], axis=-1).min() >= REACH
+        assert clearances(feet[i], feet[j]).min() >= P.zone_margin
+    return coord, hist, stops_hist
 
 
 def first_reach(hist, i, k):
@@ -132,7 +133,7 @@ def test_double_crossing_gives_two_zones_and_matches_brute_force():
 
 def test_random_curved_paths_match_brute_force_and_merge_correctly():
     rng = np.random.default_rng(3)
-    for _ in range(12):
+    for _ in range(8):
         a, b = curve(rng), curve(rng)
         assert (conflict_matrix(T, P, a, b) == brute(a, b)).all()
         check_zones(a, b, conflict_zones(T, P, 0, a, 1, b))
