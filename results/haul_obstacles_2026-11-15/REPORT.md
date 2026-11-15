@@ -36,8 +36,8 @@ planner needs a low-speed regime before it can drive a haul road.
 "Edge bound" means `Planner.nmpc_edge_yaw` and `escape_edge_grip`, which keep the body corners inside the road edge
 at the plan's heading; both exist but are off by default. Two baseline diagnostics on `h2`, the same 20 seeds:
 
-- **Tarmac (μ 1.05):** 5 crashes.
-- **With the edge bound:** 17 crashes (`h2 overtaker_edge` rows).
+- **Tarmac (μ 1.05):** 5 crashes, 13 clean runs, 1,203 m per car (`h2_mu1.05` rows).
+- **With the edge bound:** 16 crashes (`h2 overtaker_edge` rows).
 
 ## Why it fails: three mechanisms, each traced in a replay
 
@@ -55,7 +55,7 @@ at the plan's heading; both exist but are off by default. Two baseline diagnosti
 3. **The planner breaks at mining speeds.**
    - On `h2` seed 1004, the baseline car creeps at 5–7 m/s behind an obstacle and accepts a two-lane change. The MPC then fails to solve (its tyre model has a 5 m/s floor, `nmpc_vx_floor`).
    - The lane-keep fallback law takes over with the heading swinging to 31°. The car crosses all three lanes in 2 s and leaves the far edge.
-   - Gravel makes it worse (16 crashes against 5 on tarmac at the same speeds). The edge bound doesn't help (17), because the failure is in the fallback chain, not the MPC's bound.
+   - Gravel makes it worse (16 crashes against 5 on tarmac at the same speeds). The edge bound doesn't help (16), because the failure is in the fallback chain, not the MPC's bound.
    - Everything was tuned and validated above about 20 m/s. 5–15 m/s with frequent stops is exactly the haul-road regime.
 
 ## What carries over, and what doesn't

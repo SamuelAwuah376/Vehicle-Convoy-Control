@@ -424,7 +424,7 @@ This test asks whether the stack is a basis for autonomous heavy-truck convoys o
   - **At mining speeds the planner fails:** 16/20 crashes on gravel, 5/20 on tarmac.
     - Below ~7 m/s the nonlinear MPC stops solving (its tyre model has a 5 m/s floor).
     - The lane-keep fallback law then lets the heading swing to ~30°, and the car crosses the road.
-    - The corner-aware edge bound (`nmpc_edge_yaw`) doesn't help (17/20).
+    - The corner-aware edge bound (`nmpc_edge_yaw`) doesn't help (16/20).
 - **Verdict:**
   - Keep the layered architecture, the team coordinator, the MPC core and the tooling.
   - Add a 0–15 m/s planner regime (low-speed model, standstill margin and reverse, obstacle-aware speed limits) and a truck model.
