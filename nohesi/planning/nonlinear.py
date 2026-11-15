@@ -289,7 +289,8 @@ class NonlinearMPC:
         self.brake = brake_limit(plant, cfg.grip_brake)
         ocp = self._ocp()
         builder = ocp_get_default_cmake_builder()
-        builder.generator = 'MinGW Makefiles'
+        if os.name == 'nt':   # MSYS2 UCRT64 gcc on Windows; elsewhere CMake's default generator (Unix Makefiles)
+            builder.generator = 'MinGW Makefiles'
         builder.additional_cmake_options = '-DCMAKE_C_COMPILER=gcc -DCMAKE_POLICY_VERSION_MINIMUM=3.5'
         ready = self.dir/'ready'
         if not ready.exists():

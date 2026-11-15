@@ -140,11 +140,18 @@ class Traffic:
     respawn_spot_gap: float = 20.0
     respawn_count_behind: float = 150.0
     respawn_count_ahead: float = 500.0
+    # Static obstacles (off by default): the 'traffic' is fixed obstacles (rock falls, fallen logs, stalled equipment)
+    # with the traffic car's footprint, at speed 0: no car following, no lane changes, no speed draws (rng); they are
+    # spawned, kept off the team's start lane, kept from sealing the road (no_blockades, with blockade_gap the
+    # along-road spacing that counts as connected) and recycled ahead exactly as moving traffic.
+    static: bool = False
 
     def __post_init__(self):
         _positive(self, *(k for k in vars(self) if k not in ('lane_changes', 'mobil_politeness', 'mobil_threshold',
                                                              'keep_right_bias', 'no_walls', 'no_blockades', 'lane_speeds',
-                                                             'respawn_spread')))
+                                                             'respawn_spread', 'static')))
+        if self.static and self.lane_changes:
+            raise ValueError('static obstacles do not change lanes (lane_changes must be False)')
         if not all(isfinite(lo) and isfinite(hi) and 0 < lo <= hi for lo, hi in self.lane_speeds):
             raise ValueError('lane_speeds needs a (min, max) range per lane with 0 < min <= max')
         if any(not isfinite(getattr(self, k)) or getattr(self, k) < 0 for k in ('mobil_politeness', 'mobil_threshold')):
@@ -501,6 +508,7 @@ class Scenario:
     team_lane: int = 1
     team_start_s: float = 100.0
     team_speed_max: float = 35.0      # m/s: highest target speed the team may command (sets Planner.speed_max)
+    team_speed_min: float = 0.0       # m/s: lowest target speed the team may command (sets Planner.speed_min; 0 keeps it)
     team_start_headway: float = 0.0   # s: start formation spacing headway (0: vehicle.headway)
     overtaker_speed: float = 32.0     # scripted overtaker cruise speed (m/s)
     overtaker_look: float = 60.0      # scripted overtaker look-ahead for slow cars (m)
@@ -511,6 +519,8 @@ class Scenario:
             raise ValueError('team_start_headway must be non-negative')
         if self.team_speed > self.team_speed_max:
             raise ValueError('team_speed must not exceed team_speed_max')
+        if not (isfinite(self.team_speed_min) and 0 <= self.team_speed_min <= self.team_speed):
+            raise ValueError('team_speed_min must lie in [0, team_speed] (0 keeps the planner speed_min)')
         if self.traffic.min_gap <= self.vehicle.length:   # the only spacing check when spawning and recycling
             raise ValueError('traffic min_gap must exceed the vehicle length')
         if not 0 <= self.team_lane < self.road.lanes:
@@ -592,8 +602,34 @@ def scenario_v9():
                                                     lane_speeds=((55*mph, 62*mph), (62*mph, 68*mph), (70*mph, 80*mph))))
 
 
+def scenario_h1():
+    """Haul road with static obstacles (the user's call, 2026-11-15): v9's road, cars (BMW M3, dynamic plant), team
+    start (70 mph, middle lane) and speed range (up to 134 mph), with the 45 traffic cars replaced by 12 static obstacles
+    of a car's footprint (4.79 x 1.90 m: a rock fall, a log, a stalled light vehicle). Spawned from 10 m behind to 400 m
+    ahead of the team at least 40 m apart in a lane (CG), none in the team's lane within 100 m ahead at the start,
+    respawned 250-430 m ahead in the emptiest lane once 150 m behind (about 3 per 100 m of road, one per lane every
+    ~140 m). No blockades at 45 m (blockade_gap): obstacles in the same or adjacent lanes closer than 45 m along the road
+    never cover all three lanes, so there is always a way through with ~45 m between obstacles on a diagonal (a lane
+    change at 30 m/s in 1.5 s). The policy's operating envelope, on obstacles in place of traffic."""
+    s = scenario_v9()
+    return replace(s, version='h1', traffic=replace(s.traffic, static=True, count=12, min_gap=40.0, spawn_behind=10.0,
+                                                    spawn_ahead=400.0, lane_changes=False, lane_change_prob=1.0,
+                                                    lane_speeds=(), blockade_gap=45.0, blockade_buffer=10.0))
+
+
+def scenario_h2():
+    """h1 in a mining / logging site's envelope (the user's call, 2026-11-15): the team starts at 45 km/h (12.5 m/s)
+    and may command 5-60 km/h (1.4-16.7 m/s; Scenario.team_speed_min/max), on a loose gravel surface (tyre-road mu 0.6
+    for the plant and the MPC's model, v9: 1.05: braking capped at 0.8 mu g = 4.7 m/s^2, cornering at about 0.6 g);
+    the scripted overtaker cruises at 15 m/s looking 60 m ahead. Same obstacle field as h1."""
+    s = scenario_h1()
+    return replace(s, version='h2', team_speed=12.5, team_speed_max=16.7, team_speed_min=5.0, team_start_headway=1.0,
+                   overtaker_speed=15.0, overtaker_look=60.0, vehicle=replace(s.vehicle, friction=0.6))
+
+
 SCENARIOS = {'v0': Scenario, 'v1': scenario_v1, 'v2': scenario_v2, 'v3': scenario_v3, 'v4': scenario_v4,
-             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7, 'v8': scenario_v8, 'v9': scenario_v9}
+             'v5': scenario_v5, 'v6': scenario_v6, 'v7': scenario_v7, 'v8': scenario_v8, 'v9': scenario_v9,
+             'h1': scenario_h1, 'h2': scenario_h2}
 
 
 def score_v1():

@@ -68,6 +68,8 @@ def merge_possible(snap, road, params, traffic_cfg):
     the traffic model's room rule (target lane exists; nobody there alongside or within lane_change_gap car
     lengths). A team car counts in its CG lane and in a lane its footprint crosses into."""
     lanes, w = road.cfg.lanes, road.cfg.lane_width
+    if getattr(traffic_cfg, 'static', False):   # static obstacles never move over
+        return np.zeros((len(snap.traffic_s), 2))
     t_lane = road.lane_of(snap.traffic_d).astype(int)
     m_lane = road.lane_of(snap.team_d).astype(int)
     off = snap.team_d-np.array([road.lane_center(l) for l in m_lane])
@@ -111,7 +113,7 @@ def planner_for(cfg, scenario):
     """The team's Planner for an EnvConfig: its MPC and decision timing, the scenario's top speed, then the run's
     planner_overrides and follow mode. The scripted baseline (rl.evaluate.scenario_for) uses the same one."""
     planner = Planner(mpc=cfg.mpc, speed_max=scenario.team_speed_max, decision_interval=cfg.decision_interval,
-                      speed_step=cfg.speed_step)
+                      speed_step=cfg.speed_step, **({'speed_min': scenario.team_speed_min} if scenario.team_speed_min else {}))
     if cfg.planner_overrides:
         planner = replace(planner, **dict(cfg.planner_overrides))
     if cfg.follow:

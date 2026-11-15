@@ -234,7 +234,10 @@ class Traffic:
         return out
 
     def _speed(self, lane):
-        """Desired speed of a new car in this lane: uniform in its lane_speeds range, else in [speed_min, speed_max]."""
+        """Desired speed of a new car in this lane: uniform in its lane_speeds range, else in [speed_min, speed_max]
+        (static obstacles: 0, no rng draw)."""
+        if self.cfg.static:
+            return 0.0
         return self.rng.uniform(*(self.cfg.lane_speeds[lane] if self.cfg.lane_speeds else (self.cfg.speed_min, self.cfg.speed_max)))
 
     def _add(self, s, lane):
@@ -366,6 +369,9 @@ class Traffic:
         """Advance one step. With others_d, a team car whose footprint (width) crosses a lane line also
         occupies the neighbouring lane for MOBIL gap and safety checks (IDM still uses others_lane)."""
         others_s, others_lane, others_v = np.asarray(others_s, float), np.asarray(others_lane, int), np.asarray(others_v, float)
+        if self.cfg.static:   # fixed obstacles: nothing moves
+            self.time += dt
+            return
         if self.cfg.lane_changes:
             lane2 = others_lane
             if others_d is not None:

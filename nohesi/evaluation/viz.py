@@ -38,7 +38,10 @@ def _panel(ax, ep, behind, ahead, label=''):
     lines = [ax.axhline(y, color='gray', lw=1 if abs(y) == half else 0.6, ls='-' if abs(y) == half else '--')
              for y in np.linspace(-half, half, road.cfg.lanes+1)]
     team = [ax.add_patch(plt.Polygon(np.zeros((4, 2)), color=c)) for c in COLORS]
-    traffic = [ax.add_patch(plt.Polygon(np.zeros((4, 2)), color='#888888')) for _ in range(ep.traffic_s.shape[1])]
+    static = getattr(ep.scenario.traffic, 'static', False)   # static obstacles: drawn brown with a dark outline
+    traffic = [ax.add_patch(plt.Polygon(np.zeros((4, 2)), facecolor='#8b5a2b' if static else '#888888',
+                                        edgecolor='#3b2410' if static else '#888888', lw=1.0 if static else 0.0,
+                                        hatch='///' if static else None)) for _ in range(ep.traffic_s.shape[1])]
     title = ax.set_title('', fontsize=9, loc='left')
     ax.set_ylim(-half-1, half+1); ax.set_aspect('equal'); ax.set_yticks([])
     cumulative = _cumulative(ep)

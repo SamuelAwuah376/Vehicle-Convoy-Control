@@ -65,7 +65,8 @@ class EpisodeRun:
     def __init__(self, scenario=None, seed=0, policy='lane_keeping', planner=None, score=None, world=World,
                  record_gaps=False):
         scenario, planner = scenario or Scenario(), planner or Planner()
-        planner = replace(planner, speed_max=scenario.team_speed_max)   # the scenario owns the team speed cap
+        # The scenario owns the team speed cap (and, when it sets one, the floor).
+        planner = replace(planner, speed_max=scenario.team_speed_max, speed_min=scenario.team_speed_min or planner.speed_min)
         if score is not None:
             scenario = replace(scenario, score=score)
         self.scenario, self.seed, self.planner = scenario, seed, planner
