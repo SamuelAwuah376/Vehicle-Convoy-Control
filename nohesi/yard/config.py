@@ -119,6 +119,7 @@ class Planning:
     analytic_every: int = 4         # try a Dubins shot (forward and reverse) every this many expansions
     analytic_range: float = 45.0    # m: ... when the goal is this close
     max_expansions: int = 6000
+    heuristic_weight: float = 1.5   # f = g + w h (w > 1: greedier, faster, paths at most w times the optimum)
     clearance: float = 0.6          # m: body-to-obstacle margin of a planned path
     goal_tolerance: float = 0.3     # m / (x 0.1 rad): a path ends exactly at the spot (analytic shot) or this close
     # Spots (spots.py)

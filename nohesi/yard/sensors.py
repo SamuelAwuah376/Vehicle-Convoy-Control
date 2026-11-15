@@ -70,7 +70,7 @@ def _first_hit(origin, u, a, d):
     return np.where(ok, t, np.inf).min(1)
 
 
-@dataclass
+@dataclass(eq=False)
 class ClearanceMap:
     """Distance from each cell centre to the nearest non-FREE cell centre (m; 0 on UNKNOWN and OCCUPIED cells, and
     the grid's outside counts as non-FREE), as OccupancyGrid.clearance() builds it. Treat dist as read-only: at()
@@ -93,7 +93,7 @@ class ClearanceMap:
         return self._val[iy, ix]
 
 
-@dataclass
+@dataclass(eq=False)
 class OccupancyGrid:
     """The shared map: UNKNOWN / FREE / OCCUPIED cells (see the module docstring for the cell convention)."""
     x0: float               # m: west edge of column 0
@@ -174,13 +174,13 @@ def lidar_origin(world, sensors):
 def initial_map(world, sensors, rng):
     """The leader's scan: (OccupancyGrid, missed (K,) bool).
 
-    One rng.random() per obstacle in index order (all K, so the stream does not depend on the layout): an obstacle is
-    missed when it is missable and draws < miss_prob; missed obstacles neither block rays nor show. 360 deg of rays,
+    One rng.random() per obstacle in index order, missable or not (exactly K draws): an obstacle is missed when it is
+    missable and its draw is < miss_prob; missed obstacles neither block rays nor show. 360 deg of rays,
     lidar_resolution apart (ray 0 along the leader's heading), from lidar_origin() out to lidar_range: cells along a
-    ray (sampled every res/2) are FREE up to its first hit on an obstacle edge, the cell just behind the hit (1e-3 m
-    into the obstacle) OCCUPIED. The access road (x in [-road_length, 0], within road_width/2 of y = width/2, berm cells
-    excluded) is FREE, the convoy drove it, and so are the leader's and the followers' footprints (known through V2V,
-    not mapped). Hit cells are written last: an obstacle seen in a cell wins over everything else."""
+    ray (sampled every res/2) are FREE up to its first hit on an obstacle edge, and the cell holding the point 1e-3 m
+    past the hit (inside the obstacle) is OCCUPIED. The access road (x in [-road_length, 0], within road_width/2 of
+    y = width/2, berm cells excluded) is FREE, the convoy drove it, and so are the leader's and the followers'
+    footprints (known through V2V, not mapped). Hit cells are written last: an obstacle seen in a cell wins."""
     site, truck, obs = world.scenario.site, world.scenario.truck, world.obstacles
     grid = OccupancyGrid.for_site(site, sensors)
     missed = np.asarray(obs.missable, bool) & (rng.random(len(obs)) < sensors.miss_prob)
