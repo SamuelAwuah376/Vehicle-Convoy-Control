@@ -7,11 +7,15 @@ scripted overtaker on the same planner. Scenarios (nohesi.config):
     h1  v9's road and cars at the policy's trained speeds (70 mph start, up to 134 mph), 12 static obstacles in place
         of the 45 traffic cars
     h2  h1 in a mining envelope: 45 km/h start, 5-60 km/h commanded, gravel (mu 0.6)
-Writes results/haul_obstacles_<date>/: episodes.csv (one row per episode), summary.json (per scenario and policy),
-and with --store numbered results/run_NNN_... folders (GIF, plots, metrics) for the PPO episodes of those seeds.
+Policies: 'ppo', 'overtaker', and 'ppo_edge' = ppo with the planner's corner-aware road-edge bound and edge grip
+(Planner.nmpc_edge_yaw, escape_edge_grip; both off by default), which hold the body corners, not only the CG, inside
+the edge at the plan's heading (the low-speed lane changes obstacles force run at 0.2-0.3 rad).
+Writes results/haul_obstacles_<date>/: episodes.jsonl (one row per episode, appended as each finishes; a rerun skips
+the jobs already in it), episodes.csv, summary.json (per scenario and policy), and with --store numbered
+results/run_NNN_... folders (GIF, plots, metrics) for the episodes of those seeds.
 
     .venv/bin/python experiments/haul_road_obstacles.py [--scenarios h1,h2] [--seeds 1000-1019] [--workers 4]
-        [--policies ppo,overtaker] [--store 1000] [--duration 120]
+        [--policies ppo,overtaker,ppo_edge] [--store 1000] [--duration 120]
 """
 import argparse
 import csv
@@ -36,13 +40,14 @@ PPO_MODEL = 'final'
 PLANNER_OVERRIDES = (('retry_cooldown', 1.0), ('w_lateral', 10.0))   # run_sim.py's default, over the run's own
 SCORE = 'v10'
 NEAR_MISS = 0.5   # m: a pass of an obstacle with less footprint clearance than this counts as a near miss
+EDGE_FIX = (('nmpc_edge_yaw', True), ('escape_edge_grip', True))   # policy 'ppo_edge'
 
 
-def env_cfg_for(scenario):
+def env_cfg_for(scenario, extra=()):
     from nohesi.rl.evaluate import load_env_cfg
     cfg = load_env_cfg(PPO_RUN)
     return replace(cfg, scenario=scenario, score=SCORE, vehicle_model='dynamic', mpc='nonlinear',
-                   planner_overrides=(*cfg.planner_overrides, *PLANNER_OVERRIDES))
+                   planner_overrides=(*cfg.planner_overrides, *PLANNER_OVERRIDES, *extra))
 
 
 def haul_metrics(ep, m):
@@ -114,10 +119,14 @@ def _store(ep, label):
 def episode(job):
     """One episode -> haul_metrics row (in a worker process)."""
     scenario, policy, seed, duration, store = job
+    import multiprocessing
+    if multiprocessing.current_process().name != 'MainProcess' and not getattr(episode, 'quiet', False):
+        os.dup2(os.open(os.devnull, os.O_WRONLY), 1)   # acados prints a line per failed QP (C stdout): not in the log
+        episode.quiet = True
     from nohesi.evaluation.metrics import metrics
-    cfg = env_cfg_for(scenario)
+    cfg = env_cfg_for(scenario, EDGE_FIX if policy == 'ppo_edge' else ())
     started = time.perf_counter()
-    if policy == 'ppo':
+    if policy in ('ppo', 'ppo_edge'):
         import torch
         torch.set_num_threads(1)
         from nohesi.rl.env import NoHesiEnv
@@ -145,7 +154,7 @@ def episode(job):
     row['policy'] = policy
     row['wall_s'] = round(time.perf_counter()-started, 1)
     if store:
-        row['stored'] = _store(ep, f'{scenario}_{policy}'+(f'-{PPO_RUN.name}' if policy == 'ppo' else '') +
+        row['stored'] = _store(ep, f'{scenario}_{policy}'+(f'-{PPO_RUN.name}' if policy != 'overtaker' else '') +
                                f'_score{SCORE}_seed{seed}_dynamic_nmpc_haul_obstacles')
     return row
 
@@ -178,10 +187,10 @@ def _seeds(text):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--scenarios', default='h1,h2')
-    p.add_argument('--policies', default='ppo,overtaker')
+    p.add_argument('--policies', default='ppo,overtaker,ppo_edge')
     p.add_argument('--seeds', default='1000-1019')
     p.add_argument('--workers', type=int, default=os.cpu_count())
-    p.add_argument('--store', default='', help='seeds whose PPO episodes are saved to results/ with a GIF')
+    p.add_argument('--store', default='', help='seeds whose episodes are saved to results/ with a GIF')
     p.add_argument('--duration', type=float, default=None, help='episode length (s); default the scenario (120 s)')
     p.add_argument('--out', default=None)
     a = p.parse_args(argv)
@@ -195,15 +204,25 @@ def main(argv=None):
     from nohesi.coordination.centralized import CentralizedTeam
     from nohesi.rl.scripted import LaneKeeping
     for name in scenarios:
-        sc, planner, _ = scenario_for(env_cfg_for(name))
-        CentralizedTeam(sc, World(sc, 0), LaneKeeping(sc, World(sc, 0).road, World(sc, 0).plant), planner)
-    jobs = [(s, pol, seed, a.duration, pol == 'ppo' and seed in store) for s in scenarios for pol in policies for seed in seeds]
-    rows, started = [], time.perf_counter()
+        for extra in ((), EDGE_FIX) if 'ppo_edge' in policies else ((),):
+            sc, planner, _ = scenario_for(env_cfg_for(name, extra))
+            CentralizedTeam(sc, World(sc, 0), LaneKeeping(sc, World(sc, 0).road, World(sc, 0).plant), planner)
+    jsonl = out/'episodes.jsonl'
+    done = [json.loads(line) for line in jsonl.read_text(encoding='utf-8').splitlines()] if jsonl.exists() else []
+    have = {(r['scenario'], r['policy'], r['seed']) for r in done}
+    jobs = [(s, pol, seed, a.duration, seed in store) for s in scenarios for pol in policies
+            for seed in seeds if (s, pol, seed) not in have]
+    jobs.sort(key=lambda j: j[1] == 'overtaker')   # PPO episodes (the long ones) first
+    rows, started = [r for r in done if r['scenario'] in scenarios and r['policy'] in policies and r['seed'] in seeds], \
+        time.perf_counter()
+    print(f'{len(rows)} episodes already in {jsonl}, {len(jobs)} to run', flush=True)
     with ProcessPoolExecutor(max_workers=a.workers) as pool:
         futures = [pool.submit(episode, j) for j in jobs]
         for n, f in enumerate(as_completed(futures), 1):
             r = f.result()
             rows.append(r)
+            with jsonl.open('a', encoding='utf-8') as stream:
+                stream.write(json.dumps(r)+'\n')
             print(f"[{n}/{len(jobs)} {time.perf_counter()-started:.0f}s] {r['scenario']} {r['policy']:9} seed {r['seed']}: "
                   f"{'CRASH '+r['collision_kind']+' at '+str(r['duration_s'])+' s' if r['collision'] else 'ok'} | "
                   f"{r['distance_m']:.0f} m, {r['mean_speed_mps']:.1f} m/s, stopped {r['stopped_s']:.1f} s, "
@@ -220,7 +239,7 @@ def main(argv=None):
                'results': {s: {pol: summarize([r for r in rows if r['scenario'] == s and r['policy'] == pol])
                                for pol in policies} for s in scenarios}}
     (out/'summary.json').write_text(json.dumps(summary, indent=2)+'\n', encoding='utf-8')
-    print(json.dumps(summary['results'], indent=2))
+    print(json.dumps(summary['results'], indent=2), flush=True)
     print(f'results in {out}')
 
 
