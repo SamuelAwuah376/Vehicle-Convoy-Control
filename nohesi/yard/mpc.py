@@ -59,6 +59,7 @@ class _Segment:
         ds = np.diff(self.s)
         kappa = np.where(ds > 1e-6, d*np.diff(self.yaw)/np.maximum(ds, 1e-6), 0.0)   # dyaw/ds, ds = d*|ds|
         self.steer = np.clip(np.arctan(truck.wheelbase*kappa), -truck.steer_max, truck.steer_max)
+        self.steer_ref = self._smoothed_steer()
         ak = np.abs(kappa)
         k_sample = np.maximum(np.r_[ak[0], ak], np.r_[ak, ak[-1]])
         vmax = truck.v_forward_max if d > 0 else truck.v_reverse_max
@@ -71,18 +72,28 @@ class _Segment:
             prof[i] = min(prof[i], sqrt(prof[i+1]**2+2*b*ds[i]))
         self.profile = prof
 
+    def _smoothed_steer(self):
+        """(n,) the interval steering averaged over STEER_WINDOW m of path centred on each sample (the window shrinks
+        at the segment's ends): a steering reference that starts a change STEER_WINDOW/2 early and is rate-feasible
+        at the steering-rate speed cap."""
+        cum = np.r_[0.0, np.cumsum(self.steer*np.diff(self.s))]   # integral of the piecewise-constant steering
+        a = np.clip(self.s-STEER_WINDOW/2, self.s[0], self.s[-1])
+        b = np.clip(self.s+STEER_WINDOW/2, self.s[0], self.s[-1])
+        width = b-a
+        avg = (np.interp(b, self.s, cum)-np.interp(a, self.s, cum))/np.maximum(width, 1e-9)
+        return np.where(width > 1e-9, avg, np.r_[self.steer, self.steer[-1:]])
+
     def _steer_rate_cap(self, truck):
-        """(n,) speed at which the steering, at Truck.steer_rate, covers the reference's steering change within
-        STEER_WINDOW m of path around each sample."""
+        """(n,) speed at which the steering, at Truck.steer_rate, covers the path's steering change within
+        STEER_WINDOW m of path (applied within STEER_REACH of the change)."""
         n, st = len(self.s), self.steer
         if n < 3:
             return np.full(n, np.inf)
         mid = 0.5*(self.s[:-1]+self.s[1:])                      # interval centres carry st
-        lo = np.searchsorted(mid, self.s-STEER_WINDOW/2, 'left')
-        hi = np.searchsorted(mid, self.s+STEER_WINDOW/2, 'right')-1
-        lo, hi = np.clip(lo, 0, n-2), np.clip(hi, 0, n-2)
-        # max - min of st over [lo, hi] per sample (windows are short: a sparse-table-free loop over offsets)
-        width = int(np.max(hi-lo)) if n else 0
+        lo = np.clip(np.searchsorted(mid, self.s-STEER_REACH, 'left'), 0, n-2)
+        hi = np.clip(np.searchsorted(mid, self.s+STEER_REACH, 'right')-1, 0, n-2)
+        hi = np.maximum(hi, lo)
+        width = int(np.max(hi-lo))
         idx = np.minimum(lo[:, None]+np.arange(width+1)[None], hi[:, None])
         change = st[idx].max(1)-st[idx].min(1)
         return np.where(change > 1e-6, truck.steer_rate*STEER_WINDOW/np.maximum(change, 1e-6), np.inf)
@@ -92,6 +103,8 @@ class _Segment:
         return np.interp(s, self.s, self.x), np.interp(s, self.s, self.y), np.interp(s, self.s, self.yaw)
 
     def steer_at(self, s):
+        if SMOOTH_STEER:
+            return np.interp(s, self.s, self.steer_ref)
         j = np.clip(np.searchsorted(self.s, s, 'right')-1, 0, len(self.s)-2)
         return self.steer[j]
 
