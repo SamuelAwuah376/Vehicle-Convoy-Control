@@ -1,7 +1,7 @@
 """Yard path planner (nohesi/yard/hybrid_astar.py): Dubins shots forward and reverse, and Hybrid A* on clearance maps
 built here from boolean free masks (the same fields and `at` contract as sensors.ClearanceMap)."""
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 from nohesi.yard.config import Planning, Truck
@@ -54,6 +54,10 @@ def check_path(clearance, path, start, goal):
     along = (step[:, 0]*np.cos(st[:-1, 2])+step[:, 1]*np.sin(st[:-1, 2]))*path.direction[:-1]
     assert np.all(along >= -1e-9)
     assert np.all(np.abs(np.diff(st[:, 2])) <= np.hypot(*step.T)/R*1.05+1e-9)    # curvature within full lock
+
+
+def reverse_length(path):
+    return float(np.diff(path.s)[path.direction[:-1] < 0].sum())
 
 
 def test_dubins_words_reach_the_goal():
@@ -110,6 +114,25 @@ def test_reverse_into_spot_against_a_wall():
     assert res.reason == '', res
     check_path(c, res.path, start, goal)
     assert np.any(res.path.direction == -1) and res.path.direction[-1] == -1
+    # Default shots: drive past and back in a staged leg, not a reversing loop from afar.
+    assert reverse_length(res.path) <= max(HybridAStar.staging)+1e-6 and len(res.path.cusps) == 1
+    plain = HybridAStar(TRUCK, PLAN)
+    plain.staging, plain.reverse_turn_max = (), math.inf      # the plain forward / reverse Dubins shots
+    res = plain.plan(c, start, goal)
+    assert res.reason == '' and reverse_length(res.path) > 40
+    check_path(c, res.path, start, goal)
+
+
+def test_gated_reverse_shot_is_the_fallback():
+    # Every reverse shot is gated and the budget runs out before the primitives reach the goal: the cheapest
+    # collision-free gated shot is returned instead of failing.
+    c = yard([(73.0, 0.0, 75.0, 70.0)])
+    planner = HybridAStar(TRUCK, replace(PLAN, max_expansions=40))
+    planner.staging, planner.reverse_turn_max = (), 0.1
+    start, goal = np.array([30.0, 35.0, 0.0]), np.array([68.0, 30.0, np.pi])
+    res = planner.plan(c, start, goal)
+    assert res.reason == '' and res.expansions == 40 and res.path.direction[-1] == -1
+    check_path(c, res.path, start, goal)
 
 
 def test_through_the_gap():
@@ -134,6 +157,11 @@ def test_around_obstacles():
 def test_enclosed_goal_fails_fast():
     c = yard([(60.0, 25.0, 82.0, 27.0), (60.0, 43.0, 82.0, 45.0), (60.0, 25.0, 62.0, 45.0), (80.0, 25.0, 82.0, 45.0)])
     res = HybridAStar(TRUCK, PLAN).plan(c, (10.0, 35.0, 0.0), (68.0, 35.0, 0.0))
+    assert res.path is None and res.reason == 'no_path' and res.expansions == 0 and res.time_s < 0.5
+    # A 5 m gap in the enclosure passes the rear-axle grid but not the truck: the search itself fails.
+    c = yard([(60.0, 25.0, 82.0, 27.0), (60.0, 43.0, 82.0, 45.0), (60.0, 25.0, 62.0, 32.5), (60.0, 37.5, 62.0, 45.0),
+              (80.0, 25.0, 82.0, 45.0)])
+    res = HybridAStar(TRUCK, PLAN).plan(c, (10.0, 35.0, 0.0), (68.0, 35.0, 0.0))
     assert res.path is None and res.reason in ('no_path', 'budget') and res.time_s < 3.0
 
 
@@ -150,6 +178,5 @@ def test_blocked_endpoints():
 
 def test_budget():
     c = yard([(48.0, 0.0, 52.0, 40.0), (48.0, 50.0, 52.0, 70.0)])
-    from dataclasses import replace
     res = HybridAStar(TRUCK, replace(PLAN, max_expansions=5)).plan(c, (15.0, 15.0, 0.0), (85.0, 20.0, 0.0))
     assert (res.path, res.reason, res.expansions) == (None, 'budget', 5)
