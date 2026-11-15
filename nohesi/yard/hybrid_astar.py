@@ -146,8 +146,8 @@ class HybridAStar:
     has clearance >= width/2 (8-connected, scipy dijkstra from the goal) and nodes on cells it cannot reach are
     pruned. Every analytic_every-th expansion within analytic_range of the goal tries the forward and the reverse
     Dubins shot to the goal (turning radius Truck.min_radius); the cheaper collision-free one ends the search."""
-    anytime = False
     staged = ()
+    reverse_turn_max = math.inf
 
     def __init__(self, truck, planning):
         self.truck, self.planning = truck, planning
@@ -197,18 +197,20 @@ class HybridAStar:
         closed = set()
         heap = [(w*h0, 0)]
         expansions = shots = 0
-        sol_cost, sol = math.inf, None
+        fallback = [math.inf, None]       # the cheapest gated shot seen: [total cost, (node, path)]
+
+        def give_up(reason):
+            if fallback[1] is not None:
+                return result(self._path(*fallback[1], X, Y, YAW, D, parent, samples), '', expansions)
+            return result(None, reason, expansions)
+
         while heap:
-            fpop, n = heapq.heappop(heap)
-            if fpop >= sol_cost:
-                break
+            _, n = heapq.heappop(heap)
             key = keys[n]
             if key in closed or best[key] != n:
                 continue
             if expansions >= p.max_expansions:
-                if sol is not None:
-                    break
-                return result(None, 'budget', expansions)
+                return give_up('budget')
             closed.add(key)
             expansions += 1
             x, y, yaw, g, d = X[n], Y[n], YAW[n], G[n], D[n]
@@ -219,12 +221,9 @@ class HybridAStar:
                 return result(self._path(n, tail, X, Y, YAW, D, parent, samples), '', expansions)
             if dist <= p.analytic_range:
                 if shots % p.analytic_every == 0:
-                    tail = self._shot(clearance, (x, y, yaw), goal, d)
+                    tail = self._shot(clearance, (x, y, yaw), goal, d, n, g, fallback)
                     if tail is not None:
-                        if not self.anytime:
-                            return result(self._path(n, tail[1], X, Y, YAW, D, parent, samples), '', expansions)
-                        if g+tail[0] < sol_cost:
-                            sol_cost, sol = g+tail[0], (n, tail[1])
+                        return result(self._path(n, tail, X, Y, YAW, D, parent, samples), '', expansions)
                 shots += 1
             # All primitives at once: (P, n_sub) samples, one collision call, the end states keyed and scored.
             c, s = math.cos(yaw), math.sin(yaw)
@@ -236,7 +235,7 @@ class HybridAStar:
             inside = (hi >= 0) & (hi < nxh) & (hj >= 0) & (hj < nyh)
             hgr = np.where(inside, hgrid[np.clip(hj, 0, nyh-1), np.clip(hi, 0, nxh-1)], np.inf)
             h = np.maximum(hgr, np.hypot(gx-ex, gy-ey))
-            ok = np.flatnonzero(free & np.isfinite(h) & (g+self.cost+h < sol_cost))
+            ok = np.flatnonzero(free & np.isfinite(h))
             if not len(ok):
                 continue
             gn = g+self.cost
@@ -260,16 +259,14 @@ class HybridAStar:
                 G.append(gn_l[i]); D.append(dirs_list[i]); F.append(float(fracs[i]))
                 parent.append(n); samples.append(roll[i]); keys.append(k)
                 heapq.heappush(heap, (fn_l[i], m))
-        if sol is not None:
-            return result(self._path(sol[0], sol[1], X, Y, YAW, D, parent, samples), '', expansions)
-        return result(None, 'no_path', expansions)
+        return give_up('no_path')
 
     def _key(self, x, y, yaw, d):
         p = self.planning
         return (int(math.floor(x/p.xy_resolution)), int(math.floor(y/p.xy_resolution)),
                 int(math.floor((yaw % TWO_PI)/(TWO_PI/p.yaw_bins))) % p.yaw_bins, int(d))
 
-    def _shot(self, clearance, state, goal, d):
+    def _shot(self, clearance, state, goal, d, n, g, fallback):
         """The cheaper collision-free of the forward and the reverse Dubins shot from state to goal, or None. Cost:
         length (x reverse_cost in reverse), + switch_cost when the shot's direction differs from the node's d."""
         p = self.planning
@@ -278,7 +275,8 @@ class HybridAStar:
             path = dubins(state, goal, self.radius, p.path_sample, direction)
             if path is not None:
                 cost = path.length*(1.0 if direction > 0 else p.reverse_cost)+p.switch_cost*(d != 0 and d != direction)
-                cands.append((cost, direction, path))
+                gated = direction < 0 and np.abs(np.diff(path.yaw)).sum() > self.reverse_turn_max
+                cands.append((cost, direction, path, gated))
         for L in self.staged:
             gyaw = float(goal[2])
             stage = (goal[0]+L*math.cos(gyaw), goal[1]+L*math.sin(gyaw), gyaw)
@@ -286,10 +284,14 @@ class HybridAStar:
             back = dubins(stage, goal, self.radius, p.path_sample, -1)
             if fwd is not None and back is not None:
                 cost = fwd.length+p.switch_cost*(1+(d == -1))+p.reverse_cost*back.length
-                cands.append((cost, 2, Path.concat([fwd, back])))
-        for cost, _, path in sorted(cands, key=lambda c: c[:2]):
+                cands.append((cost, 2, Path.concat([fwd, back]), False))
+        for cost, _, path, gated in sorted(cands, key=lambda c: c[:2]):
+            if gated and g+cost >= fallback[0]:
+                continue
             if collision_free(self.truck, p, clearance, path.states[1:]).all():
-                return cost, path
+                if not gated:
+                    return path
+                fallback[:] = g+cost, (n, path)
         return None
 
     def _path(self, n, tail, X, Y, YAW, D, parent, samples):
