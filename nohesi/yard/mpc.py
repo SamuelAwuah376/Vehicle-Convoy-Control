@@ -60,6 +60,7 @@ W_STEER = 8.0           # cost weight on the steering angle's deviation from the
 SPEED_MARGIN = 0.02     # m/s kept under v_forward_max / v_reverse_max (the accel lag overshoots slightly)
 W_SLACK = (2e3, 2e2)    # speed-bound slack weights: quadratic, linear
 SOLVED = (1, 2)         # OSQP status_val accepted: solved, solved inaccurate (if finite)
+FALLBACK_STEPS = 3      # the fallback's speed command reaches the reference speed this many MPC steps ahead
 NX, NU = 6, 2
 
 
@@ -333,9 +334,9 @@ class PathTracker:
         dt = h/m
         lam = 1.0-min(dt/t.accel_lag, 1.0)
 
-        def run(v, a, c):
+        def run(v, a, c, steps=1):
             dist = 0.0
-            for _ in range(m):
+            for _ in range(m*steps):
                 a = lam*a+(1-lam)*c
                 vn = v+dt*a
                 dist += 0.5*dt*(v+vn)
@@ -346,7 +347,8 @@ class PathTracker:
         vc, ac, dc = run(0.0, 0.0, 1.0)
         # The plant reaches a steering command within one sub-step unless rate-limited; at the rate limit the mean
         # steering over the step is steer + (m+1)/(2m) steer_rate*h.
-        return dict(dv=dv, da=da, dc=dc, va=va, vc=vc, aa=aa, ac=ac, w=(m+1)/(2*m), lam=lam ** m)
+        fa, fc = run(0.0, 1.0, 0.0, FALLBACK_STEPS)[0], run(0.0, 0.0, 1.0, FALLBACK_STEPS)[0]
+        return dict(dv=dv, da=da, dc=dc, va=va, vc=vc, aa=aa, ac=ac, w=(m+1)/(2*m), fa=fa, fc=fc)
 
     def _pattern(self):
         """Fixed sparsity pattern (rows, cols, CSC order), constant values and the cost Hessian."""
@@ -494,8 +496,9 @@ class PathTracker:
         """Pure pursuit at the rear axle, either direction: the circle tangent to the truck's heading through the
         lookahead point has curvature 2 y_l/(x_l^2 + y_l^2) in the truck frame whether the point is ahead (forward)
         or behind (reverse: the lookahead is mirrored behind the rear axle), and the rear axle drives that circle at
-        steer = atan(L*curvature) in both directions. Speed: the reference's first-step acceleration (it already
-        holds the feedback from the profile at the truck's position), compensated for the plant's lag."""
+        steer = atan(L*curvature) in both directions. Speed: the constant acceleration command that brings the
+        plant (its lag included) to the reference speed FALLBACK_STEPS steps ahead; the reference starts from the
+        truck's speed and position, so it carries the feedback of the profile."""
         t, h = self.truck, self.h
         x, y, yaw, v, steer, accel = z0
         look = float(np.clip(2.5+1.0*abs(v), 2.5, 6.0))
@@ -505,9 +508,8 @@ class PathTracker:
         kappa = 2*yl/max(xl*xl+yl*yl, 1e-6)
         target = float(np.clip(atan(t.wheelbase*kappa), -t.steer_max, t.steer_max))
         steer_cmd = steer+float(np.clip(target-steer, -t.steer_rate*h, t.steer_rate*h))
-        d = seg.direction
-        a_des = d*(ref['u'][1]-ref['u'][0])/h
-        lam = self._lag['lam']
-        accel_cmd = (a_des-lam*accel)/(1-lam) if lam < 1 else a_des
+        d, lag = seg.direction, self._lag
+        target_v = d*ref['u'][min(FALLBACK_STEPS, len(ref['u'])-1)]
+        accel_cmd = (target_v-v-lag['fa']*accel)/lag['fc']
         lo, hi = (-t.brake_max, t.accel_max) if d > 0 else (-t.accel_max, t.brake_max)
         return float(steer_cmd), float(np.clip(accel_cmd, lo, hi))
