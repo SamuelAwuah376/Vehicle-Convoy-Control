@@ -1,4 +1,4 @@
-% One-page summary of the No Hesi team-driving problem set-up (current: env e5 with follow mode, scenario v8, score v10, batch 9b training).
+% One-page summary of the No Hesi team-driving problem set-up (current: env e5 with follow mode, scenario v9, score v10, planner m4.4; best batch 11c on v9, batch 10 on v8).
 % Compile with pdflatex (e.g. Overleaf).
 \documentclass[10pt]{article}
 \usepackage[a4paper,margin=1.15cm]{geometry}
@@ -19,13 +19,13 @@
 
 \begin{document}
 
-{\Large\bfseries Three cooperating cars on a busy highway: problem set-up}\hfill{\small env \texttt{e5}, scenario v8, score v10}\\[-2pt]
+{\Large\bfseries Three cooperating cars on a busy highway: problem set-up}\hfill{\small env \texttt{e5}, scenario v9, score v10}\\[-2pt]
 \rule{\linewidth}{0.6pt}
 
 \small
-\textbf{The task.} Three team cars (BMW M3 models) drive a straight 3-lane, 10\,km highway with 30 traffic cars
-(car-following and lane changing like human drivers) doing 60--65\,mph in the right and middle lanes and 70--80\,mph in
-the left lane; traffic never blocks all three lanes at once. Over a 120\,s episode the team scores points for
+\textbf{The task.} Three team cars (BMW M3 models) drive a straight 3-lane, 10\,km highway with 45 traffic cars
+(car-following and lane changing like human drivers) doing 55--62, 62--68 and 70--80\,mph from the right lane to
+the left; traffic never blocks all three lanes at once. Over a 120\,s episode the team scores points for
 \emph{close passes} of traffic, \emph{draft passes} (passing out of a teammate's slipstream, $15\times$ a close pass),
 driving as a \emph{three-car draft train} (each car within 0.5\,s of the one ahead; up to 250\,pts/s per car, ramped
 from 40\,\% at 60\,mph to 100\,\% from 80\,mph by the slowest car's speed), \emph{train passes} (up to $30\times$),
@@ -81,7 +81,8 @@ a smooth S-curve. One unused overtake slot (right, $+3$) is \textbf{follow}: tra
 unless within 1\,s) at a 0.35\,s gap and join its lane changes, deciding nothing itself until a break-off.
 
 \textbf{Action masks} remove unsafe or impossible choices before the policy picks: lanes off the road; lane changes
-without a gap (bumper room of 0.25\,m predicted 3\,s ahead, plus 0.3\,s per m/s a car behind closes); overtakes without
+without a gap (bumper room of 0.25\,m predicted 3\,s ahead, plus 0.3\,s per m/s a car behind closes; never ahead of a
+car alongside it cannot yet clear); overtakes without
 an entry gap and a clear passing lane; anything but the chosen manoeuvre while one is under way.
 
 \textbf{Observation} (312 numbers, normalised). For each car:
@@ -90,7 +91,7 @@ an entry gap and a clear passing lane; anything but the chosen manoeuvre while o
 lane, its manoeuvre (phase, target lane, target speed, lean, time in phase, rejected/fallback flags);
 \item \emph{nearest 8 traffic cars} ($8\times7$): relative position along and across the road, relative speed,
 sideways speed, present, could change lane left/right;
-\item \emph{teammates} ($2\times7$): relative position and speed, their manoeuvre;
+\item \emph{teammates} ($2\times7$): relative position and speed, manoeuvre;
 \item \emph{overtake} (11): stage (none/out/pass/return), side, passed car's relative position and speed, time,
 overtake left/right possible now, return possible now; \emph{follow} (2): on, possible;
 \end{itemize}
@@ -106,9 +107,9 @@ cost $-5$ each.
 \textbf{Learning}: MaskablePPO (proximal policy optimisation that respects the masks); actor and critic are
 two-layer networks (256, 256, tanh); 24 simulations in parallel, 12{,}288 decisions per update, $\lambda=0.95$,
 entropy bonus 0.001, KL limit 0.1, reward clip 50. Each batch warm-starts from the previous
-model with a fresh learning-rate cycle ($5\cdot10^{-4}\to10^{-5}$); planner: 1\,s retry cooldown, lateral weight
-10 ($\approx$1.5\,s lane changes). Best: batch 7, 923{,}612 points on 50 test seeds, 1 crash (1{,}448{,}735 and 4 on
-this planner); batch 9b (follow) is training.
+model, the learning rate decaying linearly to $10^{-5}$; planner: 1\,s retry cooldown, lateral weight 10
+($\approx$1.5\,s lane changes), pending changes cancelled after 2\,s. Best on 50 test seeds, no crash: batch 11c
+on v9, 1{,}514{,}437 points; batch 10 on v8, 4{,}472{,}281. None training.
 
 \sect{2. The trajectory problem (what the MPC solves)}
 Each car is described in road coordinates (distance along the road $s$, offset across it $d$). The MPC state and
@@ -121,8 +122,7 @@ solves, over $N=30$ steps of 0.1\,s,
 with $y^{\mathrm{ref}}_k$ zero except the lateral target $d^{\mathrm{ref}}_k$ and the speed target $v^{\mathrm{ref}}$
 (track the target lane and speed, smoothly and without sliding), subject to: the vehicle model $x_{k+1}=f(x_k,u_k)$ (dynamic bicycle, Fiala tyres, load transfer); tyre grip (each
 axle within 90\,\% of its friction circle, hard); braking $\le 0.8\,\mu g$; steering-rate and power-limited
-acceleration bounds; clearance from every predicted vehicle and the road edges (soft, with a large penalty, so a
-solution always exists). $d^{\mathrm{ref}}_k$ (lane centre, overtake S-curve or leader's path) and $v^{\mathrm{ref}}$ come from
+acceleration bounds; clearance from every predicted vehicle and the road edges, with stopping room at the edge (soft, with a large penalty, so a solution always exists). $d^{\mathrm{ref}}_k$ (lane centre, overtake S-curve or leader's path) and $v^{\mathrm{ref}}$ come from
 the intention layer; teammates' plans are moving obstacles. Solved with acados (real-time SQP), the first input is
 applied and the problem re-solved. If a plan would still collide or exceed grip, an \emph{emergency mode}
 plans escapes in nearby lanes; a lane-keeping law is the last resort.
