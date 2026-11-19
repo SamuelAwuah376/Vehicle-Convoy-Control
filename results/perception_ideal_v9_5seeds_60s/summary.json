@@ -1,0 +1,848 @@
+{
+ "meta": {
+  "scenario": "v9",
+  "mode": "ideal",
+  "duration": 60.0,
+  "seeds": "1000-1004",
+  "workers": 10,
+  "policy": "overtaker",
+  "plant": "dynamic",
+  "mpc": "nonlinear",
+  "score": "v10",
+  "planner_overrides": {
+   "retry_cooldown": 1.0,
+   "w_lateral": 10.0
+  },
+  "created": "2026-11-19T10:03:14",
+  "perception": {
+   "enabled": true,
+   "mode": "ideal",
+   "lidars": [
+    {
+     "name": "lidar_front",
+     "mount": {
+      "x": -0.05,
+      "y": 0.0,
+      "z": 0.6,
+      "yaw": 0.0,
+      "edge": "front"
+     },
+     "fov": 2.0943951023931953,
+     "range_max": 200.0,
+     "rate": 10.0,
+     "beam_spacing": 0.0017453292519943296,
+     "range_sigma": 0.03,
+     "dropout": 0.02,
+     "far_dropout": 0.5,
+     "layers": 1,
+     "latency": 0.05
+    },
+    {
+     "name": "lidar_rear",
+     "mount": {
+      "x": 0.05,
+      "y": 0.0,
+      "z": 0.6,
+      "yaw": 3.141592653589793,
+      "edge": "rear"
+     },
+     "fov": 3.141592653589793,
+     "range_max": 120.0,
+     "rate": 10.0,
+     "beam_spacing": 0.003490658503988659,
+     "range_sigma": 0.03,
+     "dropout": 0.02,
+     "far_dropout": 0.5,
+     "layers": 1,
+     "latency": 0.05
+    }
+   ],
+   "radars": [
+    {
+     "name": "radar_front",
+     "mount": {
+      "x": -0.05,
+      "y": 0.0,
+      "z": 0.5,
+      "yaw": 0.0,
+      "edge": "front"
+     },
+     "fov": 1.5707963267948966,
+     "fov_far": 0.3141592653589793,
+     "near_range": 70.0,
+     "range_max": 250.0,
+     "rate": 20.0,
+     "sigma_range": 0.25,
+     "sigma_azimuth": 0.005235987755982988,
+     "sigma_range_rate": 0.1,
+     "latency": 0.03,
+     "rcs_dbsm": 10.0,
+     "pd_ref": 0.95,
+     "ref_range": 150.0,
+     "occluded_pd": 0.3,
+     "points_max": 3,
+     "false_alarms": 2.0,
+     "res_range": 0.4,
+     "res_azimuth": 0.06981317007977318
+    },
+    {
+     "name": "radar_rear",
+     "mount": {
+      "x": 0.05,
+      "y": 0.0,
+      "z": 0.5,
+      "yaw": 3.141592653589793,
+      "edge": "rear"
+     },
+     "fov": 2.0943951023931953,
+     "fov_far": 2.0943951023931953,
+     "near_range": 150.0,
+     "range_max": 150.0,
+     "rate": 20.0,
+     "sigma_range": 0.25,
+     "sigma_azimuth": 0.008726646259971648,
+     "sigma_range_rate": 0.1,
+     "latency": 0.03,
+     "rcs_dbsm": 10.0,
+     "pd_ref": 0.95,
+     "ref_range": 100.0,
+     "occluded_pd": 0.3,
+     "points_max": 3,
+     "false_alarms": 2.0,
+     "res_range": 0.4,
+     "res_azimuth": 0.06981317007977318
+    },
+    {
+     "name": "radar_left",
+     "mount": {
+      "x": 0.8,
+      "y": 0.95,
+      "z": 1.0,
+      "yaw": 1.5707963267948966,
+      "edge": ""
+     },
+     "fov": 2.6179938779914944,
+     "fov_far": 2.6179938779914944,
+     "near_range": 80.0,
+     "range_max": 80.0,
+     "rate": 20.0,
+     "sigma_range": 0.3,
+     "sigma_azimuth": 0.017453292519943295,
+     "sigma_range_rate": 0.15,
+     "latency": 0.03,
+     "rcs_dbsm": 10.0,
+     "pd_ref": 0.95,
+     "ref_range": 60.0,
+     "occluded_pd": 0.3,
+     "points_max": 3,
+     "false_alarms": 2.0,
+     "res_range": 0.4,
+     "res_azimuth": 0.06981317007977318
+    },
+    {
+     "name": "radar_right",
+     "mount": {
+      "x": 0.8,
+      "y": -0.95,
+      "z": 1.0,
+      "yaw": -1.5707963267948966,
+      "edge": ""
+     },
+     "fov": 2.6179938779914944,
+     "fov_far": 2.6179938779914944,
+     "near_range": 80.0,
+     "range_max": 80.0,
+     "rate": 20.0,
+     "sigma_range": 0.3,
+     "sigma_azimuth": 0.017453292519943295,
+     "sigma_range_rate": 0.15,
+     "latency": 0.03,
+     "rcs_dbsm": 10.0,
+     "pd_ref": 0.95,
+     "ref_range": 60.0,
+     "occluded_pd": 0.3,
+     "points_max": 3,
+     "false_alarms": 2.0,
+     "res_range": 0.4,
+     "res_azimuth": 0.06981317007977318
+    }
+   ],
+   "cameras": [
+    {
+     "name": "camera_front",
+     "mount": {
+      "x": 2.0,
+      "y": 0.0,
+      "z": 1.4,
+      "yaw": 0.0,
+      "edge": ""
+     },
+     "hfov": 1.0471975511965976,
+     "width_px": 1920,
+     "height_px": 1080,
+     "rate": 20.0,
+     "sigma_px": 2.0,
+     "latency": 0.08,
+     "min_height_px": 15.0,
+     "min_visible": 0.3,
+     "pd": 0.95,
+     "false_rate": 0.1,
+     "pitch_per_accel": 0.0035618964326414888,
+     "pitch_sigma": 0.0017453292519943296
+    },
+    {
+     "name": "camera_rear",
+     "mount": {
+      "x": 0.3,
+      "y": 0.0,
+      "z": 1.2,
+      "yaw": 3.141592653589793,
+      "edge": "rear"
+     },
+     "hfov": 1.5707963267948966,
+     "width_px": 1280,
+     "height_px": 960,
+     "rate": 20.0,
+     "sigma_px": 2.0,
+     "latency": 0.08,
+     "min_height_px": 15.0,
+     "min_visible": 0.3,
+     "pd": 0.95,
+     "false_rate": 0.1,
+     "pitch_per_accel": 0.0035618964326414888,
+     "pitch_sigma": 0.0017453292519943296
+    },
+    {
+     "name": "camera_left",
+     "mount": {
+      "x": 0.8,
+      "y": 0.95,
+      "z": 1.0,
+      "yaw": 1.5707963267948966,
+      "edge": ""
+     },
+     "hfov": 1.7453292519943295,
+     "width_px": 1280,
+     "height_px": 960,
+     "rate": 20.0,
+     "sigma_px": 2.0,
+     "latency": 0.08,
+     "min_height_px": 15.0,
+     "min_visible": 0.3,
+     "pd": 0.95,
+     "false_rate": 0.1,
+     "pitch_per_accel": 0.0035618964326414888,
+     "pitch_sigma": 0.0017453292519943296
+    },
+    {
+     "name": "camera_right",
+     "mount": {
+      "x": 0.8,
+      "y": -0.95,
+      "z": 1.0,
+      "yaw": -1.5707963267948966,
+      "edge": ""
+     },
+     "hfov": 1.7453292519943295,
+     "width_px": 1280,
+     "height_px": 960,
+     "rate": 20.0,
+     "sigma_px": 2.0,
+     "latency": 0.08,
+     "min_height_px": 15.0,
+     "min_visible": 0.3,
+     "pd": 0.95,
+     "false_rate": 0.1,
+     "pitch_per_accel": 0.0035618964326414888,
+     "pitch_sigma": 0.0017453292519943296
+    }
+   ],
+   "tracker": {
+    "q_long": 2.0,
+    "q_lat": 0.5,
+    "lane_keep_rate": 1.0,
+    "lc_speed": 1.0,
+    "imm_switch": 0.02,
+    "gate": 0.99,
+    "confirm_m": 3,
+    "confirm_n": 5,
+    "delete_exist": 0.1,
+    "exist_survive": 0.995,
+    "init_exist_lidar_dense": 0.5,
+    "init_exist_lidar": 0.3,
+    "init_exist_camera": 0.3,
+    "init_exist_radar": 0.2,
+    "dense_points": 10,
+    "init_speed_sigma_lane": 5.0,
+    "init_speed_sigma_own": 10.0,
+    "init_vd_sigma": 1.0,
+    "radar_speed_min_cos": 0.3,
+    "merge_cycles": 5,
+    "history": 0.3,
+    "roi_ahead": 300.0,
+    "roi_behind": 150.0,
+    "imm_init": [
+     0.9,
+     0.05,
+     0.05
+    ]
+   },
+   "sharing": "team",
+   "v2v_latency": 0.1,
+   "preroll": 1.0,
+   "car_height": 1.45,
+   "seed_tag": 24069
+  }
+ },
+ "driving": {
+  "team_score_mean": 21244.725642950616,
+  "crashed_episodes": 0,
+  "reference_seeds": 5,
+  "reference_identical": 0,
+  "reference_team_score_mean": 22053.960294530618,
+  "reference_crashed_episodes": 0
+ },
+ "timing": {
+  "stage_ms_per_call": {
+   "sim_lidar": 0.0,
+   "sim_radar": 0.0,
+   "sim_camera": 0.0,
+   "proc_lidar": 0.0,
+   "proc_radar": 0.0,
+   "proc_camera": 0.0,
+   "ideal": 0.37151929614630685,
+   "tracker": 6.322683227693938,
+   "snapshot": 0.10001434846174803,
+   "total": 6.794216872301993
+  },
+  "planner_ms_per_step": 14.50005844939733,
+  "wall_ms_per_step": 31.042765433356788,
+  "episode_wall_s_mean": 37.25131852002814,
+  "episode_wall_s_max": 37.631965700071305,
+  "eval_s_mean": 2.5854942206526177,
+  "peak_memory_mb_max": 203.22265625
+ },
+ "tracker_stats": {
+  "cycles": 6105,
+  "replays": 0,
+  "births": 258,
+  "merges": 0,
+  "deleted": 138,
+  "late_dropped": 0
+ },
+ "summary": {
+  "episodes": 5,
+  "frames": 6005,
+  "window": [
+   -80.0,
+   250.0
+  ],
+  "gospa": {
+   "c": 5.0,
+   "p": 2.0,
+   "alpha": 2.0,
+   "mean": 0.0009247362236509281,
+   "median": 0.0005183369758382859,
+   "localization": 3.037930504807749e-06,
+   "missed": 0.0,
+   "false": 0.0,
+   "rms_position_error": 0.0003893825739650753,
+   "truth_per_frame": 20.036636136552872,
+   "tracks_per_frame": 20.036636136552872,
+   "missed_per_frame": 0.0,
+   "false_per_frame": 0.0,
+   "coverage": 1.0,
+   "false_fraction": 0.0
+  },
+  "by_offset": [
+   {
+    "from": -80.0,
+    "to": -40.0,
+    "truth": 14232,
+    "matched": 14232,
+    "coverage": 1.0,
+    "tracks": 14232,
+    "false": 0,
+    "false_fraction": 0.0
+   },
+   {
+    "from": -40.0,
+    "to": -10.0,
+    "truth": 11889,
+    "matched": 11889,
+    "coverage": 1.0,
+    "tracks": 11889,
+    "false": 0,
+    "false_fraction": 0.0
+   },
+   {
+    "from": -10.0,
+    "to": 10.0,
+    "truth": 7017,
+    "matched": 7017,
+    "coverage": 1.0,
+    "tracks": 7017,
+    "false": 0,
+    "false_fraction": 0.0
+   },
+   {
+    "from": 10.0,
+    "to": 40.0,
+    "truth": 13501,
+    "matched": 13501,
+    "coverage": 1.0,
+    "tracks": 13501,
+    "false": 0,
+    "false_fraction": 0.0
+   },
+   {
+    "from": 40.0,
+    "to": 100.0,
+    "truth": 22200,
+    "matched": 22200,
+    "coverage": 1.0,
+    "tracks": 22200,
+    "false": 0,
+    "false_fraction": 0.0
+   },
+   {
+    "from": 100.0,
+    "to": 175.0,
+    "truth": 26133,
+    "matched": 26133,
+    "coverage": 1.0,
+    "tracks": 26133,
+    "false": 0,
+    "false_fraction": 0.0
+   },
+   {
+    "from": 175.0,
+    "to": 250.0,
+    "truth": 25348,
+    "matched": 25348,
+    "coverage": 1.0,
+    "tracks": 25348,
+    "false": 0,
+    "false_fraction": 0.0
+   }
+  ],
+  "false_tracks": {
+   "track_frames": 0,
+   "p_exist_matched_mean": 0.9989996552467346
+  },
+  "nees": {
+   "state": {
+    "n": 120320,
+    "dof": 4,
+    "mean": 0.008060285833280062,
+    "bounds": [
+     3.9840340056047223,
+     4.015997482183085
+    ],
+    "within": false,
+    "median": 0.0003576815943233669,
+    "median_expected": 3.3566939800333224,
+    "inside": 0.004163896276595745,
+    "inside_expected": 0.95,
+    "above_999": 0.0,
+    "per_time": {
+     "steps": 1201,
+     "pairs_per_step": 100.18318068276436,
+     "inside": 0.0,
+     "inside_expected": 0.95,
+     "below": 1.0,
+     "above": 0.0
+    },
+    "by_offset": [
+     {
+      "from": -80.0,
+      "to": -40.0,
+      "n": 14232,
+      "mean": 0.00878730664565377,
+      "median": 0.0003010326763615012,
+      "inside": 0.005129286115795391
+     },
+     {
+      "from": -40.0,
+      "to": -10.0,
+      "n": 11889,
+      "mean": 0.00788107901107032,
+      "median": 0.00029462724342010915,
+      "inside": 0.003364454537808058
+     },
+     {
+      "from": -10.0,
+      "to": 10.0,
+      "n": 7017,
+      "mean": 0.007408291701742695,
+      "median": 0.0003799948317464441,
+      "inside": 0.002992731936725096
+     },
+     {
+      "from": 10.0,
+      "to": 40.0,
+      "n": 13501,
+      "mean": 0.006462792009747097,
+      "median": 0.0002668933884706348,
+      "inside": 0.0038515665506258794
+     },
+     {
+      "from": 40.0,
+      "to": 100.0,
+      "n": 22200,
+      "mean": 0.007587728046943824,
+      "median": 0.0003544209757819772,
+      "inside": 0.0023423423423423423
+     },
+     {
+      "from": 100.0,
+      "to": 175.0,
+      "n": 26133,
+      "mean": 0.00850969055989028,
+      "median": 0.0003613437293097377,
+      "inside": 0.006505185015114988
+     },
+     {
+      "from": 175.0,
+      "to": 250.0,
+      "n": 25348,
+      "mean": 0.008718046831237496,
+      "median": 0.00047125744458753616,
+      "inside": 0.0036689285150702227
+     }
+    ],
+    "by_age": [
+     {
+      "from": 0.0,
+      "to": 0.3,
+      "n": 120320,
+      "mean": 0.008060285833280062,
+      "median": 0.0003576815943233669,
+      "inside": 0.004163896276595745
+     },
+     {
+      "from": 0.3,
+      "to": 1.0,
+      "n": 0
+     },
+     {
+      "from": 1.0,
+      "to": null,
+      "n": 0
+     }
+    ],
+    "by_lane_change": [
+     {
+      "changing": false,
+      "n": 120247,
+      "mean": 0.008021768700092864,
+      "median": 0.00035713601391762495,
+      "inside": 0.004166424110372816
+     },
+     {
+      "changing": true,
+      "n": 73,
+      "mean": 0.07150644630397836,
+      "median": 0.06902804970741272,
+      "inside": 0.0
+     }
+    ]
+   },
+   "position": {
+    "n": 120320,
+    "dof": 2,
+    "mean": 0.0017300336421345098,
+    "bounds": [
+     1.9887149524900276,
+     2.0113165352883713
+    ],
+    "within": false,
+    "median": 7.985836782609113e-05,
+    "median_expected": 1.386294361119891,
+    "inside": 0.007987034574468085,
+    "inside_expected": 0.95,
+    "above_999": 0.0,
+    "per_time": {
+     "steps": 1201,
+     "pairs_per_step": 100.18318068276436,
+     "inside": 0.0,
+     "inside_expected": 0.95,
+     "below": 1.0,
+     "above": 0.0
+    },
+    "by_offset": [
+     {
+      "from": -80.0,
+      "to": -40.0,
+      "n": 14232,
+      "mean": 0.001902624828824,
+      "median": 6.801354902563617e-05,
+      "inside": 0.00962619449128724
+     },
+     {
+      "from": -40.0,
+      "to": -10.0,
+      "n": 11889,
+      "mean": 0.0016656510903624096,
+      "median": 6.544651841977611e-05,
+      "inside": 0.00757002271006813
+     },
+     {
+      "from": -10.0,
+      "to": 10.0,
+      "n": 7017,
+      "mean": 0.001564694474545759,
+      "median": 8.532497304258868e-05,
+      "inside": 0.009120706854781245
+     },
+     {
+      "from": 10.0,
+      "to": 40.0,
+      "n": 13501,
+      "mean": 0.0013872871987294364,
+      "median": 6.008164564264007e-05,
+      "inside": 0.005258869713354567
+     },
+     {
+      "from": 40.0,
+      "to": 100.0,
+      "n": 22200,
+      "mean": 0.001637432525305847,
+      "median": 7.871751222410239e-05,
+      "inside": 0.007702702702702703
+     },
+     {
+      "from": 100.0,
+      "to": 175.0,
+      "n": 26133,
+      "mean": 0.0018275491977736927,
+      "median": 8.055194484768435e-05,
+      "inside": 0.009375119580606895
+     },
+     {
+      "from": 175.0,
+      "to": 250.0,
+      "n": 25348,
+      "mean": 0.001872218502419873,
+      "median": 0.00010494825619389303,
+      "inside": 0.007219504497396245
+     }
+    ],
+    "by_age": [
+     {
+      "from": 0.0,
+      "to": 0.3,
+      "n": 120320,
+      "mean": 0.0017300336421345098,
+      "median": 7.985836782609113e-05,
+      "inside": 0.007987034574468085
+     },
+     {
+      "from": 0.3,
+      "to": 1.0,
+      "n": 0
+     },
+     {
+      "from": 1.0,
+      "to": null,
+      "n": 0
+     }
+    ],
+    "by_lane_change": [
+     {
+      "changing": false,
+      "n": 120247,
+      "mean": 0.0017218290706381117,
+      "median": 7.968837599037215e-05,
+      "inside": 0.007991883373389772
+     },
+     {
+      "changing": true,
+      "n": 73,
+      "mean": 0.015244761158948229,
+      "median": 0.01544345635920763,
+      "inside": 0.0
+     }
+    ]
+   },
+   "components": {
+    "s": {
+     "z_mean": 0.007955353133816685,
+     "z_std": 0.04075333995083826,
+     "err_mean": 7.457424560869432e-05,
+     "err_rms": 0.00038922642773864046
+    },
+    "d": {
+     "z_mean": -1.0648353094987036e-05,
+     "z_std": 0.002551246744376364,
+     "err_mean": -4.5957862021571166e-08,
+     "err_rms": 1.1026184913091164e-05
+    },
+    "v_s": {
+     "z_mean": 0.017298756328813603,
+     "z_std": 0.08770036757919546,
+     "err_mean": 0.0061328994550962105,
+     "err_rms": 0.031687464954634974
+    },
+    "v_d": {
+     "z_mean": 2.858841855309216e-05,
+     "z_std": 0.006198500972212796,
+     "err_mean": 7.887935632588596e-07,
+     "err_rms": 0.00019678393782658743
+    }
+   }
+  },
+  "nis": {
+   "all": {
+    "n": 177200,
+    "mean": 0.01757825243883582,
+    "mean_dof": 3.0,
+    "expected": 2.894075248146847,
+    "bounds": [
+     2.8837760372490413,
+     2.9043744590446527
+    ],
+    "within": false,
+    "ratio": 0.006073875394253014,
+    "inside": 0.019582392776523704,
+    "inside_expected": 0.95,
+    "pit": [
+     0.9912,
+     0.008,
+     0.0005,
+     0.0001,
+     0.0001,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0001
+    ]
+   },
+   "kind:lidar_box": {
+    "n": 177200,
+    "mean": 0.01757825243883582,
+    "mean_dof": 3.0,
+    "expected": 2.894075248146847,
+    "bounds": [
+     2.8837760372490413,
+     2.9043744590446527
+    ],
+    "within": false,
+    "ratio": 0.006073875394253014,
+    "inside": 0.019582392776523704,
+    "inside_expected": 0.95,
+    "pit": [
+     0.9912,
+     0.008,
+     0.0005,
+     0.0001,
+     0.0001,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0001
+    ]
+   },
+   "sensor:lidar_ideal": {
+    "n": 177200,
+    "mean": 0.01757825243883582,
+    "mean_dof": 3.0,
+    "expected": 2.894075248146847,
+    "bounds": [
+     2.8837760372490413,
+     2.9043744590446527
+    ],
+    "within": false,
+    "ratio": 0.006073875394253014,
+    "inside": 0.019582392776523704,
+    "inside_expected": 0.95,
+    "pit": [
+     0.9912,
+     0.008,
+     0.0005,
+     0.0001,
+     0.0001,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0001
+    ]
+   }
+  },
+  "id_switches": {
+   "switches": 0,
+   "takeovers": 0,
+   "rebirths": 0,
+   "track_swaps": 0,
+   "tracked_car_minutes": 100.26666666666719,
+   "switches_per_car_minute": 0.0,
+   "tracks_per_car": 1.0
+  },
+  "detection": {
+   "lidar_ideal": {
+    "kind": "LidarSpec",
+    "edges": [
+     0.0,
+     10.0,
+     25.0,
+     50.0,
+     75.0,
+     100.0,
+     150.0,
+     200.0,
+     250.0
+    ],
+    "opp": [
+     6314,
+     14330,
+     19697,
+     18681,
+     19578,
+     35030,
+     26147,
+     17638
+    ],
+    "pd": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "opp_visible": [
+     6275,
+     14073,
+     12008,
+     8478,
+     4906,
+     6871,
+     3797,
+     2981
+    ],
+    "pd_visible": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "pd_all": 1.0,
+    "pd_visible_all": 1.0,
+    "scans": 6005,
+    "detections_per_scan": 45.0,
+    "false_per_scan": 0.09442131557035803,
+    "mate_per_scan": 0.0
+   }
+  }
+ },
+ "wall_s": 67.87064310000278
+}

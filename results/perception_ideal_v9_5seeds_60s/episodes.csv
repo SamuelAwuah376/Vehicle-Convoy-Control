@@ -1,0 +1,6 @@
+seed,team_score,collisions,end_reason,gospa_m,gospa_loc_m2,gospa_missed_m2,gospa_false_m2,rms_pos_m,coverage,missed_per_frame,false_per_frame,nees4_mean,nees4_inside,nees2_mean,nis_ratio,nis_inside,false_duplicate,false_ghost,id_switches,id_takeovers,id_rebirths,track_swaps,perception_ms_per_call,planner_ms_per_step,wall_s,ref_team_score,ref_collisions,ref_identical
+1000,38406.8,0,time,0.001,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.009,0.0062,0.002,0.0063,0.0196,,,0,0,0,0,6.845,14.686,37.6,37270.8,0,False
+1001,38583.4,0,time,0.001,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.006,0.0017,0.001,0.006,0.0184,,,0,0,0,0,6.804,14.608,37.3,38594.9,0,False
+1002,6062.0,0,time,0.001,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.008,0.0042,0.002,0.0066,0.0229,,,0,0,0,0,6.755,14.693,37.5,6041.4,0,False
+1003,7069.7,0,time,0.001,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.009,0.0046,0.002,0.0064,0.0216,,,0,0,0,0,6.794,14.363,37.0,12278.5,0,False
+1004,16101.8,0,time,0.001,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.008,0.004,0.002,0.0051,0.0156,,,0,0,0,0,6.774,14.15,36.9,16084.2,0,False
