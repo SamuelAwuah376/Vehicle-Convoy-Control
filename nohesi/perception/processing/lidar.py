@@ -24,6 +24,8 @@ import numpy as np
 from ...geometry import cg_offsets
 from ..geometry import mount_offset, sensor_pose, to_world, wrap
 from ..types import Detection
+from .. import _jit
+from ._lidar_jit import fit_box_kernel
 
 __all__ = ['deskew', 'process_lidar', 'fit_box', 'lshape_heading', 'refit']
 
@@ -351,7 +353,23 @@ def fit_box(points, times, sensor, params, spec, free=(True, True), velocity=(0.
     (z, R, sides, t_ref): z = [x, y, heading] of the body centre at t_ref, R (3, 3), sides seen (0-2). With a dict
     `out`, also out['dz_dv'] (3, 2) = d z / d velocity (to first order, the fit with the car's true velocity v is
     z + dz_dv (v - velocity)) and out['R_fit'], R without the prior's share: a tracker that knows v models
-    z = box(x) + dz_dv (velocity - v) with R_fit, instead of taking the prior's error as white noise."""
+    z = box(x) + dz_dv (velocity - v) with R_fit, instead of taking the prior's error as white noise. Runs as the
+    compiled _lidar_jit.fit_box_kernel when _jit.ENABLED, else as _fit_box_py."""
+    if _jit.ENABLED:
+        z, cov, sides, t_ref, dz_dv, R_fit = fit_box_kernel(
+            np.ascontiguousarray(points, float), np.ascontiguousarray(times, float),
+            np.ascontiguousarray(np.asarray(sensor, float)[:2]), np.array([params.length, params.width], float),
+            float(spec.range_sigma), float(sigma_model), bool(free[0]), bool(free[1]), float(spec.dropout),
+            float(spec.far_dropout), float(spec.range_max), np.ascontiguousarray(velocity, float),
+            np.ascontiguousarray(velocity_sigma, float), bool(refine), HEADINGS)
+        if out is not None:
+            out['dz_dv'], out['R_fit'] = dz_dv, R_fit
+        return z, cov, int(sides), float(t_ref)
+    return _fit_box_py(points, times, sensor, params, spec, free, velocity, velocity_sigma, refine, sigma_model, out)
+
+
+def _fit_box_py(points, times, sensor, params, spec, free, velocity, velocity_sigma, refine, sigma_model, out):
+    """fit_box's numpy path (NOHESI_JIT=0, or numba missing): the reference for _lidar_jit.fit_box_kernel."""
     tt = np.asarray(times, float)
     t_ref = float(tt.mean())
     tau = t_ref-tt

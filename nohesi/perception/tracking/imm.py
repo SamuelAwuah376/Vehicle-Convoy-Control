@@ -13,6 +13,8 @@ API (the tracker and belief.py build on it):
   measurement; mu reweighted by the models' likelihoods (log-sum-exp safe, floored at MU_FLOOR); loglik =
   log sum_j mu_j N(z; zhat_j, S_j), the mixture's measurement likelihood (existence and association); nis per model.
 - imm_combine(state) -> (mean (4,), cov (4, 4)): the moment-matched single Gaussian.
+  imm_combine and lane_probability of stacked tracks (P, 3, ...) run compiled (_tracking_jit.combine, lane_rows)
+  when numba is on (perception/_jit.py); imm_combine_numpy and lane_probability_numpy are the numpy reference.
 - lane_probability(state, road) -> (lanes,): probability of the lane the car is heading to, sum_j mu_j [lane of
   model j], the lane of each model from its mean d by models.target_lane: keep -> lane_of(d), left -> lane_of(d) + 1
   and right -> lane_of(d) - 1 (until the car has reached the centre of the lane it is changing into: that lane),
@@ -26,14 +28,17 @@ from dataclasses import dataclass
 from functools import lru_cache
 import numpy as np
 from scipy.linalg import expm
+from .. import _jit
 from ..config import TrackerConfig
-from .models import MODELS, motion, process_noise, target_lane, _road
+from . import _tracking_jit as K
+from .models import MODELS, _STEP, motion, process_noise, target_lane, _road
 from .ukf import sigma_points, ukf_update, symmetrize
 
 __all__ = ['IMMState', 'MU_FLOOR', 'init_state', 'imm_transition', 'imm_predict', 'imm_update', 'imm_combine',
-           'lane_probability']
+           'imm_combine_numpy', 'lane_probability', 'lane_probability_numpy']
 
 MU_FLOOR = 1e-12
+_STEPS = np.array([_STEP[m] for m in MODELS], np.int64)     # the models' lateral steps, for _tracking_jit.lane_rows
 
 
 @dataclass
@@ -120,6 +125,15 @@ def imm_update(state, z, R, h, residual=None):
 def imm_combine(state):
     """Moment-matched (mean, cov) of the model mixture."""
     mu, means = np.asarray(state.mu, float), np.asarray(state.means, float)
+    if _jit.ENABLED and means.ndim == 3:
+        c = np.ascontiguousarray
+        return K.combine(c(means), c(np.asarray(state.covs, float)), c(mu))
+    return imm_combine_numpy(state)
+
+
+def imm_combine_numpy(state):
+    """imm_combine in numpy (the reference of the compiled kernel)."""
+    mu, means = np.asarray(state.mu, float), np.asarray(state.means, float)
     m = np.einsum('...j,...jn->...n', mu, means)
     dm = means-m[..., None, :]
     P = np.einsum('...j,...jnk->...nk', mu, state.covs)+np.einsum('...j,...jn,...jk->...nk', mu, dm, dm)
@@ -128,6 +142,16 @@ def imm_combine(state):
 
 def lane_probability(state, road):
     """(..., lanes) probability of the lane the car is heading to."""
+    d = np.asarray(state.means, float)[..., 1]
+    if _jit.ENABLED and d.ndim == 2 and d.shape[1] == len(MODELS):
+        lanes, w = _road(road)
+        return K.lane_rows(np.ascontiguousarray(d), np.ascontiguousarray(state.mu, float), _STEPS, lanes, w,
+                           lanes*w/2)
+    return lane_probability_numpy(state, road)
+
+
+def lane_probability_numpy(state, road):
+    """lane_probability in numpy (the reference of the compiled kernel)."""
     lanes, _ = _road(road)
     d = np.asarray(state.means, float)[..., 1]
     target = np.stack([target_lane(model, d[..., j], road) for j, model in enumerate(MODELS)], -1)

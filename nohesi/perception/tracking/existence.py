@@ -8,6 +8,7 @@ API (the tracker builds on it):
 - visibility(origins, boxes, targets, skip=None, want=None, samples=VIS_SAMPLES) -> (C, T): geometry.visible_fraction
   of every target box from every origin (C, 2) in one pass (the same sample points and the same ray test, each ray
   against only the boxes that can block it); skip (C, B) bool per origin, want (C, T) the pairs to evaluate.
+  Compiled (_tracking_jit.visibility) when numba is on, else visibility_numpy.
   visible_fractions(origin, boxes, targets, skip=(), samples) -> (len(targets),): the same for one origin.
 - radar_pd_range(spec, r): the radar's nominal detection curve of a fully visible car (radar equation, logistic in
   SNR, calibrated to pd_ref at ref_range and 0.5 at range_max; 0 beyond range_max).
@@ -43,12 +44,15 @@ from dataclasses import fields
 from functools import lru_cache
 import numpy as np
 from scipy.special import ndtr
+from .. import _jit
 from ..config import CameraSpec, LidarSpec, RadarSpec
 from ..geometry import focal
 from ..processing.radar import STATIONARY_SIGMAS
+from . import _tracking_jit as K
 
 __all__ = ['SpecRows', 'spec_rows', 'VIS_SAMPLES', 'LIDAR_MIN_POINTS', 'LIDAR_FALSE', 'RANGE_RATE_SPAN', 'EXIST_MAX',
-           'EXIST_MIN', 'PD_DETECTED_MIN', 'visibility', 'visible_fractions', 'radar_pd_range', 'lidar_pd', 'camera_pd',
+           'EXIST_MIN', 'PD_DETECTED_MIN', 'visibility', 'visibility_numpy', 'visible_fractions', 'radar_pd_range',
+           'lidar_pd', 'camera_pd',
            'doppler_pass', 'expected_pd', 'reach', 'clutter_rate', 'clutter_log_volumes', 'clutter_density',
            'miss_log_factor', 'hit_log_factor', 'survive', 'apply_log_odds', 'kind_of']
 
@@ -113,11 +117,21 @@ def visibility(origins, boxes, targets, skip=None, want=None, samples=VIS_SAMPLE
     B = np.asarray(boxes, float)
     targets = np.asarray(targets, int).reshape(-1)
     C, T, nb = len(o), len(targets), len(B)
-    out = np.zeros((C, T))
     if C == 0 or T == 0 or nb == 0:
-        return out
+        return np.zeros((C, T))
     active = np.ones((C, nb), bool) if skip is None else ~np.asarray(skip, bool).reshape(C, nb)
     want = np.ones((C, T), bool) if want is None else np.asarray(want, bool).reshape(C, T)
+    if _jit.ENABLED:
+        c = np.ascontiguousarray
+        return K.visibility(c(o), c(B.reshape(nb, 4, 2)), c(targets, np.int64), c(active), c(want), int(samples))
+    return visibility_numpy(o, B, targets, active, want, samples)
+
+
+def visibility_numpy(o, B, targets, active, want, samples=VIS_SAMPLES):
+    """visibility in numpy (the reference of the compiled kernel), from its normalized arguments: origins o (C, 2),
+    boxes B (nb, 4, 2), targets (T,), active (C, nb) the boxes not skipped, want (C, T) bool."""
+    C, T, nb = len(o), len(targets), len(B)
+    out = np.zeros((C, T))
     centre = B.mean(1)
     ex, ey = B[:, 1]-B[:, 0], B[:, 3]-B[:, 0]                              # the box's own axes
     hl, hw = np.hypot(ex[:, 0], ex[:, 1])/2, np.hypot(ey[:, 0], ey[:, 1])/2

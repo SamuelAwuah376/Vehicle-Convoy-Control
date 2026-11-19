@@ -7,7 +7,8 @@ atan2(v_d, v_s) (v_s floored at V_MIN, as types.TruthHistory). Every car has the
 API (the tracker builds on it):
 - MODELS = ('keep', 'left', 'right'): lane keep, change left (+d, lane + 1), change right (-d, lane - 1).
 - motion(model, cfg, road) -> f(X, dt): one exact-discretized step for TrackerConfig cfg and nohesi.road.Road road
-  (or its config). Along the road v_s is constant. Across it:
+  (or its config); f.step (0, +1, -1) and f.params (lane_keep_rate, lc_speed, lanes, lane_width, half the road's
+  width) describe it to the compiled kernels (_tracking_jit). Along the road v_s is constant. Across it:
   - keep: d returns to the centre c of lane_of(d) and v_d to 0, critically damped at cfg.lane_keep_rate k
     (d'' = -2k d' - k^2 (d - c)): no overshoot, v_d stays a real state (a car caught mid-change carries on a little,
     then settles), and the step is the closed-form matrix exponential;
@@ -125,6 +126,7 @@ def motion(model, cfg, road):
         out[..., 1] = np.where(stop, c, dn)
         out[..., 3] = np.where(stop, 0.0, vt+(vd-vt)*E)
         return out
+    f.step, f.params = step, (k, speed, float(lanes), w, half)   # for the compiled kernels (_tracking_jit)
     return f
 
 

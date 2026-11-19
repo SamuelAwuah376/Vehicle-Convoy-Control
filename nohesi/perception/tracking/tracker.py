@@ -87,6 +87,14 @@ T. One cycle is:
    unconfirmed track not detected for confirm_n cycles (the M-of-N rule: it cannot be confirmed in its window, and a
    clutter track hidden behind a real car would otherwise never be missed); along-road sigma above MAX_SIGMA_S.
 
+Compiled path. With numba on (perception/_jit.py) the numeric work of a cycle runs in _tracking_jit's kernels: the
+predictions, the gate, the joint update, the coarse gate, coverage and visibility, existence, the lidar and radar
+births, the occupied test and the assignment's cost matrices; the bookkeeping (scans, the replay history, merging,
+scipy's assignment) stays here. The numpy code stays as the reference (predict_rows_numpy, joint_update_numpy, the
+numpy branches of the methods) and is the path with NOHESI_JIT=0; the two agree to rounding (the tests compare them
+call by call and over whole replays), and a kernel that meets a matrix only ukf.robust_cholesky or floor_eigenvalues
+can take hands the call back to numpy.
+
 Late measurements. The tracker keeps the scans and a snapshot of the tracks (with the id counter, merge counters and
 NIS log length) before each cycle of the last history + hold seconds. A scan for an already applied cycle restores the
 snapshot before that cycle and re-applies the buffered cycles in order, so the belief depends only on the set of scans
@@ -96,19 +104,23 @@ costs a cycle); hold = the largest delivery latency applies each cycle once, com
 delay.
 """
 from bisect import bisect_right
+from math import floor
 from types import SimpleNamespace
 from typing import NamedTuple
 import numpy as np
 from ...geometry import cg_offsets
-from ..geometry import car_boxes, wrap
+from .. import _jit
+from ..geometry import car_boxes, focal, wrap
 from ..types import Belief
+from . import _tracking_jit as K
 from . import association as A
 from . import existence as E
 from .imm import IMMState, MU_FLOOR, init_state, imm_combine, lane_probability
-from .models import MODELS, heading, lane_of, motion
-from .ukf import floor_eigenvalues, sigma_points, symmetrize
+from .models import MODELS, NEAR, V_MIN, heading, lane_of, motion
+from .ukf import ALPHA, BETA, KAPPA, _weights, floor_eigenvalues, sigma_points, symmetrize
 
-__all__ = ['TeamTracker', 'ScanInfo', 'NIS_DTYPE', 'predict_rows', 'joint_update', 'transition_rows',
+__all__ = ['TeamTracker', 'ScanInfo', 'NIS_DTYPE', 'predict_rows', 'predict_rows_numpy', 'joint_update',
+           'joint_update_numpy', 'transition_rows',
            'noise_rows']
 
 KIND_ORDER = {'lidar_box': 0, 'radar': 1, 'camera_box': 2}
@@ -125,6 +137,10 @@ MAX_SIGMA_S = 50.0        # m: a track this uncertain along the road is deleted
 NIS_DTYPE = np.dtype([('time', 'f8'), ('track', 'i8'), ('kind', 'U10'), ('sensor', 'U24'), ('car', 'i8'),
                       ('dof', 'i8'), ('nis', 'f8')])
 _KINDS = ('lidar_box', 'radar', 'camera_box')
+_C, _WM, _WC = _weights(4, ALPHA, BETA, KAPPA)       # the track state's sigma-point scale and weights, as writable
+_WM, _WC, _SC = np.array(_WM), np.array(_WC), float(np.sqrt(_C))    # arrays for the kernels
+_C3, _WM3, _WC3 = _weights(3, ALPHA, BETA, KAPPA)    # the same for a lidar box's [x, y, heading] (births)
+_WM3, _WC3, _SC3 = np.array(_WM3), np.array(_WC3), float(np.sqrt(_C3))
 
 
 class _Gate(NamedTuple):
@@ -189,10 +205,50 @@ def noise_rows(cfg, dt):
     return Q
 
 
+_MOTION_ROWS = {}
+
+
+def _motion_row(cfg, motions):
+    """(steps (J,), the MOTION row of _tracking_jit) of motions made by models.motion with one cfg and road, else
+    None (the numpy path then runs them as given). Cached per (cfg, motions) objects."""
+    key = (id(cfg), tuple(id(f) for f in motions))
+    got = _MOTION_ROWS.get(key)
+    if got is None or got[0] is not cfg or any(a is not b for a, b in zip(got[1], motions)):
+        if len(_MOTION_ROWS) > 64:
+            _MOTION_ROWS.clear()
+        got = _MOTION_ROWS[key] = (cfg, tuple(motions), _make_motion_row(cfg, motions))
+    return got[2]
+
+
+def _make_motion_row(cfg, motions):
+    pars = [getattr(f, 'params', None) for f in motions]
+    if not pars or any(p is None or p != pars[0] for p in pars):
+        return None
+    k, speed, lanes, w, half = pars[0]
+    mp = np.array([k, speed, lanes, w, half, float(cfg.imm_switch), float(cfg.q_long)**2, float(cfg.q_lat)**2,
+                   MU_FLOOR])
+    return np.array([f.step for f in motions], np.int64), mp
+
+
 def predict_rows(means, covs, mu, dt, cfg, motions):
     """imm.imm_predict of tracks (P, 3, 4), (P, 3, 4, 4), (P, 3) by their own dt (P,): mixing, then each model's
     unscented prediction (motions: the models.motion functions in MODELS order). Rows with dt = 0 come back unchanged;
-    dt < 0 runs the motions backward with the transition and process noise of |dt|."""
+    dt < 0 runs the motions backward with the transition and process noise of |dt|. Compiled
+    (_tracking_jit.predict_rows) when numba is on and the motions are models.motion's, else predict_rows_numpy (also
+    for a covariance without a plain Cholesky factor, which ukf.robust_cholesky handles)."""
+    if _jit.ENABLED:
+        mr = _motion_row(cfg, motions)
+        means, covs, mu = (np.ascontiguousarray(a, float) for a in (means, covs, mu))
+        if mr is not None and means.ndim == 3 and means.shape[1:] == (len(motions), 4):
+            m, P, u, ok = K.predict_rows(means, covs, mu, np.ascontiguousarray(np.asarray(dt, float).reshape(-1)),
+                                         mr[0], mr[1], _WM, _WC, _SC)
+            if ok:
+                return IMMState(m, P, u)
+    return predict_rows_numpy(means, covs, mu, dt, cfg, motions)
+
+
+def predict_rows_numpy(means, covs, mu, dt, cfg, motions):
+    """predict_rows in numpy (the reference of the compiled kernel)."""
     dt = np.asarray(dt, float).reshape(-1)
     out = IMMState(np.array(means, float), np.array(covs, float), np.array(mu, float))
     idx = np.flatnonzero(dt != 0)
@@ -227,7 +283,21 @@ def predict_rows(means, covs, mu, dt, cfg, motions):
 def joint_update(state, X, wm, start, nu, Pzz, D, R):
     """IMM update of tracks with several detections each (module docstring, step 4). state: the tracks' predicted
     IMMState (U, J, ...) and X (U, J, 2n+1, n) its sigma points (weights wm); per detection, sorted by track with
-    start (U,) the first of each track's: its association.moments nu, Pzz, D (P, J, ...) and R (P, M, M).
+    start (U,) the first of each track's: its association.moments nu, Pzz, D (P, J, ...) and R (P, M, M). Compiled
+    (_tracking_jit.joint_update) when numba is on, else (and when some R* has no plain Cholesky factor)
+    joint_update_numpy."""
+    if _jit.ENABLED:
+        c = lambda a: np.ascontiguousarray(a, float)
+        m, P, mu, ok, healthy = K.joint_update(c(state.means), c(state.covs), c(state.mu), c(X), float(wm[1]),
+                                               np.ascontiguousarray(start, np.int64), c(nu), c(Pzz), c(D), c(R),
+                                               MU_FLOOR)
+        if ok:
+            return IMMState(m, P if healthy else floor_eigenvalues(P), mu)
+    return joint_update_numpy(state, X, wm, start, nu, Pzz, D, R)
+
+
+def joint_update_numpy(state, X, wm, start, nu, Pzz, D, R):
+    """joint_update in numpy (the reference of the compiled kernel).
 
     Each detection is statistically linearized on its track's sigma points, z ~ zhat + D^T xi + e with
     x = mean + L xi and cov(e) = R* = R + Pzz - D^T D, and a track's detections are fused in information form in xi:
@@ -271,12 +341,52 @@ def _healthy(P):
 
 def _cv(mean, cov, dt, cfg=None):
     """Constant-velocity prediction of combined states (n, 4), (n, 4, 4) by dt (n,), with cfg's process noise
-    (noise_rows; none without cfg)."""
+    (noise_rows; none without cfg). Compiled (_tracking_jit.cv_rows) when numba is on."""
     dt = np.asarray(dt, float)
+    if _jit.ENABLED:
+        ql, qd = (0.0, 0.0) if cfg is None else (cfg.q_long**2, cfg.q_lat**2)
+        return K.cv_rows(np.ascontiguousarray(mean, float), np.ascontiguousarray(cov, float),
+                         np.ascontiguousarray(dt.reshape(-1)), float(ql), float(qd), cfg is not None)
     F = np.tile(np.eye(4), (len(dt), 1, 1))
     F[:, 0, 2] = F[:, 1, 3] = dt
     P = F @ cov @ np.swapaxes(F, -1, -2)
     return np.einsum('nij,nj->ni', F, mean), P if cfg is None else P+noise_rows(cfg, dt)
+
+
+def _spec_row(spec, reach):
+    """A sensor's SPEC row for _tracking_jit.coverage: its reach (existence.reach) and the numeric spec fields the
+    pd models read (NaN where the spec has none)."""
+    row = np.full(len(K.SPEC_FIELDS), np.nan)
+    row[:2] = reach
+    for i, f in enumerate(K.SPEC_FIELDS[2:], 2):
+        v = getattr(spec, f, None)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            row[i] = float(v)
+    if E.kind_of(spec) == 'camera_box':
+        row[K.S_FOCAL] = focal(spec)
+    return row
+
+
+def _median(v):
+    """np.median of a short 1-D array (the same value: the middle element, or the mean of the two middle ones),
+    without np.median's per-call overhead."""
+    if np.isnan(v).any():
+        return float(np.median(v))
+    s = sorted(v.tolist())
+    h = len(s)//2
+    return s[h] if len(s) % 2 else (s[h-1]+s[h])/2
+
+
+def _unique_sorted(ci):
+    """np.unique(ci, return_inverse=True) (values, inverse) of an index array, by run lengths when ci is already
+    sorted (np.nonzero's row-major pairs are)."""
+    if ci.size and np.all(ci[1:] >= ci[:-1]):
+        first = np.empty(ci.size, bool)
+        first[0] = True
+        np.not_equal(ci[1:], ci[:-1], out=first[1:])
+        return ci[first], np.cumsum(first)-1
+    trk, row = np.unique(ci, return_inverse=True)
+    return trk, row.reshape(-1)
 
 
 def _popcount(x, bits):
@@ -316,7 +426,8 @@ class _Scan:
     """One scan: its detections in a deterministic order and the pose and time its coverage is evaluated at."""
     def __init__(self, time, sensor, car, kind, spec, dets, pose=None, pose_time=None):
         self.time, self.sensor, self.car, self.kind, self.spec = float(time), sensor, int(car), kind, spec
-        self.dets = sorted(dets, key=lambda d: (float(d.time), np.asarray(d.z, float).tobytes()))
+        self.dets = (sorted(dets, key=lambda d: (float(d.time), np.asarray(d.z, float).tobytes())) if len(dets) > 1
+                     else list(dets))
         if pose is None and self.dets:
             last = max(self.dets, key=lambda d: float(d.time))
             pose, pose_time = last.sensor_pose, last.time
@@ -360,6 +471,14 @@ class TeamTracker:
         self._thr2 = A.gate_threshold(float(cfg.gate), 2)
         rear, front = cg_offsets(params)
         self._shift = (rear+front)/2
+        self._mrow = _motion_row(cfg, self._motions)
+        self._geom = np.array([sum(cg_offsets(params))/2, params.length/2, params.width/2, V_MIN, NEAR,
+                               self.car_height])     # _tracking_jit's GEOM row (association._body's shift)
+        self._cover = np.array([REACH_SLACK[0], REACH_SLACK[1], ORIGIN_MERGE, E.VIS_SAMPLES, E.STATIONARY_SIGMAS,
+                                E.LIDAR_MIN_POINTS, rear, front, params.length, params.width, self.car_height])
+        self._srow = {name: _spec_row(spec, self._reach[name]) for name, spec in self.specs.items()}
+        self._birth = np.array([self._shift, params.length, params.width, float(cfg.init_vd_sigma)**2,
+                                float(cfg.radar_speed_min_cos), RADAR_BIRTH_SIGMA**2])     # _tracking_jit's BIRTH row
         self.reset()
 
     # ---------------------------------------------------------------------------------------------- public
@@ -439,7 +558,7 @@ class TeamTracker:
 
     # ---------------------------------------------------------------------------------------------- bookkeeping
     def _cycle_of(self, t):
-        return int(np.floor(t/self.cycle+1e-6))
+        return int(floor(t/self.cycle+1e-6))
 
     def _group(self, detections, scans):
         groups, infos = {}, {}
@@ -555,11 +674,28 @@ class TeamTracker:
 
     def _coverage(self, scans, mc, S, team, T):
         """Expected detection probability (scans, tracks) of every track for every scan: one existence.expected_pd
-        call per sensor type, every scan of that type at once."""
+        call per sensor type, every scan of that type at once (compiled in one call, _tracking_jit.coverage, when
+        numba is on)."""
         n = len(mc)
         pd = np.zeros((len(scans), n))
         ks = np.array([k for k, sc in enumerate(scans) if sc.pose is not None], int)
         if ks.size == 0 or n == 0:
+            return pd
+        if _jit.ENABLED:
+            sc_ = [scans[k] for k in ks]
+            tp = np.array([sc.pose_time for sc in sc_])
+            at = {t: self._team_at(t) for t in np.unique(tp).tolist()}
+            mate = np.zeros((len(sc_), 4))
+            for q, (t, sc) in enumerate(zip(tp.tolist(), sc_)):
+                if at[t] is not None and sc.car < len(at[t]):
+                    mate[q] = at[t][sc.car, :4]
+            likely = (S.p >= OCCLUDER_EXIST) | S.confirmed
+            tm = np.zeros((0, 4)) if team is None else np.ascontiguousarray(team[:, :4], float)
+            pd[ks] = K.coverage(np.array([sc.pose for sc in sc_]), tp, np.array([sc.car for sc in sc_], np.int64),
+                                np.array([KIND_ORDER[sc.kind] for sc in sc_], np.int64),
+                                np.array([self._srow[sc.sensor] for sc in sc_]), mate, np.ascontiguousarray(mc),
+                                np.ascontiguousarray(S.t, float), likely, tm, team is not None, float(T),
+                                self._cover, self._geom)
             return pd
         poses = np.array([scans[k].pose for k in ks])
         tp = np.array([scans[k].pose_time for k in ks])
@@ -651,11 +787,14 @@ class TeamTracker:
         log-likelihood of the informative dims (the existence update) and the cost, minus its log-likelihood ratio
         against the sensor's clutter (detections of different R and dof compare on their likelihood)."""
         cfg, S = self.cfg, self._tr
-        trk, row = np.unique(ci, return_inverse=True)
-        row = row.reshape(-1)
+        trk, row = _unique_sorted(ci)
         pred = predict_rows(S.means[trk], S.covs[trk], S.mu[trk], T-S.t[trk], cfg, self._motions)
-        X, wm, wc = sigma_points(pred.means, pred.covs)
         dt = tab.time[cj]-T
+        if _jit.ENABLED and self._mrow is not None:
+            g = self._gate_jit(cj, tab, row, trk, pred, dt)
+            if g is not None:
+                return g
+        X, wm, wc = sigma_points(pred.means, pred.covs)
         mo = A.moments(tab, cj, A.evaluate(tab, cj, X[row], self.params, self.car_height, dt, self._motions), wm, wc)
         R = tab.R_fit[cj]
         lid = np.flatnonzero((tab.kind[cj] == A.LIDAR) & (dt != 0))
@@ -667,6 +806,27 @@ class TeamTracker:
         ll = ll+tab.ll_pad[cj]
         return _Gate(ll, nis, gated, tab.log_clutter[cj]-ll, cj, trk, row, pred, X, wm, mo, R)
 
+    def _gate_jit(self, cj, tab, row, trk, pred, dt):
+        """_gate's measurement part compiled (_tracking_jit.sigma_rows and gate_pairs); None when a matrix needs the
+        numpy path's safeguards (ukf.robust_cholesky)."""
+        U, J, n = pred.means.shape
+        X, ok = K.sigma_rows(np.ascontiguousarray(pred.means.reshape(-1, n)),
+                             np.ascontiguousarray(pred.covs.reshape(-1, n, n)), _SC)
+        if not ok:
+            return None
+        X = X.reshape(U, J, 2*n+1, n)
+        steps, mp = self._mrow
+        zhat, nu, Pzz, D, R, ll, nis, ok = K.gate_pairs(
+            X, np.ascontiguousarray(row, np.int64), np.ascontiguousarray(cj, np.int64), dt, pred.mu[row],
+            np.ascontiguousarray(tab.kind, np.int64), tab.z, tab.R_fit, tab.dz_dv, tab.v_prior, tab.pose, tab.vs,
+            tab.cam, tab.wrap, steps, mp, self._geom, _WM, _WC)
+        if not ok:
+            return None
+        gated = nis <= self._thr[np.minimum(tab.dof[cj], 4)]
+        ll = ll+tab.ll_pad[cj]
+        return _Gate(ll, nis, gated, tab.log_clutter[cj]-ll, cj, trk, row, pred, X, _WM, A.Moments(zhat, nu, Pzz, D),
+                     R)
+
     @staticmethod
     def _assign(ci, cj, gated, cost, tab):
         """Indices of the chosen pairs: global nearest neighbour within each scan. A pair whose track and detection
@@ -676,16 +836,25 @@ class TeamTracker:
         if sel.size == 0:
             return sel
         sc = tab.scan[cj[sel]]
-        _, it, ct = np.unique(sc*(int(ci.max())+1)+ci[sel], return_inverse=True, return_counts=True)
-        _, idt, cd = np.unique(cj[sel], return_inverse=True, return_counts=True)
-        free = (ct[it.reshape(-1)] == 1) & (cd[idt.reshape(-1)] == 1)
+        key = sc*(int(ci.max())+1)+ci[sel]                  # (scan, track): pairs sharing one, and a detection
+        free = (np.bincount(key)[key] == 1) & (np.bincount(cj[sel])[cj[sel]] == 1)
         out = [sel[free]]
         rest, sc = sel[~free], sc[~free]
         order = np.argsort(sc, kind='stable')
         rest, sc = rest[order], sc[order]
+        if _jit.ENABLED and rest.size:          # the same matrices, built compiled
+            bounds = np.concatenate(([0], np.flatnonzero(np.diff(sc))+1, [rest.size]))
+            C, I, shapes = K.assign_parts(ci[rest], cj[rest], cost[rest], rest, bounds)
+            o = 0
+            for r_, c_ in shapes.tolist():
+                Cm, Im = C[o:o+r_*c_].reshape(r_, c_), I[o:o+r_*c_].reshape(r_, c_)
+                r, c = A.gnn(Cm)
+                out.append(Im[r, c])
+                o += r_*c_
+            return np.sort(np.concatenate(out))
         for part in np.split(rest, np.flatnonzero(np.diff(sc))+1) if rest.size else ():
-            ui, ri = np.unique(ci[part], return_inverse=True)
-            uj, rj = np.unique(cj[part], return_inverse=True)
+            ui, uj = np.unique(ci[part]), np.unique(cj[part])
+            ri, rj = np.searchsorted(ui, ci[part]), np.searchsorted(uj, cj[part])     # np.unique's inverse
             C = np.full((len(uj), len(ui)), np.inf)
             I = np.full(C.shape, -1)
             C[rj, ri], I[rj, ri] = cost[part], part
@@ -694,9 +863,19 @@ class TeamTracker:
         return np.sort(np.concatenate(out))
 
     def _existence(self, S, T, pd, hit_scan, hit_tr, log_lr, hit_pd):
+        """Existence of every track after the cycle at T (module docstring, step 5); compiled
+        (_tracking_jit.existence) when numba is on."""
         gate = float(self.cfg.gate)
         hit = np.zeros(pd.shape, bool)
         hit[hit_scan, hit_tr] = True
+        if _jit.ENABLED:
+            ep = np.array([gate, np.log1p(-MISS_CAP), float(self.cfg.exist_survive), E.EXIST_MIN, self.exist_max,
+                           E.PD_DETECTED_MIN])
+            S.p = K.existence(np.ascontiguousarray(S.p, float), np.ascontiguousarray(T-S.tp, float), pd, hit,
+                              np.ascontiguousarray(hit_tr, np.int64), np.ascontiguousarray(log_lr, float),
+                              np.ascontiguousarray(hit_pd, float), ep)
+            S.tp = np.full(len(S), T)
+            return
         L = np.maximum(np.where((pd > 0) & ~hit, E.miss_log_factor(pd, gate), 0.0).sum(0), np.log1p(-MISS_CAP))
         np.add.at(L, hit_tr, E.hit_log_factor(hit_pd, gate, log_lr))
         S.p = E.apply_log_odds(E.survive(S.p, self.cfg, T-S.tp), L, self.exist_max)
@@ -719,6 +898,9 @@ class TeamTracker:
         np.maximum.at(S.last_seen, g.trk[rows], tab.time[g.dj[pick]])
 
     def _records(self, ids, dj, tab, nis):
+        """NIS_DTYPE records of the pairs (track ids, detections dj); None when the tracker keeps no NIS log."""
+        if not self.record_nis:
+            return None
         rec = np.zeros(len(ids), NIS_DTYPE)
         rec['time'], rec['track'], rec['dof'], rec['nis'] = tab.time[dj], ids, tab.dof[dj], nis
         rec['kind'] = [_KINDS[k] for k in tab.kind[dj]]
@@ -736,6 +918,9 @@ class TeamTracker:
         likely = np.flatnonzero(S.confirmed | (S.p >= OCCLUDER_EXIST))
         if likely.size == 0:
             return np.zeros(len(U), bool)
+        if _jit.ENABLED:
+            return K.occupied(tab.time[U], tab.xy[U], tab.has_xy[U], S.means[likely], S.mu[likely], S.t[likely],
+                              float(self.params.length), float(self.params.width))
         m = (S.mu[likely, :, None]*S.means[likely]).sum(1)
         dt = tab.time[U][:, None]-S.t[likely][None, :]
         ds = tab.xy[U, 0][:, None]-(m[:, 0]+m[:, 2]*dt)
@@ -808,12 +993,14 @@ class TeamTracker:
         ok = np.ones(u, bool)
         have_v = np.zeros(u, bool)
         kind = tab.kind[U]
-        L = np.flatnonzero(kind == A.LIDAR)
+        if _jit.ENABLED and self._birth_jit(tab, U, kind, mean, cov, have_v):
+            L = Rd = np.zeros(0, int)        # done compiled
+        else:
+            L, Rd = np.flatnonzero(kind == A.LIDAR), np.flatnonzero(kind == A.RADAR)
         if L.size:
             X, wm, wc = sigma_points(tab.z[U[L], :3], tab.R[U[L], :3, :3])
             Y = X[..., :2]-self._shift*np.stack((np.cos(X[..., 2]), np.sin(X[..., 2])), -1)
             mean[L, :2], cov[L, :2, :2] = _moments(Y, wm, wc)
-        Rd = np.flatnonzero(kind == A.RADAR)
         if Rd.size:
             j = U[Rd]
             m0 = np.column_stack((tab.z[j, :3], np.zeros(len(j))))
@@ -853,6 +1040,19 @@ class TeamTracker:
         ok &= np.isfinite(mean).all(1) & np.isfinite(cov).all((1, 2))
         return mean, cov, ok
 
+    def _birth_jit(self, tab, U, kind, mean, cov, have_v):
+        """_birth_states' lidar and radar rows compiled (_tracking_jit.birth_rows), written into mean, cov, have_v;
+        False when a covariance needs the numpy path's safeguards (nothing written)."""
+        sel = np.flatnonzero((kind == A.LIDAR) | (kind == A.RADAR))
+        if sel.size == 0:
+            return True
+        j = U[sel]
+        m, P, hv, ok = K.birth_rows(np.ascontiguousarray(kind[sel], np.int64), tab.z[j], tab.R[j], tab.pose[j],
+                                    tab.vs[j], self._birth, _WM3, _WC3, _SC3, _WM, _WC, _SC)
+        if ok:
+            mean[sel], cov[sel], have_v[sel] = m, P, hv
+        return ok
+
     def _speed_prior(self, xy, team, mc, confirmed):
         """(v0, sigma) of the speed along the road for new tracks at xy: the median of the confirmed tracks in the
         lane, else the nearest team car's speed (design section 6)."""
@@ -866,7 +1066,7 @@ class TeamTracker:
         if len(mc) and confirmed.any():
             lanes = lane_of(mc[confirmed, 1], self.road)
             vs = mc[confirmed, 2]
-            med = np.array([np.median(vs[lanes == l]) if np.any(lanes == l) else np.nan for l in range(self.lanes)])
+            med = np.array([_median(vs[lanes == l]) if np.any(lanes == l) else np.nan for l in range(self.lanes)])
             have = np.isfinite(med[lane])
             v0[have], sig[have] = med[lane[have]], cfg.init_speed_sigma_lane
         return v0, sig

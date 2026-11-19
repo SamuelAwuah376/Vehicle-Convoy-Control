@@ -44,6 +44,7 @@ API (the tracker builds on it):
   detection's rough CG, 2D Mahalanobis with margins),
   radar pairs also on range rate (the track's velocity relative to the sensor along the measured line of sight);
   camera detections only for tracks in front of the camera (its measurement model is meaningless behind it).
+  Compiled (_tracking_jit.coarse_ok) when numba is on, else coarse_candidates_numpy.
 - gnn(cost) -> (rows, cols): the assignment with the most finite (gated) pairs, then the least total cost
   (scipy.optimize.linear_sum_assignment); inf entries are never assigned.
 - cholesky(S), forward(L, v), logdet(L): helpers for stacks of many small matrices (vectorized over the stack, several
@@ -56,7 +57,9 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 from scipy.stats import chi2
 from ...geometry import cg_offsets
+from .. import _jit
 from ..geometry import camera_tilt, focal
+from . import _tracking_jit as K
 from .existence import clutter_log_volumes
 from .imm import MU_FLOOR
 from .models import BORDER_PX, NEAR, TRUNCATED_VAR, h_lidar, sensor_velocity, V_MIN
@@ -64,7 +67,7 @@ from .ukf import robust_cholesky
 
 __all__ = ['LIDAR', 'RADAR', 'CAMERA', 'KIND_CODE', 'M', 'COARSE_GATE', 'MARGIN', 'wrap_angle', 'gate_threshold',
            'h_radar_rows', 'h_camera_rows', 'DetTable', 'Moments', 'evaluate', 'moments', 'imm_gate',
-           'coarse_candidates', 'gnn', 'cholesky', 'forward', 'logdet']
+           'coarse_candidates', 'coarse_candidates_numpy', 'gnn', 'cholesky', 'forward', 'logdet']
 
 LIDAR, RADAR, CAMERA = 0, 1, 2
 KIND_CODE = {'lidar_box': LIDAR, 'radar': RADAR, 'camera_box': CAMERA}
@@ -173,6 +176,17 @@ def h_camera_rows(X, pose, cam, params, car_height):
     return np.minimum(np.maximum(box, 0.0), np.column_stack((W, W, Hh, Hh)))
 
 
+_SPEC_CONSTS = {}
+
+
+def _spec_consts(spec):
+    """(focal(spec), clutter_log_volumes(spec)) of a camera spec, computed once per spec object."""
+    got = _SPEC_CONSTS.get(id(spec))
+    if got is None or got[0] is not spec:
+        got = _SPEC_CONSTS[id(spec)] = (spec, focal(spec), clutter_log_volumes(spec))
+    return got[1], got[2]
+
+
 def _truncation(near, dets):
     """(k, 4) bool truncated edges of camera detections, as models.camera_R reads them: meta['truncated'] (4 flags, or
     one bool meaning "touches the border"), else near, the edges within BORDER_PX of the border."""
@@ -202,39 +216,43 @@ class DetTable:
         D = len(dets)
         sizes = [len(ds) for ds, _, _ in scans]
         scan = np.repeat(np.arange(len(scans)), sizes)
-        kind = np.append(np.repeat([KIND_CODE[ds[0].kind] if ds else LIDAR for ds, _, _ in scans], sizes), -1)
+        kind = np.append(np.repeat([KIND_CODE[ds[0].kind] if ds else LIDAR for ds, _, _ in scans], sizes),
+                         -1).astype(np.int64)
         m = KIND_DIMS[kind]
-        z, R = np.zeros((D+1, M)), np.tile(np.eye(M), (D+1, 1, 1))
+        z, R = np.zeros((D+1, M)), np.zeros((D+1, M, M))
+        R.reshape(D+1, -1)[:, ::M+1] = 1.0                     # identity blocks
         pose, vs, cam = np.zeros((D+1, 4)), np.zeros((D+1, 2)), np.zeros((D+1, 5))
-        xy, C, has = np.zeros((D+1, 2)), np.tile(np.eye(2), (D+1, 1, 1)), np.zeros(D+1, bool)
+        xy, C, has = np.zeros((D+1, 2)), np.zeros((D+1, 2, 2)), np.zeros(D+1, bool)
+        C[:, 0, 0] = C[:, 1, 1] = 1.0
         wrapc = np.zeros((D+1, M), bool)
         clut = np.zeros(D+1)
+        lid, rad, cmr = (np.flatnonzero(kind == code) for code in (LIDAR, RADAR, CAMERA))
         if D:
-            for code, dim in ((LIDAR, 3), (RADAR, 3), (CAMERA, 4)):
-                sel = np.flatnonzero(kind[:D] == code)
+            for sel, dim in ((lid, 3), (rad, 3), (cmr, 4)):
                 if sel.size:
-                    z[sel, :dim] = np.array([dets[j].z for j in sel], float)[:, :dim]
-                    R[sel, :dim, :dim] = np.array([dets[j].R for j in sel], float)
+                    sd = [dets[j] for j in sel]
+                    z[sel, :dim] = np.array([d.z for d in sd], float)[:, :dim]
+                    R[sel, :dim, :dim] = np.array([d.R for d in sd], float)
             pose[:D] = np.array([d.sensor_pose for d in dets], float)
             has[:D] = True
             clut[:D] = np.repeat([lc for _, _, lc in scans], sizes)
         rear, front = cg_offsets(params)
         shift = (rear+front)/2
-        lid, rad, cmr = (np.flatnonzero(kind == code) for code in (LIDAR, RADAR, CAMERA))
         vp, dzdv, lin = np.zeros((D+1, 2)), np.zeros((D+1, 3, 2)), []
         if lid.size:
             wrapc[lid, 2] = True
             h = z[lid, 2]
             xy[lid] = z[lid, :2]-shift*np.column_stack((np.cos(h), np.sin(h)))
             C[lid] = R[lid, :2, :2]+MARGIN[LIDAR]**2*np.eye(2)
-            lin = [j for j in lid if dets[j].meta and 'dz_dv' in dets[j].meta]   # the dummy row is no lidar
+            lin = [j for j in lid.tolist() if dets[j].meta and 'dz_dv' in dets[j].meta]   # (the dummy is no lidar)
             if lin:
                 vp[lin] = np.array([dets[j].meta['v_prior'] for j in lin], float)
                 dzdv[lin] = np.array([dets[j].meta['dz_dv'] for j in lin], float)
         if rad.size:
             wrapc[rad, 1] = True
-            vel = {s: sensor_velocity(scans[s][0][0]) for s in np.unique(scan[rad])}
-            vs[rad] = np.array([vel[s] for s in scan[rad]])
+            srad = scan[rad].tolist()
+            vel = {s: sensor_velocity(scans[s][0][0]) for s in set(srad)}
+            vs[rad] = np.array([vel[s] for s in srad])
             r, phi = z[rad, 0], pose[rad, 2]+z[rad, 1]
             u = np.column_stack((np.cos(phi), np.sin(phi)))
             ext = np.abs(u[:, 0])*params.length/2+np.abs(u[:, 1])*params.width/2       # near face -> centre
@@ -249,8 +267,8 @@ class DetTable:
             per = np.searchsorted(cs, scan[cmr])
             sp = [scans[k][1] for k in cs]
             ego = [scans[k][0][0].ego for k in cs]
-            cam[cmr] = np.array([(c.width_px, c.height_px, focal(c), 0.0 if e is None else float(e.pitch), c.mount.yaw)
-                                 for c, e in zip(sp, ego)])[per]
+            cam[cmr] = np.array([(c.width_px, c.height_px, _spec_consts(c)[0], 0.0 if e is None else float(e.pitch),
+                                  c.mount.yaw) for c, e in zip(sp, ego)])[per]
             W, Hh = cam[cmr, 0], cam[cmr, 1]
             near = np.column_stack((z[cmr, 0] <= BORDER_PX, z[cmr, 1] >= W-BORDER_PX, z[cmr, 2] <= BORDER_PX,
                                     z[cmr, 3] >= Hh-BORDER_PX))
@@ -261,7 +279,7 @@ class DetTable:
             R[cmr] += np.eye(4)*np.where(cut, TRUNCATED_VAR, 0.0)[:, None, :]
             dof[cmr] = keep.sum(1)
             ll_pad[cmr] += 0.5*cut.sum(1)*np.log(2*np.pi*TRUNCATED_VAR)
-            clut[cmr] += (cut*np.array([clutter_log_volumes(c) for c in sp])[per]).sum(1)
+            clut[cmr] += (cut*np.array([_spec_consts(c)[1] for c in sp])[per]).sum(1)
             inits = [d.meta.get('init') if d.meta else None for d in cdets]
             got = np.array([i is not None for i in inits])
             has[cmr[~got]] = False
@@ -424,6 +442,21 @@ def coarse_candidates(table, mean, cov, t, cfg=None):
     D, n = len(table), len(mean)
     if D == 0 or n == 0:
         return np.zeros(0, int), np.zeros(0, int)
+    if not _jit.ENABLED:
+        return coarse_candidates_numpy(table, mean, cov, t, cfg)
+    ql, qd = (0.0, 0.0) if cfg is None else (float(cfg.q_long)**2, float(cfg.q_lat)**2)
+    half = (np.array([getattr(sp, 'hfov', 0.0)/2 for sp in table.spec])+CAMERA_FOV_MARGIN)[table.scan[:D]]
+    c = lambda a, dtype=float: np.ascontiguousarray(a, dtype)
+    ok = K.coarse_ok(c(mean), c(cov), c(t), table.time[:D], table.xy[:D], table.C[:D], table.has_xy[:D],
+                     c(table.kind[:D], np.int64), table.pose[:D], table.z[:D], table.vs[:D], c(table.R[:D, 2, 2]),
+                     c(table.dof[:D], np.int64), half, ql, qd, COARSE_GATE, COARSE_GATE_1D, RANGE_RATE_MARGIN**2,
+                     CAMERA_MIN_DEPTH)
+    return np.nonzero(ok)
+
+
+def coarse_candidates_numpy(table, mean, cov, t, cfg=None):
+    """coarse_candidates in numpy (the reference of the compiled test, and the path with NOHESI_JIT=0)."""
+    D = len(table)
     dt = table.time[None, :D]-t[:, None]                                           # (n, D)
     ex = mean[:, None, 0]+mean[:, None, 2]*dt-table.xy[None, :D, 0]
     ey = mean[:, None, 1]+mean[:, None, 3]*dt-table.xy[None, :D, 1]

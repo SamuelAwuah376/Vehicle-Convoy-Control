@@ -32,14 +32,19 @@ hypothesis whose box ends inside a cut edge is pulled out to it). A bound steers
 Without the bounds a car close ahead cut at the bottom and one side keeps only its top edge for range, which says next
 to nothing for a camera near the roof height. Even with them that case is the weak one: the top edge's range cue is
 strongly nonlinear (dr ~ r^2 dpitch / (car height - camera height)), and P has a heavier tail than a Gaussian there.
+
+process_cameras runs the arithmetic compiled (_camera_jit.process_boxes, one call per sim step) when numba is on
+(perception/_jit.py), and as this module's numpy code otherwise (NOHESI_JIT=0): the numpy functions below are the
+reference the kernels follow operation by operation, so the two paths agree to rounding.
 """
-from functools import lru_cache
 from math import radians, sqrt
 from typing import NamedTuple
 import numpy as np
 from ...geometry import cg_offsets
+from .._jit import ENABLED
 from ..geometry import box_corners_3d, camera_tilt, focal, sensor_pose
 from ..types import Detection
+from . import _camera_jit
 from .radar import ego_at
 
 __all__ = ['TRUNC_PX', 'FIT_MARGIN_SIGMAS', 'IOU_MATE', 'PITCH_EXTRA', 'HEADING_SIGMA', 'HEADING_SPREAD',
@@ -64,19 +69,22 @@ _EDGES = np.array([(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4
 _STEPS = np.array([0.5, 0.5, 0.5, 0.5, 1e-4, 1e-3])   # finite-difference steps: px for the edges, rad for the pitch
                                                       # and the roll's spread
 _CUT_SIDE = np.array([1.0, -1.0, 1.0, -1.0])     # a cut left / top edge bounds the box from above, right / bottom below
-
-
-@lru_cache(maxsize=16)
-def _cached_corners(params, height):
-    return box_corners_3d(np.zeros((1, 3)), params, height)[0].T.copy()
+_JIT = ENABLED                  # process_cameras' path: the compiled kernel, or the numpy code (tests switch it)
+_CORNERS = {}                   # _local_corners' cache
 
 
 def _local_corners(params, height):
-    """(3, 8) x, y, z of a car's 3D box corners about its CG at heading 0 (geometry.box_corners_3d)."""
-    try:
-        return _cached_corners(params, float(height))
-    except TypeError:                     # unhashable params
-        return box_corners_3d(np.zeros((1, 3)), params, height)[0].T.copy()
+    """(3, 8) x, y, z of a car's 3D box corners about its CG at heading 0 (geometry.box_corners_3d), read-only. Cached
+    on what they depend on (the body edges of cg_offsets, the width, the height): an episode's params, a
+    SimpleNamespace, is not hashable."""
+    key = (*cg_offsets(params), float(params.width), float(height))
+    corners = _CORNERS.get(key)
+    if corners is None:
+        if len(_CORNERS) >= 16:
+            _CORNERS.clear()
+        corners = _CORNERS[key] = box_corners_3d(np.zeros((1, 3)), params, height)[0].T.copy()
+        corners.flags.writeable = False
+    return corners
 
 
 def iou(a, b):
@@ -410,10 +418,62 @@ def process_cameras(frames, specs, egos, mates, params, car_height, refine=True,
                     heading_sigma=HEADING_SIGMA, iters=ITERS, pitch_noise=None):
     """process_camera of several frames at once (frames[k] from specs[k] on the car in egos[k], its teammates
     mates[k]): one list of Detections per frame, as frame by frame. The geometric init and its refinement run over
-    every box of every frame in one batch (numpy's cost per call, not per box, dominates them): a sim step's twelve
-    frames cost about what one did."""
-    egos = [ego_at(e, fr.time) for e, fr in zip(egos, frames)]
-    poses, boxes, scores, keeps = [], [], [], []
+    every box of every frame in one batch: compiled (_camera_jit.process_boxes) when numba is on, else in numpy
+    (whose cost per call, not per box, dominates: a sim step's twelve frames cost about what one did)."""
+    args = (frames, specs, [ego_at(e, fr.time) for e, fr in zip(egos, frames)], mates, params, car_height, refine,
+            pitch_extra, heading_sigma, iters, pitch_noise)
+    return _process_compiled(*args) if _JIT else _process_numpy(*args)
+
+
+def _detections(frames, egos, poses, frame_of, local, b, xy, P, truncated, R):
+    """process_cameras' Detections, one list per frame: row r of the kept boxes b (n, 4) is box local[r] of frame
+    frame_of[r] (rows in frame order)."""
+    out = [[] for _ in frames]
+    scores = [None]*len(frames)
+    for r, (f, k) in enumerate(zip(frame_of, local)):
+        frame = frames[f]
+        if scores[f] is None:
+            scores[f] = np.ones(len(frame.boxes)) if frame.score is None else np.asarray(frame.score, float).reshape(-1)
+        t = float(frame.time)
+        out[f].append(Detection('camera_box', frame.sensor, frame.car, t, b[r], R[r], poses[f], egos[f],
+                                {'init': (xy[r], P[r]), 'truncated': truncated[r], 'score': float(scores[f][k]),
+                                 'scan': t}))
+    return out
+
+
+def _process_compiled(frames, specs, egos, mates, params, car_height, refine, pitch_extra, heading_sigma, iters,
+                      pitch_noise):
+    """process_cameras by _camera_jit.process_boxes (egos already at the frame times)."""
+    poses = [sensor_pose(spec.mount, (ego.x, ego.y, ego.yaw), params) for spec, ego in zip(specs, egos)]
+    boxes = [np.asarray(fr.boxes, float).reshape(-1, 4) for fr in frames]
+    counts = [len(b) for b in boxes]
+    if sum(counts) == 0:
+        return [[] for _ in frames]
+    cams = np.array([_cam(s, p) for s, p in zip(specs, poses)], float).reshape(-1, len(_Cam._fields))
+    mt = [np.asarray(m, float).reshape(len(m), -1)[:, :3] if m is not None and len(m) else np.zeros((0, 3))
+          for m in mates]
+    mate_start = np.cumsum([0]+[len(m) for m in mt]).astype(np.int64)
+    pitch = np.array([float(e.pitch) for e in egos])
+    sp = cams[:, _camera_jit.PSIG].copy() if pitch_noise is None else np.full(len(frames), float(pitch_noise))
+    rear, front = cg_offsets(params)
+    car = np.array([params.length, params.width, rear, front], float)
+    tune = np.array([globals()[name] for name in _camera_jit.TUNE_FIELDS], float)   # this module's, read now
+    b = np.concatenate(boxes)
+    frame = np.repeat(np.arange(len(frames), dtype=np.int64), counts)
+    keep, truncated, xy, P, R = _camera_jit.process_boxes(
+        b, frame, cams, pitch, sp, np.ascontiguousarray(np.concatenate(mt)), mate_start,
+        _local_corners(params, car_height), car, float(car_height), float(heading_sigma), float(pitch_extra),
+        bool(refine), int(iters), _EDGES, _STEPS, _CUT_SIDE, tune)
+    idx = np.flatnonzero(keep)
+    start = np.cumsum(counts)-counts
+    return _detections(frames, egos, poses, frame[idx].tolist(), (idx-start[frame[idx]]).tolist(), b[idx], xy[idx],
+                       P[idx], truncated[idx], R[idx])
+
+
+def _process_numpy(frames, specs, egos, mates, params, car_height, refine, pitch_extra, heading_sigma, iters,
+                   pitch_noise):
+    """process_cameras in numpy (egos already at the frame times)."""
+    poses, boxes, keeps = [], [], []
     for frame, spec, ego, mt in zip(frames, specs, egos, mates):
         pose = sensor_pose(spec.mount, (ego.x, ego.y, ego.yaw), params)
         b = np.asarray(frame.boxes, float).reshape(-1, 4)
@@ -424,12 +484,10 @@ def process_cameras(frames, specs, egos, mates, params, car_height, refine=True,
                 keep &= ~(iou(b, mb) > IOU_MATE).any(1)
         poses.append(pose)
         boxes.append(b)
-        scores.append(np.ones(len(b)) if frame.score is None else np.asarray(frame.score, float).reshape(-1))
         keeps.append(np.flatnonzero(keep))
     counts = [len(k) for k in keeps]
-    out = [[] for _ in frames]
     if sum(counts) == 0:
-        return out
+        return [[] for _ in frames]
     b = np.concatenate([bx[k] for bx, k in zip(boxes, keeps)])
     cam = _cams(specs, poses, counts)
     pitch = np.repeat([float(e.pitch) for e in egos], counts)
@@ -454,12 +512,5 @@ def process_cameras(frames, specs, egos, mates, params, car_height, refine=True,
                               full[:, 1]-full[:, 0]))/2                                         # cue_init's rho
     R = (cam.sig[:, None, None]**2*np.eye(4)+(sp**2)[:, None, None]*j[:, :, None]*j[:, None, :]
          + ((np.sin(cam.yaw)*sp)**2)[:, None, None]*spread[:, :, None]*spread[:, None, :])
-    start = np.cumsum(counts)-counts
-    for f, (frame, ego, pose, keep) in enumerate(zip(frames, egos, poses, keeps)):
-        t = float(frame.time)
-        for q, k in enumerate(keep):
-            r = start[f]+q
-            out[f].append(Detection('camera_box', frame.sensor, frame.car, t, b[r], R[r], pose, ego,
-                                    {'init': (xy[r], P[r]), 'truncated': truncated[r], 'score': float(scores[f][k]),
-                                     'scan': t}))
-    return out
+    return _detections(frames, egos, poses, np.repeat(np.arange(len(frames)), counts).tolist(),
+                       np.concatenate(keeps).tolist(), b, xy, P, truncated, R)

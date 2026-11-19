@@ -423,6 +423,16 @@ Target: no more than 25 % added time per environment step, profiled in phase 2. 
 paths can be vectorized further. `numba` is not installed today; adding it would be a new dependency and needs your
 approval.
 
+Measured in phase 2 (v9 seed 1000-1001, 15 s, one process): perception added about 95 ms per step to a 31 ms step
+with the numpy code, mostly Python overhead in per-cluster, per-box and per-track loops. numba (0.61.2, approved
+2026-11-19, the optional dependency `perception`) now compiles the lidar box fit (L-shape search, RANSAC, point-to-line
+ICP and covariance in one kernel), the camera box processing and the tracker's prediction, gating, update, coverage
+and existence: 41 ms added per step. The stages, numpy -> compiled (ms per step): lidar processing 43.9 -> 9.6,
+camera processing 11.1 -> 2.2, tracker 18.2 -> 7.3; unchanged: lidar sim 9.1, camera sim 8.8, radar sim 4.2, radar
+processing 3.7. The compiled kernels match the numpy code to rounding (tests/test_perception_jit_*.py), and
+NOHESI_JIT=0 runs the numpy code. Still above the 25 % target: the simulators, and the Python bookkeeping around the
+kernels.
+
 ## 14. Phases (each ends with a check-in; training only on your go)
 
 | Phase | Work | Done when |
