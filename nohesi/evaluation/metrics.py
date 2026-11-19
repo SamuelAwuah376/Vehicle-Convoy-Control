@@ -1,6 +1,7 @@
 from collections import Counter
 from dataclasses import asdict
 import numpy as np
+from ..config import scenario_dict
 from ..geometry import body_centre
 from ..road import Road
 from ..scoring.events import PAIRS
@@ -63,7 +64,7 @@ def metrics(ep):
         'mpc_failures': planner['qp_failures'] if planner else None,
         'policy_compute_ms': {'mean': float(1e3*ep.compute_time.mean()), 'max': float(1e3*ep.compute_time.max())},
         'planner': planner,
-        'scenario': asdict(ep.scenario),
+        'scenario': scenario_dict(ep.scenario),
         'planner_config': asdict(ep.planner) if ep.planner else None,
     }
 

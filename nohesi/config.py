@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from math import isfinite
+from .perception.config import Perception
 
 
 def _positive(obj, *names):
@@ -504,9 +505,14 @@ class Scenario:
     team_start_headway: float = 0.0   # s: start formation spacing headway (0: vehicle.headway)
     overtaker_speed: float = 32.0     # scripted overtaker cruise speed (m/s)
     overtaker_look: float = 60.0      # scripted overtaker look-ahead for slow cars (m)
+    # Sensors and the team belief (nohesi.perception); off: the planner and policy read the true snapshot. Saved only
+    # when on (scenario_dict), so a run without it writes what it did before.
+    perception: Perception = field(default_factory=Perception)
 
     def __post_init__(self):
         _positive(self, 'team_speed', 'team_start_s', 'team_speed_max', 'overtaker_speed', 'overtaker_look')
+        if not isinstance(self.perception, Perception):
+            raise ValueError('perception must be a nohesi.perception.config.Perception')
         if not (isfinite(self.team_start_headway) and self.team_start_headway >= 0):
             raise ValueError('team_start_headway must be non-negative')
         if self.team_speed > self.team_speed_max:
@@ -517,6 +523,15 @@ class Scenario:
             raise ValueError('team_lane outside road')
         if self.vehicle.width >= self.road.lane_width:
             raise ValueError('vehicle must fit in lane')
+
+
+def scenario_dict(scenario):
+    """asdict(scenario) as results record it (metrics.json): the perception settings only when perception is on, so
+    every run without it writes, and hashes, exactly what it did before the field existed."""
+    out = asdict(scenario)
+    if not scenario.perception.enabled:
+        del out['perception']
+    return out
 
 
 def scenario_v1():

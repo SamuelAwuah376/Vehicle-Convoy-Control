@@ -18,7 +18,11 @@ class Collision:
 
 @dataclass(frozen=True)
 class Snapshot:
-    """Executed world state at one time. Arrays are copies; treat them as read-only."""
+    """Executed world state at one time. Arrays are copies; treat them as read-only.
+
+    Under perception (nohesi.perception.system) the planner and policy get a perceived snapshot instead: the team
+    fields as here, the traffic fields from the belief (track ids in traffic_id) with their uncertainty in the
+    traffic_sig_* and traffic_p_exist fields, and collisions and done from the truth."""
     time: float
     team: np.ndarray          # (3, 4) CG [x, y, yaw, v]
     team_steer: np.ndarray    # (3,)
@@ -34,6 +38,10 @@ class Snapshot:
     traffic_target_lane: np.ndarray = None  # lane each car is heading to (its lane when not changing); None means lane_of(traffic_d)
     team_vy: np.ndarray = None    # (3,) body lateral CG speed; kinematic plant: v sin(beta). None means zeros
     team_r: np.ndarray = None     # (3,) yaw rate; kinematic plant: v cos(beta) tan(steer)/L
+    traffic_sig_s: np.ndarray = None     # (N,) standard deviation of traffic_s (m); None: certain (the true state)
+    traffic_sig_d: np.ndarray = None     # (N,) of traffic_d (m)
+    traffic_sig_v: np.ndarray = None     # (N,) of traffic_v (m/s)
+    traffic_p_exist: np.ndarray = None   # (N,) probability the car exists; None: every car does
 
 
 def traffic_states(snapshot, road):

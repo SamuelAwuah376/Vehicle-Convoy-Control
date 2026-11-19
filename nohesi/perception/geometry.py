@@ -4,7 +4,7 @@ import numpy as np
 from ..geometry import cg_offsets, footprints
 
 __all__ = ['wrap', 'rot', 'mount_offset', 'sensor_pose', 'to_sensor', 'to_world', 'car_boxes', 'box_corners_3d',
-           'focal', 'project', 'raycast', 'visible_fraction', 'nearest_box_point']
+           'focal', 'camera_tilt', 'project', 'raycast', 'visible_fraction', 'nearest_box_point']
 
 
 def wrap(a):
@@ -69,18 +69,37 @@ def focal(spec):
     return (spec.width_px/2)/np.tan(spec.hfov/2)
 
 
+def _tilt(yaw, pitch):
+    """The nine entries r[i][j] of camera_tilt (lists of arrays, or floats), without stacking them."""
+    sa, ca = np.sin(yaw), np.cos(yaw)
+    s, k = np.sin(pitch), 1-np.cos(pitch)
+    return ((1-k*ca*ca, k*sa*ca, s*ca), (k*sa*ca, 1-k*sa*sa, -s*sa), (-s*ca, s*sa, 1-k))
+
+
+def camera_tilt(yaw, pitch):
+    """(..., 3, 3) orientation R of a camera mounted at yaw `yaw` (Mount.yaw) relative to its level frame (x along
+    the boresight, y left, z up) when the body pitches by `pitch` (nose down positive): the rotation by pitch about the
+    body's y axis, which in the camera's level frame is (sin yaw, cos yaw, 0) (Rodrigues). So a front camera pitches
+    down by pitch, a rear camera up by it, and a side camera rolls. A level-frame point p is R^T p in the camera."""
+    yaw, pitch = np.broadcast_arrays(np.asarray(yaw, float), np.asarray(pitch, float))
+    return np.stack([np.stack(row, -1) for row in _tilt(yaw, pitch)], -2)
+
+
 def project(spec, pose, points, pitch=0.0):
     """Pinhole projection of world points (..., 3) through camera `spec` at pose (x, y, yaw, z) with body pitch
-    (nose down positive). Returns u, v (pixels; u right, v down, principal point at the image centre) and depth
-    (distance along the optical axis; points with depth <= 0 are behind the camera, their u, v meaningless)."""
+    (nose down positive; camera_tilt maps it to the camera by spec.mount.yaw). Returns u, v (pixels; u right, v down,
+    principal point at the image centre) and depth (distance along the optical axis; points with depth <= 0 are behind
+    the camera, their u, v meaningless)."""
     p = np.asarray(points, float)
     xy = to_sensor(p[..., :2], pose)
     x, y, z = xy[..., 0], xy[..., 1], p[..., 2]-pose[3]
-    c, s = np.cos(pitch), np.sin(pitch)
-    xc, zc = c*x-s*z, s*x+c*z          # R_y(pitch)^T: nose-down pitch moves the scene up the image
+    r = _tilt(float(spec.mount.yaw), np.asarray(pitch, float) if np.ndim(pitch) else float(pitch))
+    xc = r[0][0]*x+r[1][0]*y+r[2][0]*z          # R^T p: a front camera's nose-down pitch moves the scene up
+    yc = r[0][1]*x+r[1][1]*y+r[2][1]*z
+    zc = r[0][2]*x+r[1][2]*y+r[2][2]*z
     f = focal(spec)
     with np.errstate(divide='ignore', invalid='ignore'):
-        u = spec.width_px/2-f*y/xc
+        u = spec.width_px/2-f*yc/xc
         v = spec.height_px/2-f*zc/xc
     return u, v, xc
 

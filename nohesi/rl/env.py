@@ -33,6 +33,10 @@ beyond follow_break or overtaking), and the car is back on the policy. Observati
 after the e5 features: following, follow possible now. Missed escapes: a follower whose leader is changing lanes or
 starts a lane change at this decision takes the leader's way out with it (not charged); a dropped join of a follower
 (record 'aborted', reason 'follow') is not charged as aux_lc_abort.
+
+Perception (self.scenario.perception, nohesi.perception.system): the coordinator, the observation (merge_possible
+included), the masks and the escapes read the perceived snapshot (env.snapshot); the reward's score, crash penalty
+and stuck time, and termination, read the true one (env.true_snapshot). Off, both are the true snapshot.
 """
 from dataclasses import replace
 import time
@@ -44,6 +48,7 @@ from ..coordination.centralized import CentralizedTeam
 from ..evaluation.metrics import metrics, stuck_mask
 from ..evaluation.runner import EpisodeRun
 from ..intentions import ACTIONS, FOLLOW, OVERTAKES, encode
+from ..perception.system import make_perception
 from ..world import TEAM, World
 from .config import EnvConfig
 
@@ -122,10 +127,13 @@ def planner_for(cfg, scenario):
 class NoHesiEnv(gymnasium.Env):
     metadata = {'render_modes': []}
 
-    def __init__(self, cfg: EnvConfig = EnvConfig(), seed_pool=None, rng_seed=None, world=World):
-        """world: (scenario, seed) -> world for each episode (EpisodeRun); a CarlaSession runs it in CARLA."""
+    def __init__(self, cfg: EnvConfig = EnvConfig(), seed_pool=None, rng_seed=None, world=World,
+                 perception=make_perception):
+        """world: (scenario, seed) -> world for each episode (EpisodeRun); a CarlaSession runs it in CARLA.
+        perception: (scenario, world, seed) -> perception system or None, per episode (EpisodeRun; the default builds
+        self.scenario.perception's, None while it is off)."""
         self.cfg, self.seed_pool, self.pool_index = cfg, list(seed_pool) if seed_pool is not None else None, 0
-        self.world = world
+        self.world, self.perception = world, perception
         s = SCENARIOS[cfg.scenario]()
         self.scenario = replace(s, score=SCORES[cfg.score](), vehicle=replace(s.vehicle, model=cfg.vehicle_model))
         self.planner = planner_for(cfg, self.scenario)
@@ -141,6 +149,13 @@ class NoHesiEnv(gymnasium.Env):
     # Coordinator state, for scripted policies driving the env: policy(env.snapshot, env.intentions).
     @property
     def snapshot(self):
+        """The perceived snapshot (EpisodeRun.view): what the coordinator, the masks, the escapes and the observation
+        read. The true one with perception off."""
+        return self.run.view
+
+    @property
+    def true_snapshot(self):
+        """The true snapshot (EpisodeRun.snap): the reward's stuck time, crash penalty and score read it."""
         return self.run.snap
 
     @property
@@ -173,9 +188,9 @@ class NoHesiEnv(gymnasium.Env):
         self.policy = External()
         self.run = EpisodeRun(self.scenario, self.episode_seed,
                               lambda world: CentralizedTeam(self.scenario, world, self.policy, self.planner),
-                              self.planner, world=self.world)
+                              self.planner, world=self.world, perception=self.perception)
         self.team.prepare(self.snapshot)
-        self.stuck_for, self._stuck_t = np.zeros(TEAM), self.snapshot.time
+        self.stuck_for, self._stuck_t = np.zeros(TEAM), self.true_snapshot.time
         self.lean_changes = 0   # this episode's lean changes while holding the lane (aux_lean_change), all cars
         return self._obs(), {'seed': self.episode_seed, 'team_score': 0.0}
 
@@ -266,7 +281,8 @@ class NoHesiEnv(gymnasium.Env):
         marks = len(records), len(log.fallbacks), len(log.conflicts)
         terms, stuck, braked = {}, 0.0, 0.0
         # Missed escapes are judged at the decision (before the commands act) and charged over its interval, unless the
-        # car takes one now; only cars that can pass stuck_grace in it are checked.
+        # car takes one now; only cars that can pass stuck_grace in it are checked. Stuck is the truth (reward), the
+        # ways out are what the car perceives (escapes reads the view).
         charge = None
         if cfg.aux_stuck and cfg.stuck_escape_only:
             due = self.stuck_for+team.decide_every*self.scenario.timing.dt > cfg.stuck_grace
@@ -287,7 +303,7 @@ class NoHesiEnv(gymnasium.Env):
             if run.done:
                 break
         if not run.done:
-            team.prepare(run.snap)
+            team.prepare(run.view)
         fallbacks = [f[2] for f in log.fallbacks[marks[1]:]]
         aux = {'rejected': cfg.aux_rejected*sum(r.kind == 'rejected' for r in records[marks[0]:]),
                'fallback': cfg.aux_fallback*sum(f in ('shifted', 'lane_keep') for f in fallbacks),
