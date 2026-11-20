@@ -145,15 +145,26 @@ class TruthHistory:
     """The last few true snapshots, interpolated to any time between them (the simulators fire beams and frames at
     times between sim steps). Traffic is matched by id: a car that is new or was recycled (new id) since the earlier
     snapshot takes its later state as is. Times outside the stored window clamp to the nearest end.
-    Only the sensor simulators read this; processing and tracking never see the truth."""
+    Only the sensor simulators read this; processing and tracking never see the truth.
+
+    Each snapshot's TruthState is built once, when it is pushed, with read-only arrays (at() returns it as is at the
+    ends of the window, so a caller cannot change the history through it)."""
     def __init__(self, maxlen=12):
         self.snaps = deque(maxlen=maxlen)
+        self._states = deque(maxlen=maxlen)
 
     def push(self, snap, team_ax=None):
         ax = np.zeros(len(snap.team_s)) if team_ax is None else np.asarray(team_ax, float)
         if self.snaps and snap.time <= self.snaps[-1][0].time:
             self.snaps.clear()
+            self._states.clear()
         self.snaps.append((snap, ax))
+        state = self._state(snap, ax)
+        for name in ('traffic', 'traffic_id', 'team', 'team_vy', 'team_r', 'team_ax'):
+            a = np.array(getattr(state, name))      # a copy: the snapshot's and the caller's arrays stay writeable
+            a.flags.writeable = False
+            object.__setattr__(state, name, a)
+        self._states.append(state)
 
     @staticmethod
     def _state(snap, ax):
@@ -167,20 +178,22 @@ class TruthHistory:
     def at(self, t):
         if not self.snaps:
             raise ValueError('empty truth history')
-        snaps = self.snaps
+        snaps, states = self.snaps, self._states
         if t <= snaps[0][0].time:
-            return self._state(*snaps[0])
+            return states[0]
         if t >= snaps[-1][0].time:
-            return self._state(*snaps[-1])
+            return states[-1]
         k = next(k for k in range(1, len(snaps)) if snaps[k][0].time >= t)
-        a, b = self._state(*snaps[k-1]), self._state(*snaps[k])
+        a, b = states[k-1], states[k]
         w = (t-a.time)/(b.time-a.time)
         traffic = b.traffic.copy()
-        index = {int(i): n for n, i in enumerate(a.traffic_id)}
-        for n, i in enumerate(b.traffic_id):
-            m = index.get(int(i))
-            if m is not None:
-                traffic[n] = a.traffic[m]+w*(b.traffic[n]-a.traffic[m])
+        if len(a.traffic_id) and len(b.traffic_id):      # each of b's cars matched by id to a's (the last of equal ids)
+            order = np.argsort(a.traffic_id, kind='stable')
+            ids = a.traffic_id[order]
+            pos = np.searchsorted(ids, b.traffic_id, side='right')-1
+            found = (pos >= 0) & (ids[np.maximum(pos, 0)] == b.traffic_id)
+            m = order[pos[found]]
+            traffic[found] = a.traffic[m]+w*(b.traffic[found]-a.traffic[m])
         team = a.team+w*(b.team-a.team)
         team[:, 2] = a.team[:, 2]+w*((b.team[:, 2]-a.team[:, 2]+np.pi) % (2*np.pi)-np.pi)
         lerp = lambda p, q: p+w*(q-p)

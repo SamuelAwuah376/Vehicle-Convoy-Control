@@ -430,8 +430,14 @@ ICP and covariance in one kernel), the camera box processing and the tracker's p
 and existence: 41 ms added per step. The stages, numpy -> compiled (ms per step): lidar processing 43.9 -> 9.6,
 camera processing 11.1 -> 2.2, tracker 18.2 -> 7.3; unchanged: lidar sim 9.1, camera sim 8.8, radar sim 4.2, radar
 processing 3.7. The compiled kernels match the numpy code to rounding (tests/test_perception_jit_*.py), and
-NOHESI_JIT=0 runs the numpy code. Still above the 25 % target: the simulators, and the Python bookkeeping around the
-kernels.
+NOHESI_JIT=0 runs the numpy code. The simulators followed: the lidar sweep's ray casting (one kernel, its truth and
+boxes computed once per firing for all six sweeps), the camera projection, occlusion and frame assembly, and the radar
+view, visibility, reflection points, merge and noise, with every random draw left in Python in the same order and
+size, so the compiled simulators give bit-identical scans and frames on this machine; TruthHistory.at builds each
+snapshot's state once and matches the traffic by id without a Python loop (identical results). Then (v9 seed
+1000-1001, 15 s, a lighter machine load than above, ms per step): lidar sim 1.2, radar sim 1.1, camera sim 0.6 (22 in
+all before), lidar processing 5.9, radar processing 2.3, camera processing 1.0, tracker 4.7: about 17 ms of perception
+on a 24 ms step. Still above the 25 % target: the Python bookkeeping around the processing and tracker kernels.
 
 ## 14. Phases (each ends with a check-in; training only on your go)
 

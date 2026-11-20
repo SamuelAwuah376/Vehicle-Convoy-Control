@@ -4,11 +4,19 @@ one rolls), with truncation, occlusion, a size cut-off, missed detections, pixel
 
 What a 2D detector on real images would report, without rendering anything: the box of each car is the pixel extent
 of its 8 projected corners, clipped to the image. Tier B (CARLA) replaces this with a real detector on RGB frames.
-In the simulation loop, simulate_cameras runs a car's four cameras together (one occlusion pass instead of four)."""
+In the simulation loop, simulate_cameras runs a car's four cameras together (one occlusion pass instead of four).
+
+simulate_cameras runs compiled (_camera_sim_jit's kernels) when numba is on (perception/_jit.py), and as this module's
+numpy code otherwise (NOHESI_JIT=0): the numpy functions below are the reference the compiled path is tested against
+(tests/test_perception_jit_camera_sim.py). Both paths make the same rng calls in the same order, so they give the
+same frames to rounding."""
 from functools import lru_cache
 import numpy as np
-from ..geometry import box_corners_3d, focal, project, sensor_pose
+from ...geometry import cg_offsets
+from .. import _jit
+from ..geometry import box_corners_3d, focal, mount_offset, project, sensor_pose
 from ..types import CameraFrame
+from . import _camera_sim_jit
 
 __all__ = ['MIN_DEPTH', 'project_boxes', 'clip_boxes', 'visible_fractions', 'simulate_camera', 'simulate_cameras']
 
@@ -17,6 +25,9 @@ KEEP_AREA = 0.5          # a box survives truncation if at least this share of i
 SCORE_HALF_PX = 40.0     # box height at which a detection's score is halfway from 0.6 to 1.0
 FALSE_NEAR = 0.15        # false boxes sit at FALSE_NEAR..1 of the range where a car is min_height_px tall
 _TOL = 1e-9              # rad: bearing margin that keeps the interval shortcuts conservative
+_GAP = 1e-6              # m: a box must end this much nearer than a sample to hide it (geometry.visible_fraction's)
+_PARALLEL = 1e-12        # a ray and an edge this near parallel do not cross (geometry.raycast's)
+_JIT = _jit.ENABLED      # simulate_cameras' path: the compiled kernels, or the numpy code (tests call both)
 
 
 def _boxes(spec, pose, corners, pitch):
@@ -96,7 +107,7 @@ def _visibility(origins, B, cams, targets, samples):
     occ = (nearest[cams] < farthest[cams, targets, None]) & (W | tw | ((L-_TOL <= th) & (H+_TOL >= tl)))
     occ[np.arange(K), targets] = False
     covered = (occ & ~(W | tw) & (L+_TOL < tl) & (th < H-_TOL)
-               & (farthest[cams] < nearest[cams, targets, None]-1e-6)).any(1)
+               & (farthest[cams] < nearest[cams, targets, None]-_GAP)).any(1)
     frac = np.where(covered, 0.0, 1.0)
     part = np.flatnonzero(occ.any(1) & ~covered)
     if len(part):
@@ -129,7 +140,7 @@ def _ray_fractions(origins, B, q, cams, targets, occ, ref, lo, hi, wide, nearest
     A, D = _wrap(ang[ray]-ref[cam]), d[ray]
     keep = (nearest[cam, box] < D) & (wide[cam, box] | ((lo[cam, box]-_TOL <= A) & (A <= hi[cam, box]+_TOL)))
     ray, box, cam, A, D = ray[keep], box[keep], cam[keep], A[keep], D[keep]
-    sure = ~wide[cam, box] & (lo[cam, box]+_TOL < A) & (A < hi[cam, box]-_TOL) & (farthest[cam, box] < D-1e-6)
+    sure = ~wide[cam, box] & (lo[cam, box]+_TOL < A) & (A < hi[cam, box]-_TOL) & (farthest[cam, box] < D-_GAP)
     hidden = np.zeros(len(owner), bool)
     hidden[ray[sure]] = True
     rest = ~hidden[ray]
@@ -141,7 +152,7 @@ def _ray_fractions(origins, B, q, cams, targets, occ, ref, lo, hi, wide, nearest
         with np.errstate(divide='ignore', invalid='ignore'):
             t = (qx*ey-qy*ex)/denom
             s = (qx*ry-qy*rx)/denom
-        cut = (np.abs(denom) > 1e-12) & (t > 0) & (s >= 0) & (s <= 1) & (t < d[ray, None]-1e-6)
+        cut = (np.abs(denom) > _PARALLEL) & (t > 0) & (s >= 0) & (s <= 1) & (t < d[ray, None]-_GAP)
         hidden[ray[cut.any(1)]] = True
     return np.bincount(owner, weights=~hidden, minlength=K)/np.maximum(np.bincount(owner, minlength=K), 1)
 
@@ -190,7 +201,14 @@ def simulate_cameras(specs, car, truth, t, params, rng, car_height):
     """simulate_camera for several cameras on one car at the same time, sharing the truth lookup, the 3D boxes and
     one occlusion pass (_visibility) for all of them. Same model as simulate_camera; the random draws come in a
     different order (every camera's pitch and pd draws first), so the frames differ from successive simulate_camera
-    calls except where nothing random matters."""
+    calls except where nothing random matters. Compiled (_simulate_cameras_jit) when numba is on, else numpy."""
+    if _JIT:
+        return _simulate_cameras_jit(specs, car, truth, t, params, rng, car_height)
+    return _simulate_cameras_numpy(specs, car, truth, t, params, rng, car_height)
+
+
+def _simulate_cameras_numpy(specs, car, truth, t, params, rng, car_height):
+    """simulate_cameras in numpy: the reference, and the path with NOHESI_JIT=0."""
     state = truth.at(t)
     others = np.array([k for k in range(len(state.team)) if k != car], int)
     states = np.concatenate((state.traffic[:, :3], state.team[others, :3]))
@@ -207,6 +225,102 @@ def simulate_cameras(specs, car, truth, t, params, rng, car_height):
             seen = frac[cams == n] >= specs[k].min_visible
             pre[k] = pitch, pose, cand[seen], clipped[seen]
     return tuple(_frame(spec, car, t, *p, ids, params, rng, car_height) for spec, p in zip(specs, pre))
+
+
+_CAMS = {}               # _cams' cache: (spec ids, the body's CG offsets) -> (specs, CAM rows)
+_NO_FAKES = np.zeros((0, 4))
+_NO_SCORES = np.zeros(0)
+_ONE = np.zeros(1, np.int64)
+
+
+def _cams(specs, params, body):
+    """The cameras `specs` as _camera_sim_jit's CAM rows (ncam, len(CAM_FIELDS)), mount offsets resolved for vehicle
+    params, whose geometry.cg_offsets are `body` (rear, front). Cached by the specs' identity (the entry keeps them
+    alive, so their ids stay theirs) and the offsets (params need not be hashable)."""
+    key = (tuple(map(id, specs)), body)
+    hit = _CAMS.get(key)
+    if hit is not None and all(a is b for a, b in zip(hit[0], specs)):
+        return hit[1]
+    rows = []
+    for spec in specs:
+        rows.append([*mount_offset(spec.mount, params), spec.mount.yaw, spec.mount.z, focal(spec), spec.width_px,
+                     spec.height_px, spec.min_height_px, spec.pd, spec.min_visible, spec.sigma_px])
+    cams = np.array(rows, float).reshape(len(specs), len(_camera_sim_jit.CAM_FIELDS))
+    if len(_CAMS) >= 64:
+        _CAMS.clear()
+    _CAMS[key] = (tuple(specs), cams)
+    return cams
+
+
+def _tune():
+    """This module's constants in _camera_sim_jit's TUNE layout, read now (so an edit here reaches the cached
+    kernels)."""
+    g = globals()
+    return np.array([g[name] for name in _camera_sim_jit.TUNE_FIELDS], float)
+
+
+def _simulate_cameras_jit(specs, car, truth, t, params, rng, car_height):
+    """simulate_cameras by _camera_sim_jit's kernels: the same model, rng draws (sizes and order) and frames as
+    _simulate_cameras_numpy, to rounding. Per camera: the pitch draw, the projection kernel (candidates), the pd
+    draw; then one kernel for the pd and occlusion cuts of all the cameras (select); then per frame the noise,
+    false-box and shuffle draws; then one kernel for all the frames' arrays (finish).
+
+    Draws of nothing are skipped (they leave the generator as it is), the edge noise is drawn as standard normals
+    times sigma_px (Generator.normal(0, sigma) is 0 + sigma times a standard normal) and the shuffle in place of
+    a view (Generator.permutation(n) shuffles arange(n)): the same stream, which the tests check."""
+    K = _camera_sim_jit
+    state = truth.at(t)
+    tune = _tune()
+    rear, front = cg_offsets(params)
+    body = (float(rear), float(front))
+    cams = _cams(specs, params, body)
+    # copies: one kernel specialization (TruthHistory.at may hand out read-only arrays)
+    team = np.array(state.team, float)
+    fp, ids, idx, box, draws, noise, poses, counts = K.scene(
+        np.array(state.traffic, float), np.array(state.traffic_id, np.int64), team, car, body[0], body[1],
+        params.width/2, len(specs))
+    M = len(fp)
+    height = float(car_height)
+    ax = float(state.team_ax[car])
+    pitches = []
+    for k, spec in enumerate(specs):
+        pitch = spec.pitch_per_accel*(-ax)+float(rng.normal(0.0, spec.pitch_sigma))
+        pitches.append(pitch)
+        n = K.candidates(fp, height, team, car, cams, k, pitch, tune, poses, idx, box, counts)
+        if n:
+            rng.random(out=draws[k*M:k*M+n])
+    K.select(fp, cams, poses, counts, idx, box, draws, _steps(9), tune)
+    sizes, orders, fakes, scores = [], [], [], []
+    for k, spec in enumerate(specs):
+        n = int(counts[k])
+        if n:
+            rng.standard_normal(out=noise[k*M:k*M+n])
+        nf = rng.poisson(spec.false_rate)                     # _false_boxes
+        if nf:
+            fake = K.fakes(cams, k, pitches[k], height, rng.uniform(FALSE_NEAR, 1.0, nf),
+                           rng.uniform(params.width, params.length, nf), rng.uniform(0.0, spec.width_px, nf))
+        else:
+            fake = _NO_FAKES
+        m = n+len(fake)
+        if m > 1:
+            orders.append(rng.permutation(m))
+        elif m == 1:
+            orders.append(_ONE)
+        if len(fake):
+            fakes.append(fake)
+            scores.append(rng.uniform(0.3, 0.7, len(fake)))
+        sizes.append((m, len(fake)))
+    fake_counts = np.array([nf for _, nf in sizes], np.int64)
+    order = np.concatenate(orders) if orders else _ONE[:0]
+    boxes, score, truth_id = K.finish(cams, counts, idx, box, noise, ids,
+                                      np.concatenate(fakes) if fakes else _NO_FAKES, fake_counts,
+                                      np.concatenate(scores) if scores else _NO_SCORES, order, tune)
+    frames, at = [], 0
+    for spec, pitch, (m, _) in zip(specs, pitches, sizes):
+        frames.append(CameraFrame(spec.name, car, float(t), boxes[at:at+m], score[at:at+m], pitch,
+                                  truth_id[at:at+m]))
+        at += m
+    return tuple(frames)
 
 
 def simulate_camera(spec, car, truth, t, params, rng, car_height):

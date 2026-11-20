@@ -38,11 +38,17 @@ yaw-rate term), as the tracker's measurement model assumes; no snr is reported.
 Speed: every numpy call costs microseconds, so the model is vectorized over sensors as well as cars. simulate_radars
 runs all of a step's scans (four radars on three cars) in one pass, several times faster than a loop over
 simulate_radar.
+
+With numba on (perception/_jit.py) the pass runs compiled (_scans_compiled: the kernels of _radar_sim_jit between
+the random draws, which stay here with the same calls in the same order, so the same scans to rounding); the numpy
+code (_scans_numpy) is its reference and the path with NOHESI_JIT=0.
 """
 from math import cos, sin
 import numpy as np
+from .. import _jit
 from ..geometry import car_boxes, mount_offset, wrap
 from ..types import RadarScan
+from . import _radar_sim_jit as _K
 
 __all__ = ['simulate_radar', 'simulate_radars', 'detection_probability', 'sensor_velocity', 'nearest_points',
            'visible_fractions', 'SPREAD', 'CLUTTER_RANGE_MIN', 'CLUTTER_STATIONARY', 'CLUTTER_RANGE_RATE']
@@ -53,6 +59,7 @@ CLUTTER_STATIONARY = 0.7             # share of clutter on fixed world points (g
 CLUTTER_RANGE_RATE = (-40.0, 10.0)   # m/s: uniform range rate of the moving clutter
 VIS_SAMPLES = 9                      # geometry.visible_fraction's default samples per edge
 NEXT = [1, 2, 3, 0]                  # corner k -> k + 1: edge k of a box runs corner k -> NEXT[k] (counter-clockwise)
+_SAMPLES = np.linspace(0, 1, VIS_SAMPLES, endpoint=False)    # _visibility's sample fractions along an edge
 
 
 def _angle_gap(a):
@@ -230,7 +237,75 @@ def _scene(truth, t, params):
 
 
 def _scans(jobs, scene, t, params, rng):
-    """The scans of jobs [(spec, car), ...], vectorized over the sensors."""
+    """The scans of jobs [(spec, car), ...]: compiled (_radar_sim_jit) when numba is on, else in numpy."""
+    return (_scans_compiled if _jit.ENABLED else _scans_numpy)(jobs, scene, t, params, rng)
+
+
+_TABLES = {}        # (ids of the specs, id of params) -> ((specs, params), kept alive so the ids stay theirs; table)
+
+
+def _spec_table(specs, params):
+    """What _scans_compiled needs of the specs, cached per spec sequence (specs and params are frozen): the TAB rows
+    (S, 15), the point counts, the clutter rates and whether a scan's clutter area is empty (as _scans_numpy)."""
+    key = tuple(map(id, specs))+(id(params),)
+    hit = _TABLES.get(key)
+    if hit is not None:
+        return hit[1]
+    rows = []
+    for spec in specs:
+        ox, oy = mount_offset(spec.mount, params)
+        rows.append([float(getattr(spec, name)) for name in _K.TAB_FIELDS[:12]]+[ox, oy, spec.mount.yaw])
+    tab = np.array(rows, float)
+    col = lambda name: np.array([getattr(spec, name) for spec in specs], float)
+    counts = np.maximum(col('points_max').astype(int), 1)
+    rmax, near_r, fov, fov_far = col('range_max'), col('near_range'), col('fov'), col('fov_far')
+    r0, near_c = CLUTTER_RANGE_MIN, np.minimum(near_r, rmax)
+    empty = np.maximum(near_c-r0, 0.0)*fov+np.maximum(rmax-np.maximum(near_r, r0), 0.0)*fov_far <= 0
+    out = (tab, counts, int(counts.max()), np.maximum(col('false_alarms'), 0.0), empty)
+    if len(_TABLES) > 256:
+        _TABLES.clear()
+    _TABLES[key] = ((tuple(specs), params), out)
+    return out
+
+
+def _arg(x, dtype):
+    """x as a writable C-contiguous array of dtype, a kernel argument: numba compiles a separate specialization for
+    each layout and for read-only arrays (TruthHistory.at may return cached read-only ones), so they are copied."""
+    x = np.ascontiguousarray(x, dtype)
+    return x if x.flags.writeable else x.copy()
+
+
+def _scans_compiled(jobs, scene, t, params, rng):
+    """_scans_numpy by the kernels of _radar_sim_jit, the random draws the same calls in the same order (the same
+    stream, so the same scans to rounding)."""
+    state, boxes, centre, heading, vel, ids, vx = scene
+    specs = [spec for spec, _ in jobs]
+    cars = np.array([car for _, car in jobs], np.int64)
+    S = len(jobs)
+    tab, counts, m, lam, empty = _spec_table(specs, params)
+    f64 = lambda x: _arg(x, np.float64)
+    O, yaw, VS, si, ti, pd = _K.view_pd(f64(state.team), f64(state.team_vy), f64(state.team_r), f64(vx), cars,
+                                        len(state.traffic), tab, f64(boxes), _SAMPLES)
+    det = rng.random(len(si)) < pd
+    ds, dt = si[det], ti[det]
+    n_pts = rng.integers(1, counts[ds]+1)
+    offsets = rng.normal(0.0, SPREAD, size=(len(ds), m-1))
+    nc = rng.poisson(lam)
+    nc[empty] = 0
+    cs = np.repeat(np.arange(S), nc)
+    u = rng.random((4, len(cs)))
+    uni = rng.uniform(*CLUTTER_RANGE_RATE, size=len(cs))
+    r, az, rr, tid, sensor = _K.points_merge(O, yaw, VS, tab, ds, dt, f64(centre), f64(heading), f64(vel),
+                                             _arg(ids, np.int64), float(params.length/2), float(params.width/2),
+                                             _arg(n_pts, np.int64), offsets, cs, u, uni)
+    z = rng.standard_normal((3, len(r)))
+    r, az, rr, tid, edge = _K.noise_sort(r, az, rr, tid, sensor, z, tab, S)
+    return [RadarScan(spec.name, int(car), float(t), r[a:b], az[a:b], rr[a:b], truth_id=tid[a:b])
+            for spec, car, a, b in zip(specs, cars, edge[:-1], edge[1:])]
+
+
+def _scans_numpy(jobs, scene, t, params, rng):
+    """The scans of jobs [(spec, car), ...], vectorized over the sensors: the reference for _scans_compiled."""
     state, boxes, centre, heading, vel, ids, vx = scene
     specs = [spec for spec, _ in jobs]
     cars = np.array([car for _, car in jobs], int)

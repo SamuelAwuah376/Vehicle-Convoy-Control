@@ -7,10 +7,16 @@ times inside it). Casting all beams against one frozen state per stretch of the 
 motion within the stretch out, a step across its face between stretches that tilts the fitted box: about a degree for
 a car 5 m/s off the team's speed 60 m ahead with 5 ms stretches. The rays are tested only against the boxes whose
 bearing span over the sweep they cross ((beam, box) pairs), so the cost follows the beams that can hit something.
-Road edges return nothing (no guardrail model)."""
+Road edges return nothing (no guardrail model).
+
+Speed: the pairs and the ray test run as one numba kernel (_lidar_sim_jit.cast_kernel, the same formulas) when
+nohesi.perception._jit.ENABLED, else in numpy (_cast_numpy). The truth at the knots and every car's box (_sweep_truth)
+are the same for all lidars on all team cars firing together, so they are computed once per firing."""
 import numpy as np
+from .. import _jit
 from ..geometry import car_boxes, mount_offset, wrap
 from ..types import LidarScan
+from ._lidar_sim_jit import cast_kernel
 
 __all__ = ['CHUNK', 'beam_azimuths', 'cast_sweep', 'simulate_lidar']
 
@@ -66,6 +72,32 @@ def _lerp(knots, values, t):
     return values[seg]+w*(values[seg+1]-values[seg])
 
 
+_SHARED = [None, None]     # the last _sweep_truth: [key, value]
+
+
+def _sweep_truth(truth, t_start, t_end, chunk, params):
+    """_knots and _knot_states of a sweep, and every car's box at every knot (traffic, then team) (K, N + T, 4, 2).
+    The same for every lidar on every team car firing over the same interval, so the last one is kept and reused
+    while the truth's snapshot list and the arguments are unchanged (a truth without a snapshot list is not cached)."""
+    snaps = getattr(truth, 'snaps', None)
+    key = None if not snaps else (truth, snaps[0][0], snaps[-1][0], len(snaps), params, float(t_start), float(t_end),
+                                  float(chunk))
+    old = _SHARED[0]
+    if key is not None and old is not None and all(a is b if not isinstance(a, float) else a == b
+                                                   for a, b in zip(key, old)):
+        return _SHARED[1]
+    knots = _knots(truth, t_start, t_end, chunk)
+    team, traffic, ids = _knot_states(truth, knots)
+    K = len(knots)
+    states = np.concatenate((traffic, team), 1)
+    boxes = car_boxes(states.reshape(-1, 3), params).reshape(K, states.shape[1], 4, 2)
+    value = knots, team, traffic, ids, boxes
+    for a in value:
+        a.flags.writeable = False
+    _SHARED[:] = key, value
+    return value
+
+
 def cast_sweep(spec, car, truth, t_end, params, chunk=CHUNK):
     """Noise-free sweep of lidar `spec` on team car `car` ending at t_end: (azimuth (n,), time (n,), range (n,) with
     np.inf where nothing is hit within range_max, label (n,): the traffic id hit, -2 - team index for a teammate, -1
@@ -76,20 +108,30 @@ def cast_sweep(spec, car, truth, t_end, params, chunk=CHUNK):
     n, period = len(az), 1.0/spec.rate
     t_start = t_end-period
     time = np.linspace(t_start, t_end, n)
-    knots = _knots(truth, t_start, t_end, chunk)
-    team, traffic, ids = _knot_states(truth, knots)
+    knots, team, traffic, ids, boxes = _sweep_truth(truth, t_start, t_end, chunk, params)
     K, n_team, n_traffic = len(knots), team.shape[1], traffic.shape[1]
     ox, oy = mount_offset(spec.mount, params)
     x, y, yaw = np.moveaxis(team[:, car], -1, 0)
     sensor = np.column_stack((x+np.cos(yaw)*ox-np.sin(yaw)*oy, y+np.sin(yaw)*ox+np.cos(yaw)*oy, yaw+spec.mount.yaw))
     others = np.delete(np.arange(n_team), car)
-    states = np.concatenate((traffic, team[:, others]), 1)                      # (K, B, 3)
     labels = np.r_[ids, -2-others]
-    B = states.shape[1]
+    B = n_traffic+len(others)
     ranges, label = np.full(n, np.inf), np.full(n, -1)
     if B == 0:
         return az, time, ranges, label
-    corners = car_boxes(states.reshape(-1, 3), params).reshape(K, B, 4, 2)
+    corners = boxes[:, np.r_[np.arange(n_traffic), n_traffic+others]]          # (K, B, 4, 2)
+    if _jit.ENABLED:
+        ranges, box = cast_kernel(az, time, np.ascontiguousarray(knots, float), np.ascontiguousarray(sensor),
+                                  np.ascontiguousarray(corners), float(spec.beam_spacing), float(spec.range_max),
+                                  float(np.hypot(params.length, params.width)/2))
+        label[box >= 0] = labels[box[box >= 0]]
+        return az, time, ranges, label
+    return _cast_numpy(spec, az, time, knots, sensor, corners, labels, params, ranges, label)
+
+
+def _cast_numpy(spec, az, time, knots, sensor, corners, labels, params, ranges, label):
+    """cast_sweep's (beam, box) pairs and ray test in numpy (the reference for _lidar_sim_jit.cast_kernel)."""
+    n, (K, B) = len(az), corners.shape[:2]
 
     # Each box's bearing span from the sensor over the knots (relative to the boresight at the first knot), widened by
     # a beam; the beams inside it form its (beam, box) pairs. Seen from outside, a box spans less than pi about its
