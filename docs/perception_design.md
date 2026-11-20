@@ -57,7 +57,7 @@ lane. Under perception, the IMM's lane probabilities estimate it instead.
    lidar: motion compensation, clustering, L-shape box fit
    radar: point detections with closing speed
    camera: box to bearing and ground-plane range
-                 | detections with covariances
+                 | detections with covariances, one DetectionBatch (stacked arrays) per scan
                  v
    Team tracker: one centralized belief                     [nohesi/perception/tracking/]
    IMM-UKF in road coordinates, association, existence, track management,
@@ -445,8 +445,13 @@ confirmation, births and deletion tests in a few kernels per cycle, and the pipe
 a step. Then (same seeds, a 15.9 ms step without perception, ms per step): lidar sim 1.2, radar sim 1.2, camera sim
 0.6, lidar processing 1.6, radar processing 0.5, camera processing 0.8, tracker 3.9 (about 1 of it the one-time load
 of the compiled kernels, paid once per process): about 9.7 ms. Still above the 25 % target (4 ms here); what is left
-is the compiled work itself (the lidar box fits' small solves, the tracker's gate) and building and reading the
-Detection objects, which a per-scan batch handed from processing to the tracker would remove.
+is the compiled work itself (the lidar box fits' small solves, the tracker's gate) and per-scan Python. Processing
+now hands the tracker one types.DetectionBatch per scan (stacked arrays; Detection objects only when something reads
+them, as evaluation and the per-scan processing functions do), again bit-identical (the same digests, compiled and
+with NOHESI_JIT=0). It saved less than the ~1.6 ms of Python around the kernels suggested, as most of that is per
+scan, not per detection: on a heavily loaded machine (8 alternating runs of each, v9 seed 1001, 8 s, normalized by the
+unchanged simulators' time) radar processing -9 %, camera -2 %, tracker -6 %, lidar processing unchanged, about
+-4.5 % of processing and tracking together (~0.3 ms per step).
 
 ## 14. Phases (each ends with a check-in; training only on your go)
 

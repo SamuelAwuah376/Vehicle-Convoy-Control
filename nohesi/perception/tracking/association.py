@@ -14,7 +14,8 @@ API (the tracker builds on it):
   and models.h_camera with their own sensor per row (cam = [width_px, height_px, focal, body pitch, mount yaw]), so
   the pairs of many scans share one call. Equal to the models functions row by row.
 - DetTable.build(scans, params, sort=False): per-detection arrays of a fusion cycle, scans a list of (detections, spec,
-  log clutter density; with sort, each scan's detections are first put in scan_order), with a dummy last row (index
+  log clutter density; detections a types.DetectionBatch or a Detection list; with sort, each scan's detections are
+  first put in scan_order), with a dummy last row (index
   len(table)): time, kind, scan (index into scans), z (D, 4), R (D, 4, 4),
   R_fit (R where a lidar box carries its velocity model, meta 'R_fit': what the gate and update use), the lidar
   velocity model v_prior (D, 2) and dz_dv (D, 3, 2) (zeros without it), m (real dims), dof (dims that carry
@@ -24,10 +25,12 @@ API (the tracker builds on it):
   meta['init'] as init_xy (D, 2), init_P (D, 2, 2) (where has_xy), n_points, log_clutter (the clutter density
   of the informative dims: the scan's density times the span of each cut edge, existence.clutter_log_volumes) and
   ll_pad (added to a pair's log-likelihood, it leaves the informative dims: the padded columns' log(2 pi)/2 and the
-  cut edges' log(2 pi TRUNCATED_VAR)/2); dets and per scan its spec. Camera R is models.camera_R's: each cut edge
+  cut edges' log(2 pi TRUNCATED_VAR)/2); dets (the Detections in row order, built on first use) and per scan its
+  spec. Camera R is models.camera_R's: each cut edge
   decoupled with variance TRUNCATED_VAR (meta['truncated'] as camera_R reads it). Compiled (_tracking_jit.scan_order
   and table_rows) when numba is on, else DetTable.build_numpy; the two give the same table.
 - scan_order(dets): a scan's detections in the tracker's deterministic order (time, then the bytes of z).
+  scan_order_index(time, z): the same order as indices, from a scan's arrays.
 - evaluate(table, dj, X, params, car_height, offsets=None, motions=None) -> Z (P, J, K, M): the measurement model of
   detection dj[p] on sigma points X (P, J, K, 4) (J IMM models of K points each); a lidar box is models.h_lidar plus
   dz_dv (v_prior - the point's velocity), the box fit's first-order dependence on the velocity its points were moved
@@ -56,8 +59,7 @@ API (the tracker builds on it):
   with a non-positive pivot), L^-1 v and log det(L L^T).
 """
 from functools import lru_cache
-from itertools import accumulate, chain
-from operator import attrgetter
+from itertools import accumulate
 from typing import NamedTuple
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -66,13 +68,14 @@ from ...geometry import cg_offsets
 from .. import _jit
 from ..geometry import camera_tilt, focal
 from . import _tracking_jit as K
+from ..types import DetectionBatch
 from .existence import clutter_log_volumes
 from .imm import MU_FLOOR
 from .models import BORDER_PX, NEAR, TRUNCATED_VAR, h_lidar, sensor_velocity, V_MIN
 from .ukf import robust_cholesky
 
 __all__ = ['LIDAR', 'RADAR', 'CAMERA', 'KIND_CODE', 'M', 'COARSE_GATE', 'MARGIN', 'wrap_angle', 'gate_threshold',
-           'h_radar_rows', 'h_camera_rows', 'DetTable', 'scan_order', 'Moments', 'evaluate', 'moments', 'imm_gate',
+           'h_radar_rows', 'h_camera_rows', 'DetTable', 'scan_order', 'scan_order_index', 'Moments', 'evaluate', 'moments', 'imm_gate',
            'coarse_candidates', 'coarse_candidates_numpy', 'gnn', 'cholesky', 'forward', 'logdet']
 
 LIDAR, RADAR, CAMERA = 0, 1, 2
@@ -183,7 +186,7 @@ def h_camera_rows(X, pose, cam, params, car_height):
 
 
 _SPEC_CONSTS = {}
-_Z, _R, _TIME, _POSE, _META, _SIZE = (attrgetter(a) for a in ('z', 'R', 'time', 'sensor_pose', 'meta', 'size'))
+SPEC_KIND = {'LidarSpec': 'lidar_box', 'RadarSpec': 'radar', 'CameraSpec': 'camera_box'}   # by spec type
 
 
 def _spec_consts(spec):
@@ -194,17 +197,40 @@ def _spec_consts(spec):
     return got[1], got[2]
 
 
-def _truncation(near, dets):
-    """(k, 4) bool truncated edges of camera detections, as models.camera_R reads them: meta['truncated'] (4 flags, or
-    one bool meaning "touches the border"), else near, the edges within BORDER_PX of the border."""
-    flags = [d.meta.get('truncated') if d.meta else None for d in dets]
-    if all(f is not None and np.size(f) == 4 for f in flags):
-        return np.array(flags, bool).reshape(len(dets), 4)
+def _truncation(near, mode, flags):
+    """(k, 4) bool truncated edges of camera detections, as models.camera_R reads meta['truncated']
+    (DetectionBatch.trunc_mode: 0 no flags and 1 the bool True, the edges near the border; 3 the bool False, none; 2
+    the four flags)."""
     out = near.copy()
-    for n, f in enumerate(flags):
-        if f is not None:
-            out[n] = (near[n] if bool(f) else False) if np.ndim(f) == 0 else np.asarray(f, bool).reshape(4)
+    out[mode == 2] = flags[mode == 2]
+    out[mode == 3] = False
     return out
+
+
+def _batch(dets, spec):
+    """A scan's detections as a DetectionBatch (a Detection list converted; an empty one takes its kind and sensor
+    from the spec)."""
+    if isinstance(dets, DetectionBatch):
+        return dets
+    kind = SPEC_KIND.get(type(spec).__name__)
+    return DetectionBatch.from_detections(dets, kind, getattr(spec, 'name', None))
+
+
+def _cat(parts, name, shape, dtype=float):
+    """The batches' field `name`, concatenated (zeros of `shape` per row where a batch has none)."""
+    out = [getattr(b, name) if getattr(b, name) is not None else np.zeros((len(b), *shape), dtype) for b in parts]
+    return np.concatenate(out).astype(dtype, copy=False) if out else np.zeros((0, *shape), dtype)
+
+
+def _sorted(batch):
+    """The batch with its detections in scan_order (the tracker's deterministic order)."""
+    if len(batch) < 2:
+        return batch
+    order = scan_order_index(batch.time, batch.z)
+    if order == list(range(len(batch))):
+        return batch
+    dets = batch.detections()
+    return DetectionBatch.from_detections([dets[k] for k in order], batch.kind, batch.sensor, batch.car, batch.scan)
 
 
 class DetTable:
@@ -214,29 +240,37 @@ class DetTable:
         self.__dict__.update(arrays)
 
     def __len__(self):
-        return len(self.dets)
+        return len(self.time)-1
+
+    @property
+    def dets(self):
+        """The table's Detections in row order (built from the scans' batches on first use)."""
+        batches, perm = self._src
+        flat = [d for b in batches for d in b]
+        return [flat[k] for k in perm.tolist()]
 
     @classmethod
     def build(cls, scans, params, sort=False):
-        """The table of a cycle's scans [(detections, spec, log clutter density), ...]; sort: first order each scan's
-        detections by (time, z bytes) (scan_order, the tracker's deterministic order). Compiled
-        (_tracking_jit.scan_order and table_rows) when numba is on, else build_numpy."""
+        """The table of a cycle's scans [(detections, spec, log clutter density), ...], detections a DetectionBatch or
+        a Detection list; sort: first order each scan's detections by (time, z bytes) (scan_order, the tracker's
+        deterministic order). Compiled (_tracking_jit.scan_order and table_rows) when numba is on, else build_numpy."""
+        scans = [(_batch(ds, sp), sp, lc) for ds, sp, lc in scans]
         if _jit.ENABLED:
             tab = cls._build_jit(scans, params, sort)
             if tab is not None:
                 return tab
         if sort:
-            scans = [(scan_order(ds), sp, lc) for ds, sp, lc in scans]
+            scans = [(_sorted(b), sp, lc) for b, sp, lc in scans]
         return cls.build_numpy(scans, params)
 
     @classmethod
     def build_numpy(cls, scans, params):
-        """build in numpy (the reference of the compiled path)."""
-        dets = [d for ds, _, _ in scans for d in ds]
-        D = len(dets)
-        sizes = [len(ds) for ds, _, _ in scans]
+        """build in numpy (the reference of the compiled path), the scans' detections in the given order."""
+        batches = [_batch(ds, sp) for ds, sp, _ in scans]
+        sizes = [len(b) for b in batches]
+        D = sum(sizes)
         scan = np.repeat(np.arange(len(scans)), sizes)
-        kind = np.append(np.repeat([KIND_CODE[ds[0].kind] if ds else LIDAR for ds, _, _ in scans], sizes),
+        kind = np.append(np.repeat([KIND_CODE[b.kind] if len(b) else LIDAR for b in batches], sizes),
                          -1).astype(np.int64)
         m = KIND_DIMS[kind]
         z, R = np.zeros((D+1, M)), np.zeros((D+1, M, M))
@@ -248,31 +282,33 @@ class DetTable:
         wrapc = np.zeros((D+1, M), bool)
         clut = np.zeros(D+1)
         lid, rad, cmr = (np.flatnonzero(kind == code) for code in (LIDAR, RADAR, CAMERA))
+        live = [b for b in batches if len(b)]
+        of = lambda code: [b for b in live if KIND_CODE[b.kind] == code]
         if D:
-            for sel, dim in ((lid, 3), (rad, 3), (cmr, 4)):
+            for sel, dim, code in ((lid, 3, LIDAR), (rad, 3, RADAR), (cmr, 4, CAMERA)):
                 if sel.size:
-                    sd = [dets[j] for j in sel]
-                    z[sel, :dim] = np.array([d.z for d in sd], float)[:, :dim]
-                    R[sel, :dim, :dim] = np.array([d.R for d in sd], float)
-            pose[:D] = np.array([d.sensor_pose for d in dets], float)
+                    z[sel, :dim] = np.concatenate([b.z for b in of(code)])[:, :dim]
+                    R[sel, :dim, :dim] = np.concatenate([b.R for b in of(code)])
+            pose[:D] = np.concatenate([b.pose for b in live])
             has[:D] = True
             clut[:D] = np.repeat([lc for _, _, lc in scans], sizes)
         rear, front = cg_offsets(params)
         shift = (rear+front)/2
-        vp, dzdv, lin = np.zeros((D+1, 2)), np.zeros((D+1, 3, 2)), []
+        vp, dzdv, lin = np.zeros((D+1, 2)), np.zeros((D+1, 3, 2)), np.zeros(0, int)
         if lid.size:
             wrapc[lid, 2] = True
             h = z[lid, 2]
             xy[lid] = z[lid, :2]-shift*np.column_stack((np.cos(h), np.sin(h)))
             C[lid] = R[lid, :2, :2]+MARGIN[LIDAR]**2*np.eye(2)
-            lin = [j for j in lid.tolist() if dets[j].meta and 'dz_dv' in dets[j].meta]   # (the dummy is no lidar)
-            if lin:
-                vp[lin] = np.array([dets[j].meta['v_prior'] for j in lin], float)
-                dzdv[lin] = np.array([dets[j].meta['dz_dv'] for j in lin], float)
+            fit = _cat(of(LIDAR), 'fitted', (), bool)
+            lin = lid[fit]
+            if lin.size:
+                vp[lin] = _cat(of(LIDAR), 'v_prior', (2,))[fit]
+                dzdv[lin] = _cat(of(LIDAR), 'dz_dv', (3, 2))[fit]
         if rad.size:
             wrapc[rad, 1] = True
             srad = scan[rad].tolist()
-            vel = {s: sensor_velocity(scans[s][0][0]) for s in set(srad)}
+            vel = {s: sensor_velocity(batches[s][0]) for s in set(srad)}
             vs[rad] = np.array([vel[s] for s in srad])
             r, phi = z[rad, 0], pose[rad, 2]+z[rad, 1]
             u = np.column_stack((np.cos(phi), np.sin(phi)))
@@ -287,131 +323,115 @@ class DetTable:
             cs = np.unique(scan[cmr])
             per = np.searchsorted(cs, scan[cmr])
             sp = [scans[k][1] for k in cs]
-            ego = [scans[k][0][0].ego for k in cs]
+            ego = [batches[k].ego[0] for k in cs]
             cam[cmr] = np.array([(c.width_px, c.height_px, _spec_consts(c)[0], 0.0 if e is None else float(e.pitch),
                                   c.mount.yaw) for c, e in zip(sp, ego)])[per]
             W, Hh = cam[cmr, 0], cam[cmr, 1]
             near = np.column_stack((z[cmr, 0] <= BORDER_PX, z[cmr, 1] >= W-BORDER_PX, z[cmr, 2] <= BORDER_PX,
                                     z[cmr, 3] >= Hh-BORDER_PX))
-            cdets = [dets[j] for j in cmr]
-            cut = _truncation(near, cdets)
+            cut = _truncation(near, _cat(of(CAMERA), 'trunc_mode', (), np.int64),
+                              _cat(of(CAMERA), 'truncated', (4,), bool))
             keep = ~cut
             R[cmr] *= keep[:, :, None] & keep[:, None, :]
             R[cmr] += np.eye(4)*np.where(cut, TRUNCATED_VAR, 0.0)[:, None, :]
             dof[cmr] = keep.sum(1)
             ll_pad[cmr] += 0.5*cut.sum(1)*np.log(2*np.pi*TRUNCATED_VAR)
             clut[cmr] += (cut*np.array([_spec_consts(c)[1] for c in sp])[per]).sum(1)
-            inits = [d.meta.get('init') if d.meta else None for d in cdets]
-            got = np.array([i is not None for i in inits])
+            got = _cat(of(CAMERA), 'has_init', (), bool)
             has[cmr[~got]] = False
             if got.any():
-                xy[cmr[got]] = ixy[cmr[got]] = np.array([i[0] for i in inits if i is not None], float)
-                iP[cmr[got]] = np.array([i[1] for i in inits if i is not None], float)
+                xy[cmr[got]] = ixy[cmr[got]] = _cat(of(CAMERA), 'init_xy', (2,))[got]
+                iP[cmr[got]] = _cat(of(CAMERA), 'init_P', (2, 2))[got]
                 C[cmr[got]] = iP[cmr[got]]+MARGIN[CAMERA]**2*np.eye(2)
         Rf = R.copy()                 # what the gate and the update use: a lidar box's R without its velocity prior
-        if lin:
-            Rf[lin, :3, :3] = np.array([dets[j].meta['R_fit'] for j in lin], float)
-        npts = np.array([int(d.meta.get('n_points', 0)) if d.meta else 0 for d in dets]+[0], int)
-        return cls(time=np.append(np.array([d.time for d in dets], float), 0.0), kind=kind, scan=np.append(scan, -1),
+        if lin.size:
+            Rf[lin, :3, :3] = _cat(of(LIDAR), 'R_fit', (3, 3))[fit]
+        npts = np.append(_cat(live, 'n_points', (), np.int64), 0).astype(int)
+        return cls(time=np.append(_cat(live, 'time', ()), 0.0), kind=kind, scan=np.append(scan, -1),
                    z=z, R=R, R_fit=Rf, v_prior=vp, dz_dv=dzdv, m=m, dof=dof, wrap=wrapc, ll_pad=ll_pad, pose=pose,
                    vs=vs, cam=cam, xy=xy, C=C, has_xy=has, init_xy=ixy, init_P=iP, n_points=npts, log_clutter=clut,
-                   dets=dets, spec=[sp for _, sp, _ in scans])
+                   _src=(batches, np.arange(D)), spec=[sp for _, sp, _ in scans])
 
     @classmethod
     def _build_jit(cls, scans, params, sort):
-        """build compiled: the detections' fields gathered kind by kind in their delivery order, the scans ordered
+        """build compiled: the batches' fields gathered kind by kind in their delivery order, the scans ordered
         (_tracking_jit.scan_order) and every row computed in _tracking_jit.table_rows (the numpy path's operations,
-        row by row). None when some detection's arrays do not stack (the numpy path then builds the table)."""
-        raw = list(chain.from_iterable([ds for ds, _, _ in scans]))
-        D = len(raw)
+        row by row). None when some scan's arrays do not stack (the numpy path then builds the table)."""
+        batches = [b for b, _, _ in scans]
+        sizes = [len(b) for b in batches]
+        D = sum(sizes)
         if D == 0:
             return None
         S = len(scans)
-        sizes = [len(ds) for ds, _, _ in scans]
-        skind = [KIND_CODE[ds[0].kind] if ds else LIDAR for ds, _, _ in scans]
+        skind = [KIND_CODE[b.kind] if n else LIDAR for b, n in zip(batches, sizes)]
         start = np.array([0, *accumulate(sizes)], np.int64)
         rows = np.empty((2, D+1), np.int64)
         rows[:, :D] = np.repeat(np.array([range(S), skind], np.int64), sizes, axis=1)
         rows[:, D] = -1
         scan, kind = rows
-        by = ([], [], [])                       # each kind's detections in delivery order
-        for (ds, _, _), k in zip(scans, skind):
-            if ds:
-                by[k].extend(ds)
+        by = ([], [], [])                       # each kind's batches in delivery order
+        for b, k, n in zip(batches, skind, sizes):
+            if n:
+                by[k].append(b)
+        live = [b for b in batches if len(b)]
         Z, Rk = [], []
-        for k, dim in ((LIDAR, 3), (RADAR, 3), (CAMERA, 4)):
-            zk = np.array(list(map(_Z, by[k])), float) if by[k] else np.zeros((0, dim))
-            rk = np.array(list(map(_R, by[k])), float) if by[k] else np.zeros((0, dim, dim))
-            if zk.ndim != 2 or zk.shape[1] < dim or rk.shape[1:] != (dim, dim):
-                return None
-            Z.append(zk)
-            Rk.append(rk)
-        times = np.fromiter(map(_TIME, raw), float, D)
+        try:
+            for k, dim in ((LIDAR, 3), (RADAR, 3), (CAMERA, 4)):
+                zk = np.concatenate([b.z for b in by[k]]).astype(float, copy=False) if by[k] else np.zeros((0, dim))
+                rk = (np.concatenate([b.R for b in by[k]]).astype(float, copy=False) if by[k] else
+                      np.zeros((0, dim, dim)))
+                if zk.ndim != 2 or zk.shape[1] < dim or rk.shape[1:] != (dim, dim):
+                    return None
+                Z.append(np.ascontiguousarray(zk))
+                Rk.append(np.ascontiguousarray(rk))
+            times = np.ascontiguousarray(np.concatenate([b.time for b in live]), float)
+            pose_raw = np.ascontiguousarray(np.concatenate([b.pose for b in live]), float)
+        except ValueError:
+            return None
         if sort and D > 1:
             if not np.isfinite(times).all():
                 return None
-            zb = [np.ascontiguousarray(zk).view(np.uint8) for zk in Z]
+            zb = [zk.view(np.uint8) for zk in Z]
             perm = K.scan_order(times, start, kind, zb[0], zb[1], zb[2])
-            dets = list(map(raw.__getitem__, perm.tolist()))
         else:
             perm = np.arange(D, dtype=np.int64)
-            dets = raw
-        poses = list(map(_POSE, raw))
-        if set(map(len, poses)) == {4}:
-            pose_raw = np.fromiter(chain.from_iterable(poses), float, 4*D).reshape(D, 4)
-        else:
-            pose_raw = np.array(poses, float)
-        npts_raw = np.fromiter([int(mt.get('n_points', 0)) if mt else 0 for mt in map(_META, raw)], np.int64, D)
+        npts_raw = np.ascontiguousarray(_cat(live, 'n_points', (), np.int64))
         lc = np.array([lc for _, _, lc in scans], float)
         # lidar velocity models (by delivery index within the lidar rows)
-        lmeta = list(map(_META, by[LIDAR]))
-        lin_of = np.full(len(lmeta), -1, np.int64)
-        ql = [q for q, mt in enumerate(lmeta) if mt and 'dz_dv' in mt]
-        if ql:
-            lin_of[ql] = np.arange(len(ql))
-            vpl = np.array([lmeta[q]['v_prior'] for q in ql], float).reshape(len(ql), 2)
-            dzl = np.array([lmeta[q]['dz_dv'] for q in ql], float).reshape(len(ql), 3, 2)
-            rfl = np.array([lmeta[q]['R_fit'] for q in ql], float).reshape(len(ql), 3, 3)
+        fit = _cat(by[LIDAR], 'fitted', (), bool)
+        lin_of = np.full(len(fit), -1, np.int64)
+        nl = int(fit.sum())
+        lin_of[fit] = np.arange(nl)
+        if nl:
+            vpl = np.ascontiguousarray(_cat(by[LIDAR], 'v_prior', (2,))[fit])
+            dzl = np.ascontiguousarray(_cat(by[LIDAR], 'dz_dv', (3, 2))[fit])
+            rfl = np.ascontiguousarray(_cat(by[LIDAR], 'R_fit', (3, 3))[fit])
         else:
             vpl, dzl, rfl = np.zeros((0, 2)), np.zeros((0, 3, 2)), np.zeros((0, 3, 3))
         # per scan: a radar's sensor velocity and a camera's row, from its first detection (in table order)
         sego, scam, slv = np.zeros((S, 8)), np.zeros((S, 5)), np.zeros((S, 4))
         for s in range(S):
             if sizes[s] and skind[s] != LIDAR:
-                first = dets[start[s]]
+                j = int(perm[start[s]]-start[s])
+                b = batches[s]
+                e = b.ego[j]
                 if skind[s] == RADAR:
-                    e = first.ego
-                    sego[s] = (e.yaw, e.vx, e.vy, e.r, e.x, e.y, first.sensor_pose[0], first.sensor_pose[1])
+                    sego[s] = (e.yaw, e.vx, e.vy, e.r, e.x, e.y, b.pose[j, 0], b.pose[j, 1])
                 else:
-                    c, e = scans[s][1], first.ego
+                    c = scans[s][1]
                     fc, lv = _spec_consts(c)
                     scam[s] = (c.width_px, c.height_px, fc, 0.0 if e is None else float(e.pitch), c.mount.yaw)
                     slv[s] = lv
         # camera truncation flags and single-frame positions (by delivery index within the camera rows)
-        cmeta = list(map(_META, by[CAMERA]))
-        nc = len(cmeta)
-        flags = [mt.get('truncated') if mt else None for mt in cmeta]
-        fmode, fval = np.zeros(nc, np.int64), np.zeros((nc, 4), bool)
-        if nc:
-            if (set(map(type, flags)) == {np.ndarray} and set(map(_SIZE, flags)) == {4}) or \
-                    all(f is not None and np.size(f) == 4 for f in flags):
-                fmode[:] = 2
-                fval[:] = np.array(flags, bool).reshape(nc, 4)
-            else:
-                for n_, f in enumerate(flags):
-                    if f is not None:
-                        if np.ndim(f) == 0:
-                            fmode[n_] = 1 if bool(f) else 3
-                        else:
-                            fmode[n_] = 2
-                            fval[n_] = np.asarray(f, bool).reshape(4)
-        inits = [mt.get('init') if mt else None for mt in cmeta]
-        init_of = np.full(nc, -1, np.int64)
-        qi = [q for q, i in enumerate(inits) if i is not None]
-        if qi:
-            init_of[qi] = np.arange(len(qi))
-            ixy = np.array([inits[q][0] for q in qi], float).reshape(len(qi), 2)
-            iPc = np.array([inits[q][1] for q in qi], float).reshape(len(qi), 2, 2)
+        fmode = np.ascontiguousarray(_cat(by[CAMERA], 'trunc_mode', (), np.int64))
+        fval = np.ascontiguousarray(_cat(by[CAMERA], 'truncated', (4,), bool))
+        got = _cat(by[CAMERA], 'has_init', (), bool)
+        init_of = np.full(len(got), -1, np.int64)
+        ni = int(got.sum())
+        init_of[got] = np.arange(ni)
+        if ni:
+            ixy = np.ascontiguousarray(_cat(by[CAMERA], 'init_xy', (2,))[got])
+            iPc = np.ascontiguousarray(_cat(by[CAMERA], 'init_P', (2, 2))[got])
         else:
             ixy, iPc = np.zeros((0, 2)), np.zeros((0, 2, 2))
         rear, front = cg_offsets(params)
@@ -425,7 +445,14 @@ class DetTable:
             rfl, sego, scam, slv, fmode, fval, init_of, ixy, iPc, dof, ll_pad, cst)
         return cls(time=time, kind=kind, scan=scan, z=z, R=R, R_fit=Rf, v_prior=vp, dz_dv=dzdv, m=m, dof=dof,
                    wrap=wrapc, ll_pad=ll_pad, pose=pose, vs=vs, cam=cam, xy=xy, C=C, has_xy=has, init_xy=iX,
-                   init_P=iP, n_points=npts, log_clutter=clut, dets=dets, spec=[sp for _, sp, _ in scans])
+                   init_P=iP, n_points=npts, log_clutter=clut, _src=(batches, perm), spec=[sp for _, sp, _ in scans])
+
+
+def scan_order_index(time, z):
+    """scan_order of a scan's detections given their times (n,) and z (n, d): the indices in that order."""
+    zb = np.ascontiguousarray(z, float)
+    t = np.asarray(time, float).tolist()
+    return sorted(range(len(t)), key=lambda k: (t[k], zb[k].tobytes()))
 
 
 def scan_order(dets):

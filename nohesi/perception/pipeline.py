@@ -12,10 +12,11 @@ One call, at the true snapshot's time `now`:
    history; a time within 1e-6 s of `now` is `now` itself). Each scan is simulated (nohesi.perception.sim, Tier A)
    and processed (nohesi.perception.processing) with the carrying car's EgoState and the teammates' states from the
    team history (the camera's pitch estimate is pitch_per_accel times the car's own braking); the radar scans and the
-   camera frames of one time are processed in one batch each (process_radars, process_cameras: the same detections
-   as one by one, for a fraction of the cost). Its detections and a
-   tracking.ScanInfo (so an empty scan still counts as a miss) are queued for delivery at the scan time plus the
-   sensor's latency plus cfg.v2v_latency.
+   camera frames of one time are processed in one batch each (process_radars_batch, process_cameras_batch: the same
+   detections as one by one, for a fraction of the cost). Its detections, as one types.DetectionBatch (stacked
+   arrays: the tracker reads them without a Detection object per detection), and a tracking.ScanInfo (so an empty
+   scan still counts as a miss) are queued for delivery at the scan time plus the sensor's latency plus
+   cfg.v2v_latency.
 3. Everything delivered by `now` goes to the tracker (TeamTracker.process with the team's states at `now`), which
    applies a fusion cycle (one sim step) once all of its data can have arrived: hold = the largest delivery latency,
    so every cycle runs once, complete, without replays. The belief is predicted to `now`.
@@ -61,14 +62,14 @@ from ..world import TEAM
 from .belief import perceived_snapshot
 from .config import CameraSpec, LidarSpec, Mount, RadarSpec
 from .geometry import mount_offset, sensor_pose, wrap
-from .processing.camera import process_cameras
-from .processing.lidar import process_lidar
-from .processing.radar import process_radars
+from .processing.camera import process_cameras_batch
+from .processing.lidar import process_lidar_batch
+from .processing.radar import process_radars_batch
 from .sim.camera import simulate_cameras
 from .sim.lidar import simulate_lidar
 from .sim.radar import simulate_radars
 from .tracking.tracker import ScanInfo, TeamTracker
-from .types import Detection, EgoState, TruthHistory
+from .types import Detection, DetectionBatch, EgoState, TruthHistory
 
 __all__ = ['PerceptionSystem', 'IDEAL_LIDAR', 'IDEAL_SIGMA', 'SCAN_DTYPE', 'STAGES', 'RADAR_SCALE', 'LIDAR_REFINE',
            'CAMERA_REFINE']
@@ -264,7 +265,7 @@ class PerceptionSystem:
         self._queue = [q for q in self._queue if q[0] > now+1e-9]
         for i, tracker in enumerate(self.trackers):
             mine = [q for q in due if not self.own or q[2] == i]
-            tracker.process([d for q in mine for d in q[3]], now, snap.team, [q[4] for q in mine])
+            tracker.process([q[3] for q in mine], now, snap.team, [q[4] for q in mine])
         beliefs = tuple(t.belief(now) for t in self.trackers)
         self.profile['tracker'] += perf_counter()-tic
         self.belief = beliefs[0]
@@ -327,9 +328,9 @@ class PerceptionSystem:
                         tic = perf_counter()
                         scan = simulate_lidar(spec, car, self.truth, t, self.params, self.rng)
                         toc = perf_counter()
-                        dets = process_lidar(scan, spec, lambda u, c=car: self.team.ego(c, u),
-                                             lambda u, c=car: self.team.mates(c, u), self.params, self.road,
-                                             refine=LIDAR_REFINE)
+                        dets = process_lidar_batch(scan, spec, lambda u, c=car: self.team.ego(c, u),
+                                                   lambda u, c=car: self.team.mates(c, u), self.params, self.road,
+                                                   refine=LIDAR_REFINE)
                         self._tally('sim_lidar', 'proc_lidar', tic, toc)
                         self._queue_scan(spec, car, float(scan.t_end), dets,
                                          int(np.count_nonzero(np.isfinite(scan.range))), -1)
@@ -341,8 +342,8 @@ class PerceptionSystem:
                 jobs = [(c, s) for c in cars for s in specs]
                 egos = {c: self.team.ego(c, t) for c in cars}
                 mates = {c: self.team.mates(c, t) for c in cars}
-                dets = process_radars(scans, [s for _, s in jobs], [egos[c] for c, _ in jobs],
-                                      [mates[c] for c, _ in jobs], self.params, scale=RADAR_SCALE)
+                dets = process_radars_batch(scans, [s for _, s in jobs], [egos[c] for c, _ in jobs],
+                                            [mates[c] for c, _ in jobs], self.params, scale=RADAR_SCALE)
                 self.profile['proc_radar'] += perf_counter()-toc
                 for scan, (car, spec), d in zip(scans, jobs, dets):
                     self._queue_scan(spec, car, float(scan.time), d, len(scan.range),
@@ -354,10 +355,10 @@ class PerceptionSystem:
                 toc = perf_counter()
                 jobs = [(car, spec) for car in cars for spec in specs]
                 mates = {car: self.team.mates(car, t) for car in cars}
-                dets = process_cameras(frames, [s for _, s in jobs],
-                                       [self.team.ego(c, t, s.pitch_per_accel) for c, s in jobs],
-                                       [mates[c] for c, _ in jobs], self.params, self.cfg.car_height,
-                                       refine=CAMERA_REFINE)
+                dets = process_cameras_batch(frames, [s for _, s in jobs],
+                                             [self.team.ego(c, t, s.pitch_per_accel) for c, s in jobs],
+                                             [mates[c] for c, _ in jobs], self.params, self.cfg.car_height,
+                                             refine=CAMERA_REFINE)
                 self._tally('sim_camera', 'proc_camera', tic, toc)
                 for frame, (car, spec), d in zip(frames, jobs, dets):
                     self._queue_scan(spec, car, float(frame.time), d, len(frame.boxes),
@@ -368,7 +369,8 @@ class PerceptionSystem:
         self.profile[proc] += perf_counter()-toc
 
     def _queue_scan(self, spec, car, time, dets, raw, true):
-        """Queue one scan's detections and its ScanInfo for delivery at time + latency (+ the V2V link)."""
+        """Queue one scan's detections (a DetectionBatch) and its ScanInfo for delivery at time + latency (+ the V2V
+        link)."""
         info = ScanInfo(spec.name, int(car), time, self._sensor_pose(spec, car, time))
         self._queue.append((time+float(spec.latency)+self.link, self._seq, int(car), dets, info))
         self._seq += 1
@@ -399,6 +401,7 @@ class PerceptionSystem:
         dets = [Detection('lidar_box', IDEAL_LIDAR.name, 0, t, np.array([x, y, h]), R.copy(), pose, ego,
                           {'n_points': IDEAL_POINTS, 'sides': 2, 'scan': t})
                 for (x, y), h in zip(centre, heading)]
+        dets = DetectionBatch.from_detections(dets, 'lidar_box', IDEAL_LIDAR.name, 0, t)
         self.profile['ideal'] += perf_counter()-tic
         self._queue_scan(IDEAL_LIDAR, 0, t, dets, len(dets), len(dets))
 

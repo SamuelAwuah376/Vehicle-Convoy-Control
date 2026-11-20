@@ -122,8 +122,9 @@ def _camera_view(frame, spec, args, dets, params):
     return ScanView('camera', frame.sensor, int(frame.car), float(frame.time), np.array([x, y]), pts, real)
 
 
-_VIEWS = {'process_lidar': _lidar_view, 'process_radars': _radar_view, 'process_cameras': _camera_view}
-_BATCHED = ('process_radars', 'process_cameras')     # the pipeline processes a step's radar scans and frames at once
+_VIEWS = {'process_lidar_batch': _lidar_view, 'process_radars_batch': _radar_view,
+          'process_cameras_batch': _camera_view}
+_BATCHED = ('process_radars_batch', 'process_cameras_batch')   # a step's radar scans and frames go at once
 
 
 class PerceptionRecorder(PerceptionSystem):

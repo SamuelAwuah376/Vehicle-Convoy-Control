@@ -14,8 +14,8 @@ from collections import deque
 from dataclasses import dataclass, field
 import numpy as np
 
-__all__ = ['LidarScan', 'RadarScan', 'CameraFrame', 'EgoState', 'Detection', 'Belief', 'TruthHistory', 'TruthState',
-           'DETECTION_KINDS']
+__all__ = ['LidarScan', 'RadarScan', 'CameraFrame', 'EgoState', 'Detection', 'DetectionBatch', 'Belief', 'TruthHistory',
+           'TruthState', 'DETECTION_KINDS']
 
 
 @dataclass(frozen=True)
@@ -100,6 +100,102 @@ class Detection:
     ego: EgoState
     meta: dict = field(default_factory=dict)
 
+
+
+class DetectionBatch:
+    """One scan's detections as stacked arrays: what processing hands the tracker (the pipeline's interface; the
+    per-scan processing functions still return Detection lists). It is a sequence of Detections too: len, iteration
+    and indexing give Detection objects equal to the list processing returns for the scan (built on first use, kept).
+
+    Every detection has kind, sensor and car, and meta['scan'] = scan (the scan time; Detection lists of one scan share
+    them). Per detection: time (n,), z (n, d), R (n, d, d), pose (n, 4) its sensor_pose, ego (n,) its EgoState (list),
+    n_points (n,) int (meta 'n_points', 0 without). Kind-specific fields (None when the kind has none):
+    - 'lidar_box': fitted (n,) bool (meta has the velocity model), v_prior (n, 2), dz_dv (n, 3, 2), R_fit (n, 3, 3)
+      (zeros where not fitted);
+    - 'camera_box': trunc_mode (n,) int (meta 'truncated': 0 none, 1 the bool True, 3 the bool False, 2 four flags),
+      truncated (n, 4) bool (the flags where trunc_mode 2), has_init (n,) bool, init_xy (n, 2), init_P (n, 2, 2)
+      (meta 'init', zeros without).
+    make(batch) -> [Detection] builds the Detections (processing's own meta), or dets gives them; from_detections
+    builds a batch from any Detection list of one scan (the tracker's path for Detection input)."""
+    __slots__ = ('kind', 'sensor', 'car', 'scan', 'time', 'z', 'R', 'pose', 'ego', 'n_points', 'fitted', 'v_prior',
+                 'dz_dv', 'R_fit', 'trunc_mode', 'truncated', 'has_init', 'init_xy', 'init_P', 'extra', '_make',
+                 '_dets')
+
+    def __init__(self, kind, sensor, car, scan, time, z, R, pose, ego, n_points, *, fitted=None, v_prior=None,
+                 dz_dv=None, R_fit=None, trunc_mode=None, truncated=None, has_init=None, init_xy=None, init_P=None,
+                 extra=None, make=None, dets=None):
+        self.kind, self.sensor, self.car, self.scan = kind, sensor, car, scan
+        self.time, self.z, self.R, self.pose, self.ego, self.n_points = time, z, R, pose, ego, n_points
+        self.fitted, self.v_prior, self.dz_dv, self.R_fit = fitted, v_prior, dz_dv, R_fit
+        self.trunc_mode, self.truncated, self.has_init, self.init_xy, self.init_P = (trunc_mode, truncated, has_init,
+                                                                                    init_xy, init_P)
+        self.extra = extra           # processing's own arrays for make
+        self._make, self._dets = make, dets
+
+    @classmethod
+    def empty(cls, kind, sensor, car, scan):
+        d = {'lidar_box': 3, 'radar': 3, 'camera_box': 4}.get(kind, 3)
+        return cls(kind, sensor, car, scan, np.zeros(0), np.zeros((0, d)), np.zeros((0, d, d)), np.zeros((0, 4)), [],
+                   np.zeros(0, np.int64), dets=[])
+
+    @classmethod
+    def from_detections(cls, dets, kind=None, sensor=None, car=None, scan=None):
+        """The batch of Detections `dets` (one scan's; kind, sensor, car and scan from the first when not given, for an
+        empty list they are required). The Detections are kept as the batch's items."""
+        dets = list(dets)
+        if not dets:
+            return cls.empty(kind, sensor, car, scan)
+        d0 = dets[0]
+        kind = d0.kind if kind is None else kind
+        sensor = d0.sensor if sensor is None else sensor
+        car = d0.car if car is None else car
+        if scan is None:
+            scan = d0.meta.get('scan', d0.time) if d0.meta else d0.time
+        n = len(dets)
+        metas = [d.meta or {} for d in dets]
+        out = cls(kind, sensor, car, scan, np.array([float(d.time) for d in dets]), np.array([d.z for d in dets], float),
+                  np.array([d.R for d in dets], float), np.array([d.sensor_pose for d in dets], float),
+                  [d.ego for d in dets], np.array([int(m.get('n_points', 0)) for m in metas], np.int64), dets=dets)
+        if kind == 'lidar_box':
+            out.fitted = np.array(['dz_dv' in m for m in metas], bool)
+            out.v_prior, out.dz_dv, out.R_fit = np.zeros((n, 2)), np.zeros((n, 3, 2)), np.zeros((n, 3, 3))
+            for k in np.flatnonzero(out.fitted).tolist():
+                m = metas[k]
+                out.v_prior[k] = np.asarray(m['v_prior'], float).reshape(2)
+                out.dz_dv[k] = np.asarray(m['dz_dv'], float).reshape(3, 2)
+                out.R_fit[k] = np.asarray(m['R_fit'], float).reshape(3, 3)
+        elif kind == 'camera_box':
+            out.trunc_mode, out.truncated = np.zeros(n, np.int64), np.zeros((n, 4), bool)
+            out.has_init, out.init_xy, out.init_P = np.zeros(n, bool), np.zeros((n, 2)), np.zeros((n, 2, 2))
+            for k, m in enumerate(metas):
+                f = m.get('truncated')
+                if f is not None:
+                    if np.ndim(f) == 0:
+                        out.trunc_mode[k] = 1 if bool(f) else 3
+                    else:
+                        out.trunc_mode[k] = 2
+                        out.truncated[k] = np.asarray(f, bool).reshape(4)
+                init = m.get('init')
+                if init is not None:
+                    out.has_init[k] = True
+                    out.init_xy[k] = np.asarray(init[0], float).reshape(2)
+                    out.init_P[k] = np.asarray(init[1], float).reshape(2, 2)
+        return out
+
+    def detections(self):
+        """The batch's Detections (a list, built once)."""
+        if self._dets is None:
+            self._dets = self._make(self)
+        return self._dets
+
+    def __len__(self):
+        return len(self.time)
+
+    def __iter__(self):
+        return iter(self.detections())
+
+    def __getitem__(self, k):
+        return self.detections()[k]
 
 @dataclass(frozen=True)
 class Belief:

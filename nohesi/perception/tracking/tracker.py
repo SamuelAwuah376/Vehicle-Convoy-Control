@@ -8,7 +8,8 @@ API:
   sequence of specs); lanes the road's lane count (default from the road). cycle: the fusion cycle in seconds; hold:
   scans are applied only once they are this old (0: on arrival; see Late measurements); clutter: {sensor name: false
   detections per unit measurement volume}, default existence.clutter_density of each spec.
-  - process(detections, now, team, scans=()): consumes types.Detection lists that may arrive late and out of order.
+  - process(detections, now, team, scans=()): consumes detections that may arrive late and out of order: an iterable
+    of types.DetectionBatch (one scan's detections each, what the pipeline sends) and/or types.Detection objects.
     team (k, >= 4): the team cars' CG states [x, y, yaw, v] at `now` (exact, V2V), indexed by Detection.car.
     scans: ScanInfo(sensor, car, time, sensor_pose) of scans that ran, including those that saw nothing (a
     Detection list cannot say a scan was empty, and without that a car leaving a sensor's view is never missed by it).
@@ -116,7 +117,7 @@ from scipy.optimize import linear_sum_assignment
 from ...geometry import cg_offsets
 from .. import _jit
 from ..geometry import car_boxes, focal, wrap
-from ..types import Belief
+from ..types import Belief, DetectionBatch
 from . import _tracking_jit as K
 from . import association as A
 from . import existence as E
@@ -430,16 +431,17 @@ class _Tracks:
 
 
 class _Scan:
-    """One scan: its detections (in delivery order; association.scan_order gives the deterministic order the cycle
-    uses, DetTable.build(sort=True) applies it) and the pose and time its coverage is evaluated at."""
-    __slots__ = ('time', 'sensor', 'car', 'kind', 'spec', 'dets', 'pose', 'pose_time', 'key')
+    """One scan: its detections as a DetectionBatch (in delivery order; association.scan_order gives the deterministic
+    order the cycle uses, DetTable.build(sort=True) applies it) and the pose and time its coverage is evaluated at."""
+    __slots__ = ('time', 'sensor', 'car', 'kind', 'spec', 'batch', 'pose', 'pose_time', 'key')
 
-    def __init__(self, time, sensor, car, kind, spec, dets, pose=None, pose_time=None):
+    def __init__(self, time, sensor, car, kind, spec, batch, pose=None, pose_time=None):
         self.time, self.sensor, self.car, self.kind, self.spec = float(time), sensor, int(car), kind, spec
-        self.dets = dets
-        if pose is None and dets:
-            last = max(A.scan_order(dets), key=lambda d: float(d.time))
-            pose, pose_time = last.sensor_pose, last.time
+        self.batch = batch
+        if pose is None and len(batch):             # the last detection in time (the first such in scan order)
+            t = batch.time.tolist()
+            last = max(A.scan_order_index(batch.time, batch.z), key=t.__getitem__)
+            pose, pose_time = batch.pose[last], t[last]
         self.pose = None if pose is None else tuple(map(float, pose))
         self.pose_time = self.time if pose_time is None else float(pose_time)
         self.key = (self.time, KIND_ORDER[kind], self.car, sensor)
@@ -447,7 +449,18 @@ class _Scan:
     def merged(self, other):
         pose = self.pose if self.pose is not None else other.pose
         pt = self.pose_time if self.pose is not None else other.pose_time
-        return _Scan(self.time, self.sensor, self.car, self.kind, self.spec, self.dets+other.dets, pose, pt)
+        return _Scan(self.time, self.sensor, self.car, self.kind, self.spec,
+                     _joined([self.batch, other.batch], self.kind, self.sensor, self.car, self.time), pose, pt)
+
+
+def _joined(parts, kind, sensor, car, scan):
+    """One DetectionBatch of a scan's parts (batches, in delivery order)."""
+    live = [b for b in parts if len(b)]
+    if len(live) == 1:
+        return live[0]
+    if not live:
+        return parts[0] if parts else DetectionBatch.empty(kind, sensor, car, scan)
+    return DetectionBatch.from_detections([d for b in live for d in b], kind, sensor, car, scan)
 
 
 # ------------------------------------------------------------------------------------------------ the tracker
@@ -524,7 +537,7 @@ class TeamTracker:
         for sc in self._group(detections, scans):
             c = self._cycle_of(sc.time)
             if c < self._floor:
-                self.stats['late_dropped'] += max(len(sc.dets), 1)
+                self.stats['late_dropped'] += max(len(sc.batch), 1)
                 continue
             bucket = self._pending.setdefault(c, {})
             bucket[sc.key] = bucket[sc.key].merged(sc) if sc.key in bucket else sc
@@ -581,9 +594,15 @@ class TeamTracker:
         return int(floor(t/self.cycle+1e-6))
 
     def _group(self, detections, scans):
+        """The _Scans of a delivery: batches and Detections grouped by (scan time, sensor, car), with the scans
+        announced (ScanInfo); each scan's parts joined in delivery order."""
         groups, infos = {}, {}
         last = cur = pst = psn = pcr = None
         for det in detections:
+            if isinstance(det, DetectionBatch):
+                groups.setdefault((float(det.scan), det.sensor, int(det.car)), []).append(det)
+                last = pst = psn = pcr = None
+                continue
             m = det.meta
             st = m.get('scan', det.time) if m else det.time
             sn, cr = det.sensor, det.car
@@ -593,9 +612,10 @@ class TeamTracker:
             pst, psn, pcr = st, sn, cr
             key = (float(st), sn, int(cr))
             if key != last:
-                cur = groups.get(key)
-                if cur is None:
-                    cur = groups[key] = []
+                parts = groups.setdefault(key, [])
+                if not parts or not isinstance(parts[-1], list):
+                    parts.append([])
+                cur = parts[-1]
                 last = key
             cur.append(det)
         for info in scans:
@@ -603,16 +623,24 @@ class TeamTracker:
             groups.setdefault(key, [])
             infos[key] = info
         out = []
-        for key, dets in groups.items():
+        for key, parts in groups.items():
             if key[1] not in self.specs:
                 raise KeyError(f'no sensor spec named {key[1]!r}')
             info = infos.get(key)
-            if not dets and info is None:
-                continue
             kind = self._kind[key[1]]
-            if dets and set(map(_KIND_OF, dets)) != {kind}:
-                raise ValueError(f'sensor {key[1]!r} gives {kind!r} detections')
-            out.append(_Scan(key[0], key[1], key[2], kind, self.specs[key[1]], dets,
+            batches = []
+            for part in parts:
+                if isinstance(part, list):
+                    if set(map(_KIND_OF, part)) != {kind}:
+                        raise ValueError(f'sensor {key[1]!r} gives {kind!r} detections')
+                    part = DetectionBatch.from_detections(part, kind, key[1], key[2], key[0])
+                elif len(part) and part.kind != kind:
+                    raise ValueError(f'sensor {key[1]!r} gives {kind!r} detections')
+                batches.append(part)
+            batch = _joined(batches, kind, key[1], key[2], key[0])
+            if not len(batch) and info is None:
+                continue
+            out.append(_Scan(key[0], key[1], key[2], kind, self.specs[key[1]], batch,
                              None if info is None else info.sensor_pose, None if info is None else info.time))
         return out
 
@@ -674,7 +702,7 @@ class TeamTracker:
         cfg = self.cfg
         T = max(s.time for s in scans)
         team = self._team_at(T)
-        tab = A.DetTable.build([(s.dets, s.spec, self._log_clutter[s.sensor]) for s in scans], self.params, sort=True)
+        tab = A.DetTable.build([(s.batch, s.spec, self._log_clutter[s.sensor]) for s in scans], self.params, sort=True)
         D = len(tab)
         S = self._tr
         n = len(S)

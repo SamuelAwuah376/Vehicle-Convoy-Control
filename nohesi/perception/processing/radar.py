@@ -31,12 +31,12 @@ from dataclasses import replace
 import numpy as np
 from .._jit import ENABLED
 from ..geometry import car_boxes, mount_offset, rot, sensor_pose, to_world, wrap
-from ..types import Detection
+from ..types import Detection, DetectionBatch
 from . import _radar_jit
 
 __all__ = ['STATIONARY_SIGMAS', 'MATE_MARGIN', 'MATE_SIGMAS', 'SCALE', 'MAX_REL_SPEED', 'ego_at', 'sensor_velocity',
            'stationary_range_rate', 'stationary', 'box_distance', 'cluster_distance', 'dbscan', 'process_radar',
-           'process_radars']
+           'process_radars', 'process_radars_batch']
 
 STATIONARY_SIGMAS = 3.0
 MATE_MARGIN = 1.0                    # m: points this near a teammate's box are its own (at least; see MATE_SIGMAS)
@@ -165,6 +165,20 @@ def process_radars(scans, specs, egos, mates, params, scale=SCALE, eps=1.0, min_
     return _process_numpy(*args)
 
 
+def process_radars_batch(scans, specs, egos, mates, params, scale=SCALE, eps=1.0, min_samples=1,
+                         rel_speed=MAX_REL_SPEED):
+    """process_radars' detections as one types.DetectionBatch per scan (the pipeline's interface to the tracker):
+    built from the kernel's arrays on the compiled path, from the numpy path's Detections otherwise."""
+    egos = [ego_at(e, sc.time) for e, sc in zip(egos, scans)]
+    args = (scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed)
+    if _JIT and len(scans) and np.isfinite(float(eps)*float(eps)):
+        out = _batches_compiled(*args)
+        if out is not None:
+            return out
+    return [DetectionBatch.from_detections(d, 'radar', sc.sensor, sc.car, float(sc.time))
+            for sc, d in zip(scans, _process_numpy(*args))]
+
+
 def _flat(xs):
     """The arrays xs (one per scan) flattened to float and end to end, and their sizes."""
     try:
@@ -178,8 +192,14 @@ def _flat(xs):
 
 
 def _process_compiled(scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed):
-    """process_radars by _radar_jit.clusters (egos already at the scan times); None when the scans' arrays do not
-    line up (the numpy path then fails as before).
+    """process_radars by _radar_jit.clusters (egos already at the scan times): _batches_compiled's Detections."""
+    out = _batches_compiled(scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed)
+    return None if out is None else [b.detections() for b in out]
+
+
+def _batches_compiled(scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed):
+    """process_radars_batch by _radar_jit.clusters (egos already at the scan times); None when the scans' arrays do
+    not line up (the numpy path then fails as before).
 
     What numpy does with BLAS stays in numpy, batched over the scans, as BLAS fuses multiply-adds that the kernel's
     arithmetic would not reproduce to the bit: sensor_velocity's rotation (the same matrix-vector product per scan:
@@ -191,9 +211,8 @@ def _process_compiled(scans, specs, egos, mates, params, scale, eps, min_samples
     rr, n_rr = _flat([sc.range_rate for sc in scans])
     if not sizes == n_az == n_rr:
         return None
-    out = [[] for _ in scans]
     if len(r) == 0:
-        return out
+        return [DetectionBatch.empty('radar', sc.sensor, sc.car, float(sc.time)) for sc in scans]
     rows = {}                                            # per spec: mount offset, yaw and z, and the sigmas
     for sp in specs:
         if id(sp) not in rows:
@@ -219,12 +238,32 @@ def _process_compiled(scans, specs, egos, mates, params, scale, eps, min_samples
     z, R, owner, count, P = _radar_jit.clusters(r, az, rr, np.cumsum([0]+sizes, dtype=np.int64), tab, vel, group,
                                                 boxes, box_off, np.array(scale[:3], float), float(eps),
                                                 float(min_samples), float(rel_speed), _FLOOR)
-    poses = list(zip(P[:, 0], P[:, 1], P[:, 2].tolist(), tab[:, 9].tolist()))   # as sensor_pose's tuples: x, y numpy
-    info = [(sc.sensor, sc.car, float(sc.time)) for sc in scans]                # floats, yaw and z floats
-    for q, n, zk, Rk in zip(owner.tolist(), count.tolist(), z, R):
-        sensor, car, t = info[q]
-        out[q].append(Detection('radar', sensor, car, t, zk, Rk, poses[q], egos[q], {'n_points': n, 'scan': t}))
+    if len(owner) > 1 and (owner[1:] < owner[:-1]).any():  # each scan's detections in the kernel's order
+        order = np.argsort(owner, kind='stable')         # (the kernel numbers them scan by scan already)
+        z, R, owner, count = z[order], R[order], owner[order], count[order]
+    times = [float(sc.time) for sc in scans]
+    T = np.array(times)[owner]                           # per detection, sliced per scan below
+    pose = np.column_stack((P[:, :3], tab[:, 9]))[owner]
+    count = count.astype(np.int64, copy=False)
+    ends = np.cumsum(np.bincount(owner, minlength=S)).tolist()
+    out, a = [], 0
+    for q, (sc, b) in enumerate(zip(scans, ends)):
+        if b == a:
+            out.append(DetectionBatch.empty('radar', sc.sensor, sc.car, times[q]))
+            continue
+        out.append(DetectionBatch('radar', sc.sensor, sc.car, times[q], T[a:b], z[a:b], R[a:b], pose[a:b],
+                                  [egos[q]]*(b-a), count[a:b], make=_radar_detections))
+        a = b
     return out
+
+
+def _radar_detections(batch):
+    """A compiled batch's Detections (process_radar's meta: n_points, scan; sensor_pose's tuple, x and y numpy
+    floats)."""
+    t, pose = batch.scan, batch.pose
+    p = (pose[0, 0], pose[0, 1], *pose[0, 2:].tolist())
+    return [Detection('radar', batch.sensor, batch.car, t, zk, Rk, p, e, {'n_points': n, 'scan': t})
+            for zk, Rk, e, n in zip(batch.z, batch.R, batch.ego, batch.n_points.tolist())]
 
 
 def _process_numpy(scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed):

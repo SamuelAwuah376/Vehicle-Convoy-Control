@@ -27,12 +27,12 @@ import math
 import numpy as np
 from ...geometry import cg_offsets
 from ..geometry import mount_offset, sensor_pose, to_world, wrap
-from ..types import Detection
+from ..types import Detection, DetectionBatch
 from .. import _jit
 from . import _lidar_proc_jit
 from ._lidar_jit import fit_box_kernel
 
-__all__ = ['deskew', 'process_lidar', 'fit_box', 'lshape_heading', 'refit']
+__all__ = ['deskew', 'process_lidar', 'process_lidar_batch', 'fit_box', 'lshape_heading', 'refit']
 
 BREAK_ANGLE = np.radians(10.0)     # Borges-Aldon lambda
 HEADINGS = np.radians(np.arange(-20.0, 20.5, 1.0))   # L-shape search grid around the road heading
@@ -592,6 +592,17 @@ def process_lidar(scan, spec, ego_at, mates, params, road, refine=True, *, targe
     return run(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model)
 
 
+def process_lidar_batch(scan, spec, ego_at, mates, params, road, refine=True, *, target_v=None,
+                        target_sigma=(5.0, 1.0), sigma_model=0.003):
+    """process_lidar's detections as one types.DetectionBatch (the pipeline's interface to the tracker): built from
+    the kernels' arrays when _jit.ENABLED, from the numpy path's Detections otherwise."""
+    args = (scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model)
+    if len(scan.range) >= 3 and _jit.ENABLED:
+        return _lidar_batch(*args)
+    dets = _process_lidar_py(*args) if len(scan.range) >= 3 else []
+    return DetectionBatch.from_detections(dets, 'lidar_box', spec.name, scan.car, float(scan.t_end))
+
+
 def _process_lidar_py(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model):
     """process_lidar's numpy path (NOHESI_JIT=0, or numba missing): the reference for _process_lidar_jit."""
     t0, t1 = float(scan.t_start), float(scan.t_end)
@@ -661,10 +672,16 @@ def _unwrap3(a0, a1, a2):
 
 
 def _process_lidar_jit(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model):
-    """process_lidar through _lidar_proc_jit: sweep_kernel up to the clusters, the callbacks for each cluster's ego
-    state, fit_clusters for the boxes. The scalars and the few small arrays are prepared here exactly as the numpy
-    path computes them (math's cos and sin and Python's float % give numpy's results for floats: geometry.sensor_pose
-    and wrap are inlined)."""
+    """process_lidar through _lidar_proc_jit: _lidar_batch's Detections."""
+    return _lidar_batch(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma,
+                        sigma_model).detections()
+
+
+def _lidar_batch(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model):
+    """The DetectionBatch of a sweep through _lidar_proc_jit: sweep_kernel up to the clusters, the callbacks for each
+    cluster's ego state, fit_clusters for the boxes. The scalars and the few small arrays are prepared here exactly as
+    the numpy path computes them (math's cos and sin and Python's float % give numpy's results for floats:
+    geometry.sensor_pose and wrap are inlined)."""
     K = _lidar_proc_jit
     t0, t1 = float(scan.t_start), float(scan.t_end)
     e0, em, e1 = ego_at(t0), ego_at(0.5*(t0+t1)), ego_at(t1)
@@ -705,27 +722,34 @@ def _process_lidar_jit(scan, spec, ego_at, mates, params, road, refine, target_v
         np.ascontiguousarray(scan.range, float), np.ascontiguousarray(scan.azimuth, float),
         np.ascontiguousarray(scan.time, float), M0, M1, prm, X3, ts3)
     if C <= 0:
-        return []
+        return DetectionBatch.empty('lidar_box', spec.name, scan.car, t1)
     # each cluster's ego state and sensor pose at its mean beam time (geometry.sensor_pose)
-    tref = tref.tolist()
-    egos, poses = [], []
-    sensors = np.empty((C, 2))
-    mz = float(mount.z)
-    for c in range(C):
-        ego = ego_at(tref[c])
+    egos = []
+    pose = np.empty((C, 4))
+    pose[:, 3] = float(mount.z)
+    for c, t in enumerate(tref.tolist()):
+        ego = ego_at(t)
         x, y, yaw = float(ego.x), float(ego.y), float(ego.yaw)
         cy, sy = math.cos(yaw), math.sin(yaw)
-        px, py = x+cy*mx-sy*my, y+sy*mx+cy*my
-        sensors[c] = px, py
+        pose[c, :3] = x+cy*mx-sy*my, y+sy*mx+cy*my, _wrap1(yaw+myaw)
         egos.append(ego)
-        poses.append((np.float64(px), np.float64(py), _wrap1(yaw+myaw), mz))
-    Z, R, sides, DZ, RF = K.fit_clusters(pts, tms, offs, sensors, free, bool(refine), REFINE_MIN, v, prm)
-    out = []
+    Z, R, sides, DZ, RF = K.fit_clusters(pts, tms, offs, pose[:, :2].copy(), free, bool(refine), REFINE_MIN, v, prm)
+    return DetectionBatch('lidar_box', spec.name, scan.car, t1, tref, Z, R, pose, egos, np.diff(offs),
+                          fitted=np.ones(C, bool), v_prior=np.tile(v, (C, 1)), dz_dv=DZ, R_fit=RF,
+                          extra=(offs, sides, free, pts, tms, v.copy()), make=_lidar_detections)
+
+
+def _lidar_detections(batch):
+    """A _lidar_batch's Detections (process_lidar's meta: n_points, sides, scan, points, times, free, v_prior, dz_dv,
+    R_fit)."""
+    offs, sides, free, pts, tms, v = batch.extra
     offs, sides, free = offs.tolist(), sides.tolist(), free.tolist()
-    kind, name, car = 'lidar_box', spec.name, scan.car
-    for c in range(C):
+    kind, name, car, t1 = batch.kind, batch.sensor, batch.car, batch.scan
+    Z, R, DZ, RF = batch.z, batch.R, batch.dz_dv, batch.R_fit
+    out = []
+    for c, (t, (px, py, yaw, mz)) in enumerate(zip(batch.time.tolist(), batch.pose.tolist())):
         a, b = offs[c], offs[c+1]
-        out.append(Detection(kind, name, car, tref[c], Z[c], R[c], poses[c], egos[c],
+        out.append(Detection(kind, name, car, t, Z[c], R[c], (np.float64(px), np.float64(py), yaw, mz), batch.ego[c],
                              {'n_points': b-a, 'sides': min(max(sides[c], 1), 2), 'scan': t1, 'points': pts[a:b],
                               'times': tms[a:b], 'free': tuple(free[c]), 'v_prior': v.copy(), 'dz_dv': DZ[c],
                               'R_fit': RF[c]}))

@@ -166,7 +166,7 @@ def same_table(out, ref):
     assert len(out.dets) == len(ref.dets) and all(x is y for x, y in zip(out.dets, ref.dets))
     assert set(out.__dict__) == set(ref.__dict__)
     for k, v in ref.__dict__.items():
-        if k in ('dets', 'spec'):
+        if k in ('_src', 'spec'):
             continue
         w = getattr(out, k)
         if v.dtype == bool or np.issubdtype(v.dtype, np.integer):

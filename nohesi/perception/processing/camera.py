@@ -43,13 +43,13 @@ import numpy as np
 from ...geometry import cg_offsets
 from .._jit import ENABLED
 from ..geometry import box_corners_3d, camera_tilt, focal, sensor_pose
-from ..types import Detection
+from ..types import Detection, DetectionBatch
 from . import _camera_jit
 from .radar import ego_at
 
 __all__ = ['TRUNC_PX', 'FIT_MARGIN_SIGMAS', 'IOU_MATE', 'PITCH_EXTRA', 'HEADING_SIGMA', 'HEADING_SPREAD',
            'PITCH_SPREAD', 'NEAR', 'iou', 'box_model', 'mate_boxes', 'cue_init', 'refine_init', 'pitch_jacobian',
-           'process_camera', 'process_cameras']
+           'process_camera', 'process_cameras', 'process_cameras_batch']
 
 TRUNC_PX = 2.0
 FIT_MARGIN_SIGMAS = 5.0
@@ -420,25 +420,53 @@ def process_cameras(frames, specs, egos, mates, params, car_height, refine=True,
     mates[k]): one list of Detections per frame, as frame by frame. The geometric init and its refinement run over
     every box of every frame in one batch: compiled (_camera_jit.process_boxes) when numba is on, else in numpy
     (whose cost per call, not per box, dominates: a sim step's twelve frames cost about what one did)."""
+    return [b.detections() for b in process_cameras_batch(frames, specs, egos, mates, params, car_height, refine,
+                                                          pitch_extra, heading_sigma, iters, pitch_noise)]
+
+
+def process_cameras_batch(frames, specs, egos, mates, params, car_height, refine=True, pitch_extra=PITCH_EXTRA,
+                          heading_sigma=HEADING_SIGMA, iters=ITERS, pitch_noise=None):
+    """process_cameras' detections as one types.DetectionBatch per frame (the pipeline's interface to the tracker)."""
     args = (frames, specs, [ego_at(e, fr.time) for e, fr in zip(egos, frames)], mates, params, car_height, refine,
             pitch_extra, heading_sigma, iters, pitch_noise)
     return _process_compiled(*args) if _JIT else _process_numpy(*args)
 
 
-def _detections(frames, egos, poses, frame_of, local, b, xy, P, truncated, R):
-    """process_cameras' Detections, one list per frame: row r of the kept boxes b (n, 4) is box local[r] of frame
-    frame_of[r] (rows in frame order)."""
-    out = [[] for _ in frames]
-    scores = [None]*len(frames)
-    for r, (f, k) in enumerate(zip(frame_of, local)):
-        frame = frames[f]
-        if scores[f] is None:
-            scores[f] = np.ones(len(frame.boxes)) if frame.score is None else np.asarray(frame.score, float).reshape(-1)
-        t = float(frame.time)
-        out[f].append(Detection('camera_box', frame.sensor, frame.car, t, b[r], R[r], poses[f], egos[f],
-                                {'init': (xy[r], P[r]), 'truncated': truncated[r], 'score': float(scores[f][k]),
-                                 'scan': t}))
+def _empty(frames):
+    return [DetectionBatch.empty('camera_box', fr.sensor, fr.car, float(fr.time)) for fr in frames]
+
+
+def _batches(frames, egos, poses, frame_of, local, b, xy, P, truncated, R):
+    """process_cameras' DetectionBatches, one per frame: row r of the kept boxes b (n, 4) is box local[r] of frame
+    frame_of[r] (rows in frame order, frame_of and local int arrays)."""
+    out = []
+    ends = np.searchsorted(frame_of, np.arange(1, len(frames)+1)).tolist()
+    times = [float(fr.time) for fr in frames]
+    N = len(frame_of)                                    # per detection, sliced per frame below
+    T, pose = np.array(times)[frame_of], np.array(poses, float).reshape(len(frames), -1)[frame_of]
+    zeros, mode, ones = np.zeros(N, np.int64), np.full(N, 2, np.int64), np.ones(N, bool)
+    a = 0
+    for f, (frame, e) in enumerate(zip(frames, ends)):
+        if e == a:
+            out.append(DetectionBatch.empty('camera_box', frame.sensor, frame.car, times[f]))
+            continue
+        k = local[a:e]
+        score = np.ones(len(frame.boxes))[k] if frame.score is None else np.asarray(frame.score, float).reshape(-1)[k]
+        out.append(DetectionBatch('camera_box', frame.sensor, frame.car, times[f], T[a:e], b[a:e], R[a:e], pose[a:e],
+                                  [egos[f]]*(e-a), zeros[a:e], trunc_mode=mode[a:e], truncated=truncated[a:e],
+                                  has_init=ones[a:e], init_xy=xy[a:e], init_P=P[a:e], extra=(poses[f], score),
+                                  make=_camera_detections))
+        a = e
     return out
+
+
+def _camera_detections(batch):
+    """A batch's Detections (process_camera's meta: init, truncated, score, scan)."""
+    pose, score = batch.extra
+    t = batch.scan
+    return [Detection('camera_box', batch.sensor, batch.car, t, batch.z[r], batch.R[r], pose, batch.ego[r],
+                      {'init': (batch.init_xy[r], batch.init_P[r]), 'truncated': batch.truncated[r],
+                       'score': sc, 'scan': t}) for r, sc in enumerate(score.tolist())]
 
 
 def _process_compiled(frames, specs, egos, mates, params, car_height, refine, pitch_extra, heading_sigma, iters,
@@ -448,7 +476,7 @@ def _process_compiled(frames, specs, egos, mates, params, car_height, refine, pi
     boxes = [np.asarray(fr.boxes, float).reshape(-1, 4) for fr in frames]
     counts = [len(b) for b in boxes]
     if sum(counts) == 0:
-        return [[] for _ in frames]
+        return _empty(frames)
     cams = np.array([_cam(s, p) for s, p in zip(specs, poses)], float).reshape(-1, len(_Cam._fields))
     mt = [np.asarray(m, float).reshape(len(m), -1)[:, :3] if m is not None and len(m) else np.zeros((0, 3))
           for m in mates]
@@ -466,8 +494,8 @@ def _process_compiled(frames, specs, egos, mates, params, car_height, refine, pi
         bool(refine), int(iters), _EDGES, _STEPS, _CUT_SIDE, tune)
     idx = np.flatnonzero(keep)
     start = np.cumsum(counts)-counts
-    return _detections(frames, egos, poses, frame[idx].tolist(), (idx-start[frame[idx]]).tolist(), b[idx], xy[idx],
-                       P[idx], truncated[idx], R[idx])
+    return _batches(frames, egos, poses, frame[idx], idx-start[frame[idx]], b[idx], xy[idx], P[idx], truncated[idx],
+                    R[idx])
 
 
 def _process_numpy(frames, specs, egos, mates, params, car_height, refine, pitch_extra, heading_sigma, iters,
@@ -487,7 +515,7 @@ def _process_numpy(frames, specs, egos, mates, params, car_height, refine, pitch
         keeps.append(np.flatnonzero(keep))
     counts = [len(k) for k in keeps]
     if sum(counts) == 0:
-        return [[] for _ in frames]
+        return _empty(frames)
     b = np.concatenate([bx[k] for bx, k in zip(boxes, keeps)])
     cam = _cams(specs, poses, counts)
     pitch = np.repeat([float(e.pitch) for e in egos], counts)
@@ -512,5 +540,5 @@ def _process_numpy(frames, specs, egos, mates, params, car_height, refine, pitch
                               full[:, 1]-full[:, 0]))/2                                         # cue_init's rho
     R = (cam.sig[:, None, None]**2*np.eye(4)+(sp**2)[:, None, None]*j[:, :, None]*j[:, None, :]
          + ((np.sin(cam.yaw)*sp)**2)[:, None, None]*spread[:, :, None]*spread[:, None, :])
-    return _detections(frames, egos, poses, np.repeat(np.arange(len(frames)), counts).tolist(),
-                       np.concatenate(keeps).tolist(), b, xy, P, truncated, R)
+    return _batches(frames, egos, poses, np.repeat(np.arange(len(frames)), counts), np.concatenate(keeps), b, xy, P,
+                    truncated, R)
