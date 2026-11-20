@@ -437,7 +437,16 @@ size, so the compiled simulators give bit-identical scans and frames on this mac
 snapshot's state once and matches the traffic by id without a Python loop (identical results). Then (v9 seed
 1000-1001, 15 s, a lighter machine load than above, ms per step): lidar sim 1.2, radar sim 1.1, camera sim 0.6 (22 in
 all before), lidar processing 5.9, radar processing 2.3, camera processing 1.0, tracker 4.7: about 17 ms of perception
-on a 24 ms step. Still above the 25 % target: the Python bookkeeping around the processing and tracker kernels.
+on a 24 ms step. The bookkeeping followed, again bit-identical to the numpy code (the same digest of every lidar
+detection and every belief over v9 seeds 1000-1001, 15 s, compiled and with NOHESI_JIT=0): each lidar sweep's
+de-skew, segmentation, merge, split and box fits in two kernel calls, radar processing (validity, Doppler and teammate
+tests, DBSCAN, cluster statistics) in one per step, the tracker's detection table, gate, assignment, update,
+confirmation, births and deletion tests in a few kernels per cycle, and the pipeline's team lookups remembered within
+a step. Then (same seeds, a 15.9 ms step without perception, ms per step): lidar sim 1.2, radar sim 1.2, camera sim
+0.6, lidar processing 1.6, radar processing 0.5, camera processing 0.8, tracker 3.9 (about 1 of it the one-time load
+of the compiled kernels, paid once per process): about 9.7 ms. Still above the 25 % target (4 ms here); what is left
+is the compiled work itself (the lidar box fits' small solves, the tracker's gate) and building and reading the
+Detection objects, which a per-scan batch handed from processing to the tracker would remove.
 
 ## 14. Phases (each ends with a check-in; training only on your go)
 

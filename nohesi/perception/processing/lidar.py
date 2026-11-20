@@ -19,12 +19,17 @@ every car's on a highway), stamped with that time, and the prior's error goes in
 own relative speed, fixed from sweep to sweep, so meta also carries what a tracker needs to model it instead:
 'v_prior', 'dz_dv' (the fit's change per m/s of true velocity above the prior: a few mm and a tenth of a degree per
 m/s for a car ahead, from the skew across its face) and 'R_fit' (R without the prior's share); see fit_box.
+
+With numba (perception._jit) steps 1-3 run as processing/_lidar_proc_jit's sweep kernel and step 4 as _lidar_jit's box
+fit, called once per sweep for all clusters: the same detections as the numpy path, about 5 times faster.
 """
+import math
 import numpy as np
 from ...geometry import cg_offsets
 from ..geometry import mount_offset, sensor_pose, to_world, wrap
 from ..types import Detection
 from .. import _jit
+from . import _lidar_proc_jit
 from ._lidar_jit import fit_box_kernel
 
 __all__ = ['deskew', 'process_lidar', 'fit_box', 'lshape_heading', 'refit']
@@ -579,9 +584,16 @@ def process_lidar(scan, spec, ego_at, mates, params, road, refine=True, *, targe
     .width. target_v: world velocity (2,) the cars are assumed to move at during the sweep (None: the carrying car's own
     speed along the road), with prior sigma target_sigma (along, across the road) added to R. sigma_model: box-model
     error per point (m). refine: fit_box's refinement for clusters of at least REFINE_MIN points. Each detection's z is
-    [x, y, heading] of the body centre at the cluster's mean beam time."""
+    [x, y, heading] of the body centre at the cluster's mean beam time. Runs as the compiled _lidar_proc_jit kernels
+    when _jit.ENABLED (the same detections, about 5 times faster), else as numpy (_process_lidar_py)."""
     if len(scan.range) < 3:
         return []
+    run = _process_lidar_jit if _jit.ENABLED else _process_lidar_py
+    return run(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model)
+
+
+def _process_lidar_py(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model):
+    """process_lidar's numpy path (NOHESI_JIT=0, or numba missing): the reference for _process_lidar_jit."""
     t0, t1 = float(scan.t_start), float(scan.t_end)
     e0, em, e1 = ego_at(t0), ego_at(0.5*(t0+t1)), ego_at(t1)
     order = np.argsort(np.asarray(scan.azimuth, float), kind='stable')
@@ -621,6 +633,102 @@ def process_lidar(scan, spec, ego_at, mates, params, road, refine=True, *, targe
         out.append(Detection('lidar_box', spec.name, scan.car, t_ref, z, R, pose, ego,
                              {'n_points': int(len(idx)), 'sides': min(max(sides, 1), 2), 'scan': t1, 'points': Wp[idx],
                               'times': t[idx], 'free': free, 'v_prior': v.copy(), **fit}))
+    return out
+
+
+_NO_MATES = np.zeros((0, 3))
+_NO_LAGRANGE = np.zeros((3, 3)), np.zeros(3)
+_PI, _TWO_PI = math.pi, 2*math.pi
+
+
+def _wrap1(a):
+    """geometry.wrap of one float, as a float (Python's float % is numpy's remainder)."""
+    return (a+_PI) % _TWO_PI-_PI
+
+
+def _unwrap3(a0, a1, a2):
+    """np.unwrap of three floats, as a list of floats (numpy's own steps: period 2 pi, discont pi)."""
+    out, acc = [a0], None
+    for prev, cur in ((a0, a1), (a1, a2)):
+        dd = cur-prev
+        ddmod = (dd+_PI) % _TWO_PI+(-_PI)
+        if ddmod == -_PI and dd > 0:
+            ddmod = _PI
+        ph = 0.0 if abs(dd) < _PI else ddmod-dd
+        acc = ph if acc is None else acc+ph
+        out.append(cur+acc)
+    return out
+
+
+def _process_lidar_jit(scan, spec, ego_at, mates, params, road, refine, target_v, target_sigma, sigma_model):
+    """process_lidar through _lidar_proc_jit: sweep_kernel up to the clusters, the callbacks for each cluster's ego
+    state, fit_clusters for the boxes. The scalars and the few small arrays are prepared here exactly as the numpy
+    path computes them (math's cos and sin and Python's float % give numpy's results for floats: geometry.sensor_pose
+    and wrap are inlined)."""
+    K = _lidar_proc_jit
+    t0, t1 = float(scan.t_start), float(scan.t_end)
+    e0, em, e1 = ego_at(t0), ego_at(0.5*(t0+t1)), ego_at(t1)
+    mount = spec.mount
+    mx, my = mount_offset(mount, params)
+    myaw = float(mount.yaw)
+    steady = _steady(e0, em, e1)
+    if steady:
+        X3, ts3 = _NO_LAGRANGE
+    else:                                       # _lagrange's states
+        ts3 = np.array([e0.time, em.time, e1.time], float)
+        yaw = _unwrap3(float(e0.yaw), float(em.yaw), float(e1.yaw))
+        X3 = np.array([[e0.x, e0.y, yaw[0]], [em.x, em.y, yaw[1]], [e1.x, e1.y, yaw[2]]], float)
+        X3[:, :2] -= X3[1, :2]
+    x, y, yaw = float(e1.x), float(e1.y), float(e1.yaw)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    ox, oy, oyaw = x+cy*mx-sy*my, y+sy*mx+cy*my, _wrap1(yaw+myaw)    # sensor_pose(mount, e1)[:3]
+    M0 = M1 = _NO_MATES
+    if mates is not None:
+        A0, A1 = np.asarray(mates(t0), float), np.asarray(mates(t1), float)
+        A0 = A0 if A0.ndim >= 2 else np.atleast_2d(A0)
+        A1 = A1 if A1.ndim >= 2 else np.atleast_2d(A1)
+        if A0.size != 0 and A0.shape == A1.shape:
+            M0, M1 = np.ascontiguousarray(A0), np.ascontiguousarray(A1)
+    if target_v is None:
+        v = np.array([em.vx*math.cos(em.yaw)-em.vy*math.sin(em.yaw), 0.0])
+    else:
+        v = np.ascontiguousarray(target_v, float)
+    rear, front = cg_offsets(params)
+    length, width = float(params.length), float(params.width)
+    prm = np.array((t1, t0, 1.0 if steady else 0.0, em.vx, em.vy, em.r, mx, my, math.cos(myaw), math.sin(myaw),
+                    ox, oy, math.cos(oyaw), math.sin(oyaw), 1.0 if len(M0) else 0.0, (0+rear+front)/2,
+                    params.length/2+MATE_MARGIN, params.width/2+MATE_MARGIN, road.width/2+EDGE_MARGIN, v[0], v[1],
+                    0.5*(t0+t1), spec.beam_spacing, 3*spec.range_sigma, spec.dropout, spec.far_dropout,
+                    spec.range_max, length, width, spec.range_sigma, sigma_model, target_sigma[0], target_sigma[1]),
+                   float)
+    C, offs, pts, tms, free, tref = K.sweep_kernel(
+        np.ascontiguousarray(scan.range, float), np.ascontiguousarray(scan.azimuth, float),
+        np.ascontiguousarray(scan.time, float), M0, M1, prm, X3, ts3)
+    if C <= 0:
+        return []
+    # each cluster's ego state and sensor pose at its mean beam time (geometry.sensor_pose)
+    tref = tref.tolist()
+    egos, poses = [], []
+    sensors = np.empty((C, 2))
+    mz = float(mount.z)
+    for c in range(C):
+        ego = ego_at(tref[c])
+        x, y, yaw = float(ego.x), float(ego.y), float(ego.yaw)
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        px, py = x+cy*mx-sy*my, y+sy*mx+cy*my
+        sensors[c] = px, py
+        egos.append(ego)
+        poses.append((np.float64(px), np.float64(py), _wrap1(yaw+myaw), mz))
+    Z, R, sides, DZ, RF = K.fit_clusters(pts, tms, offs, sensors, free, bool(refine), REFINE_MIN, v, prm)
+    out = []
+    offs, sides, free = offs.tolist(), sides.tolist(), free.tolist()
+    kind, name, car = 'lidar_box', spec.name, scan.car
+    for c in range(C):
+        a, b = offs[c], offs[c+1]
+        out.append(Detection(kind, name, car, tref[c], Z[c], R[c], poses[c], egos[c],
+                             {'n_points': b-a, 'sides': min(max(sides[c], 1), 2), 'scan': t1, 'points': pts[a:b],
+                              'times': tms[a:b], 'free': tuple(free[c]), 'v_prior': v.copy(), 'dz_dv': DZ[c],
+                              'R_fit': RF[c]}))
     return out
 
 

@@ -9,6 +9,7 @@ shadow mode (after the 1 s pre-roll; straight constant-speed team, the traffic o
   records, states equal to rounding. The filter carries rounding forward, so these differences grow a little over
   the episode (up to ~1e-10 m early, when the young tracks' covariances are large), hence the looser tolerance.
 Plus the fallback to numpy for a covariance the plain Cholesky factor cannot take, and the NOHESI_JIT=0 switch."""
+import copy
 import os
 import subprocess
 import sys
@@ -142,6 +143,38 @@ def copy_tracks(a):
     return (a[0], a[1].copy())+tuple(a[2:])
 
 
+def copy_tracker(a):
+    """_apply's / _manage's arguments with the tracker (a[0]) replaced by a copy owning its own tracks, merge counters
+    and stats, for the numpy run."""
+    c = copy.copy(a[0])
+    c._tr, c._merge, c.stats = a[0]._tr.copy(), dict(a[0]._merge), dict(a[0].stats)
+    return (c,)+tuple(a[1:])
+
+
+def same_tracks(out, ref, ra, a):
+    """The tracker after the call (a[0]) and its numpy twin (ra[0]): the same tracks, merge counters and stats."""
+    S, R = a[0]._tr, ra[0]._tr
+    for f in ('id', 'hist', 'confirmed', 'tp'):
+        assert np.array_equal(getattr(S, f), getattr(R, f)), f
+    for f in ('t', 'means', 'covs', 'mu', 'p', 'last_seen'):
+        close(getattr(S, f), getattr(R, f), what=f)
+    assert a[0]._merge == ra[0]._merge and a[0].stats == ra[0].stats
+
+
+def same_table(out, ref):
+    """Two DetTables: the same detections in the same order, integer and boolean arrays equal, the rest to rounding."""
+    assert len(out.dets) == len(ref.dets) and all(x is y for x, y in zip(out.dets, ref.dets))
+    assert set(out.__dict__) == set(ref.__dict__)
+    for k, v in ref.__dict__.items():
+        if k in ('dets', 'spec'):
+            continue
+        w = getattr(out, k)
+        if v.dtype == bool or np.issubdtype(v.dtype, np.integer):
+            assert w.dtype == v.dtype and np.array_equal(w, v), k
+        else:
+            close(w, v, what=k)
+
+
 def test_each_compiled_function_matches_numpy(recorded):
     counts = Counter()
     with pytest.MonkeyPatch.context() as mp:
@@ -155,11 +188,58 @@ def test_each_compiled_function_matches_numpy(recorded):
         twin(mp, TR.TeamTracker, '_coverage', same_arrays, counts)
         twin(mp, TR.TeamTracker, '_birth_states', same_arrays, counts)
         twin(mp, TR.TeamTracker, '_existence', same_existence,  counts, copy_args=copy_tracks)
+        twin(mp, TR.TeamTracker, '_apply', same_tracks, counts, copy_args=copy_tracker)
         tr, _ = replay(recorded)
     assert tr.stats['births'] > 50 and tr.stats['deleted'] > 10 and tr.stats['merges'] > 0
-    for name in ('_gate', '_coverage', '_birth_states', '_existence', 'coarse_candidates', 'predict_rows',
-                 'joint_update', 'visibility', '_cv', 'imm_combine', 'lane_probability'):
+    for name in ('_gate', '_coverage', '_birth_states', '_existence', '_apply', 'coarse_candidates', 'predict_rows',
+                 'visibility', '_cv', 'imm_combine', 'lane_probability'):
         assert counts[name] > 50, (name, counts)
+
+
+def test_compiled_bookkeeping_matches_numpy(recorded):
+    """The compiled bookkeeping of a cycle against its numpy path, call by call: the detection table (built from the
+    scans in delivery order, each scan's detections ordered in the kernel), the assignment and the track management
+    (merging, deletion). (The update's writes and the birth states are twinned above.)"""
+    counts = Counter()
+    raw = A.DetTable.__dict__['build'].__func__
+    sorted_any = []
+
+    def build(cls, scans, params, sort=False):
+        with numpy_path():
+            ref = raw(cls, scans, params, sort)
+        out = raw(cls, scans, params, sort)
+        same_table(out, ref)
+        delivered = [d for ds, _, _ in scans for d in ds]
+        sorted_any.append(any(a is not b for a, b in zip(delivered, out.dets)))
+        counts['build'] += 1
+        return out
+
+    def exact(out, ref, *_):
+        assert np.array_equal(out, ref) and out.dtype == ref.dtype
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(A.DetTable, 'build', classmethod(build))
+        twin(mp, TR.TeamTracker, '_assign', exact, counts)
+        twin(mp, TR.TeamTracker, '_manage', same_tracks, counts, copy_args=copy_tracker)
+        replay(recorded)
+    for name in ('build', '_assign', '_manage'):
+        assert counts[name] > 50, (name, counts)
+    assert sum(sorted_any) > 20         # delivery order differs from the table's in many cycles
+
+
+def test_scan_order_is_the_python_sort():
+    """_tracking_jit.scan_order against association.scan_order on scans with tied times and tied z bytes."""
+    rng = np.random.default_rng(7)
+    for trial in range(200):
+        n = int(rng.integers(1, 12))
+        t = rng.choice([0.0, 0.05, -0.0, 0.1], size=n)
+        z = rng.choice([-1.0, 0.0, 1.0, 2.5, -0.0], size=(n, 3))
+        dets = [type('D', (), dict(time=float(t[i]), z=z[i].copy()))() for i in range(n)]
+        want = A.scan_order(dets)
+        zb = np.ascontiguousarray(z).view(np.uint8)
+        perm = K.scan_order(t.astype(float), np.array([0, n], np.int64), np.zeros(n, np.int64), zb,
+                            np.zeros((0, 24), np.uint8), np.zeros((0, 32), np.uint8))
+        assert [dets[i] for i in perm] == want, trial
 
 
 # ---------------------------------------------------------------------------------------------- whole episode

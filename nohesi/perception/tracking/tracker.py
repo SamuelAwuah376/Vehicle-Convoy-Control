@@ -88,12 +88,14 @@ T. One cycle is:
    clutter track hidden behind a real car would otherwise never be missed); along-road sigma above MAX_SIGMA_S.
 
 Compiled path. With numba on (perception/_jit.py) the numeric work of a cycle runs in _tracking_jit's kernels: the
-predictions, the gate, the joint update, the coarse gate, coverage and visibility, existence, the lidar and radar
-births, the occupied test and the assignment's cost matrices; the bookkeeping (scans, the replay history, merging,
-scipy's assignment) stays here. The numpy code stays as the reference (predict_rows_numpy, joint_update_numpy, the
-numpy branches of the methods) and is the path with NOHESI_JIT=0; the two agree to rounding (the tests compare them
-call by call and over whole replays), and a kernel that meets a matrix only ukf.robust_cholesky or floor_eigenvalues
-can take hands the call back to numpy.
+detection table (with each scan's detection order), the prediction, sigma points and gate in one call, the
+assignment's bookkeeping (and its one-track or one-detection problems), the joint update with its writes into the
+tracks, the coarse gate, coverage and visibility, existence and confirmation, the birth states and speed prior, the
+occupied test and the management's candidate pairs and deletion tests; the scans, the replay history, merging and
+scipy's assignment of the larger problems stay here. The numpy code stays as the reference (predict_rows_numpy,
+joint_update_numpy, DetTable.build_numpy, the numpy branches of the methods) and is the path with NOHESI_JIT=0; the
+two agree to rounding (the tests compare them call by call and over whole replays), and a kernel that meets a matrix
+only ukf.robust_cholesky or floor_eigenvalues can take hands the call back to numpy.
 
 Late measurements. The tracker keeps the scans and a snapshot of the tracks (with the id counter, merge counters and
 NIS log length) before each cycle of the last history + hold seconds. A scan for an already applied cycle restores the
@@ -104,10 +106,13 @@ costs a cycle); hold = the largest delivery latency applies each cycle once, com
 delay.
 """
 from bisect import bisect_right
+from itertools import chain
+from operator import attrgetter
 from math import floor
 from types import SimpleNamespace
 from typing import NamedTuple
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 from ...geometry import cg_offsets
 from .. import _jit
 from ..geometry import car_boxes, focal, wrap
@@ -137,6 +142,8 @@ MAX_SIGMA_S = 50.0        # m: a track this uncertain along the road is deleted
 NIS_DTYPE = np.dtype([('time', 'f8'), ('track', 'i8'), ('kind', 'U10'), ('sensor', 'U24'), ('car', 'i8'),
                       ('dof', 'i8'), ('nis', 'f8')])
 _KINDS = ('lidar_box', 'radar', 'camera_box')
+_KIND_NAMES = np.array(_KINDS, NIS_DTYPE['kind'])
+_KIND_OF = attrgetter('kind')
 _C, _WM, _WC = _weights(4, ALPHA, BETA, KAPPA)       # the track state's sigma-point scale and weights, as writable
 _WM, _WC, _SC = np.array(_WM), np.array(_WC), float(np.sqrt(_C))    # arrays for the kernels
 _C3, _WM3, _WC3 = _weights(3, ALPHA, BETA, KAPPA)    # the same for a lidar box's [x, y, heading] (births)
@@ -423,15 +430,17 @@ class _Tracks:
 
 
 class _Scan:
-    """One scan: its detections in a deterministic order and the pose and time its coverage is evaluated at."""
+    """One scan: its detections (in delivery order; association.scan_order gives the deterministic order the cycle
+    uses, DetTable.build(sort=True) applies it) and the pose and time its coverage is evaluated at."""
+    __slots__ = ('time', 'sensor', 'car', 'kind', 'spec', 'dets', 'pose', 'pose_time', 'key')
+
     def __init__(self, time, sensor, car, kind, spec, dets, pose=None, pose_time=None):
         self.time, self.sensor, self.car, self.kind, self.spec = float(time), sensor, int(car), kind, spec
-        self.dets = (sorted(dets, key=lambda d: (float(d.time), np.asarray(d.z, float).tobytes())) if len(dets) > 1
-                     else list(dets))
-        if pose is None and self.dets:
-            last = max(self.dets, key=lambda d: float(d.time))
+        self.dets = dets
+        if pose is None and dets:
+            last = max(A.scan_order(dets), key=lambda d: float(d.time))
             pose, pose_time = last.sensor_pose, last.time
-        self.pose = None if pose is None else tuple(float(v) for v in pose)
+        self.pose = None if pose is None else tuple(map(float, pose))
         self.pose_time = self.time if pose_time is None else float(pose_time)
         self.key = (self.time, KIND_ORDER[kind], self.car, sensor)
 
@@ -479,6 +488,10 @@ class TeamTracker:
         self._srow = {name: _spec_row(spec, self._reach[name]) for name, spec in self.specs.items()}
         self._birth = np.array([self._shift, params.length, params.width, float(cfg.init_vd_sigma)**2,
                                 float(cfg.radar_speed_min_cos), RADAR_BIRTH_SIGMA**2])     # _tracking_jit's BIRTH row
+        self._ep = np.array([float(cfg.gate), np.log1p(-MISS_CAP), float(cfg.exist_survive), E.EXIST_MIN,
+                             self.exist_max, E.PD_DETECTED_MIN])             # _tracking_jit.existence's EXIST row
+        self._sidx = {name: i for i, name in enumerate(self.specs)}         # each sensor's row of _srows
+        self._srows = np.array([self._srow[name] for name in self.specs]).reshape(len(self.specs), -1)
         self.reset()
 
     # ---------------------------------------------------------------------------------------------- public
@@ -492,6 +505,7 @@ class TeamTracker:
         self._done = None          # last applied cycle
         self._floor = None         # cycles below this are no longer kept
         self._team = []            # [(time, (k, 4) team states)]
+        self._team_cache = {}      # time -> _team_at(time), within one process call
         self._now = None
         self._cache = None
         self.stats = dict(cycles=0, replays=0, births=0, merges=0, deleted=0, late_dropped=0)
@@ -503,6 +517,7 @@ class TeamTracker:
             self.reset()
         self._now = now
         self._push_team(now, team)
+        self._team_cache = {}
         c_lo = self._cycle_of(now-self.hold-self.cfg.history)
         self._floor = c_lo if self._floor is None else max(self._floor, c_lo)
         first = None
@@ -540,6 +555,11 @@ class TeamTracker:
         S = self._tr
         if len(S) == 0:
             b = Belief.empty(time, self.lanes)
+        elif len(S) == 1 or np.all(S.id[1:] > S.id[:-1]):     # in id order (births append increasing ids)
+            st = predict_rows(S.means, S.covs, S.mu, time-S.t, self.cfg, self._motions)
+            m, P = imm_combine(st)
+            b = Belief(time, S.id.copy(), m, P, E.survive(S.p, self.cfg, time-S.tp), lane_probability(st, self.road),
+                       st.mu, S.last_seen.copy(), S.confirmed.copy())
         else:
             order = np.argsort(S.id, kind='stable')
             st = predict_rows(S.means[order], S.covs[order], S.mu[order], time-S.t[order], self.cfg, self._motions)
@@ -562,9 +582,22 @@ class TeamTracker:
 
     def _group(self, detections, scans):
         groups, infos = {}, {}
+        last = cur = pst = psn = pcr = None
         for det in detections:
-            st = det.meta.get('scan', det.time) if det.meta else det.time
-            groups.setdefault((float(st), det.sensor, int(det.car)), []).append(det)
+            m = det.meta
+            st = m.get('scan', det.time) if m else det.time
+            sn, cr = det.sensor, det.car
+            if st is pst and sn is psn and cr is pcr:        # the previous detection's scan (the same objects)
+                cur.append(det)
+                continue
+            pst, psn, pcr = st, sn, cr
+            key = (float(st), sn, int(cr))
+            if key != last:
+                cur = groups.get(key)
+                if cur is None:
+                    cur = groups[key] = []
+                last = key
+            cur.append(det)
         for info in scans:
             key = (float(info.time), info.sensor, int(info.car))
             groups.setdefault(key, [])
@@ -577,7 +610,7 @@ class TeamTracker:
             if not dets and info is None:
                 continue
             kind = self._kind[key[1]]
-            if any(d.kind != kind for d in dets):
+            if dets and set(map(_KIND_OF, dets)) != {kind}:
                 raise ValueError(f'sensor {key[1]!r} gives {kind!r} detections')
             out.append(_Scan(key[0], key[1], key[2], kind, self.specs[key[1]], dets,
                              None if info is None else info.sensor_pose, None if info is None else info.time))
@@ -608,7 +641,15 @@ class TeamTracker:
 
     def _team_at(self, t):
         """Team CG states [x, y, yaw, v, ...] at t: interpolated between the V2V states received, extrapolated at
-        constant speed and heading outside them. None when no team state was given."""
+        constant speed and heading outside them. None when no team state was given. Cached within a process call
+        (the callers only read it)."""
+        try:
+            return self._team_cache[t]
+        except KeyError:
+            out = self._team_cache[t] = self._team_state(t)
+            return out
+
+    def _team_state(self, t):
         if not self._team:
             return None
         times = [h[0] for h in self._team]
@@ -633,7 +674,7 @@ class TeamTracker:
         cfg = self.cfg
         T = max(s.time for s in scans)
         team = self._team_at(T)
-        tab = A.DetTable.build([(s.dets, s.spec, self._log_clutter[s.sensor]) for s in scans], self.params)
+        tab = A.DetTable.build([(s.dets, s.spec, self._log_clutter[s.sensor]) for s in scans], self.params, sort=True)
         D = len(tab)
         S = self._tr
         n = len(S)
@@ -653,19 +694,24 @@ class TeamTracker:
             log_lr = g.ll[chosen]-tab.log_clutter[cj[chosen]] if chosen.size else np.zeros(0)
             self._existence(S, T, pd, hit_scan, hit_tr, log_lr, pd[hit_scan, hit_tr])
             if chosen.size:
-                records.append(self._records(S.id[ci[chosen]], cj[chosen], tab, g.nis[chosen]))
+                records.append(self._records(S.id[ci[chosen]], cj[chosen], tab, g.nis[chosen], scans))
                 self._apply(g, chosen, tab, T)
-            detected = np.zeros(n, bool)
-            detected[hit_tr] = True
-            counted = detected | (1-np.prod(1-pd, axis=0) >= COUNT_PD)
-            mask = (1 << int(cfg.confirm_n))-1
-            S.hist = np.where(counted, ((S.hist << 1) | detected.astype(int)) & mask, S.hist)
-            S.confirmed |= _popcount(S.hist, int(cfg.confirm_n)) >= int(cfg.confirm_m)
+            if _jit.ENABLED:
+                K.confirm_rows(S.hist, S.confirmed, pd, np.ascontiguousarray(hit_tr, np.int64), int(cfg.confirm_n),
+                               int(cfg.confirm_m), COUNT_PD)
+            else:
+                detected = np.zeros(n, bool)
+                detected[hit_tr] = True
+                counted = detected | (1-np.prod(1-pd, axis=0) >= COUNT_PD)
+                mask = (1 << int(cfg.confirm_n))-1
+                S.hist = np.where(counted, ((S.hist << 1) | detected.astype(int)) & mask, S.hist)
+                S.confirmed |= _popcount(S.hist, int(cfg.confirm_n)) >= int(cfg.confirm_m)
         unused = np.flatnonzero(~gated_det & (tab.dof[:D] > 0))
         if unused.size and n:
             unused = unused[~self._occupied(tab, unused)]
         if unused.size:
-            rec = self._births(tab, unused, T, team, mc, S.confirmed[:n].copy() if n else np.zeros(0, bool))
+            rec = self._births(tab, unused, T, team, mc, S.confirmed[:n].copy() if n else np.zeros(0, bool),
+                               scans)
             if rec is not None:
                 records.append(rec)
         if records and self.record_nis:
@@ -683,17 +729,19 @@ class TeamTracker:
             return pd
         if _jit.ENABLED:
             sc_ = [scans[k] for k in ks]
-            tp = np.array([sc.pose_time for sc in sc_])
-            at = {t: self._team_at(t) for t in np.unique(tp).tolist()}
-            mate = np.zeros((len(sc_), 4))
-            for q, (t, sc) in enumerate(zip(tp.tolist(), sc_)):
-                if at[t] is not None and sc.car < len(at[t]):
-                    mate[q] = at[t][sc.car, :4]
+            Q = len(sc_)
+            poses = np.fromiter(chain.from_iterable([sc.pose for sc in sc_]), float, 4*Q).reshape(Q, 4)
+            tp = np.fromiter([sc.pose_time for sc in sc_], float, Q)
+            cars = np.fromiter([sc.car for sc in sc_], np.int64, Q)
+            mate = np.zeros((Q, 4))
+            for q, sc in enumerate(sc_):
+                at = self._team_at(sc.pose_time)
+                if at is not None and sc.car < len(at):
+                    mate[q] = at[sc.car, :4]
             likely = (S.p >= OCCLUDER_EXIST) | S.confirmed
             tm = np.zeros((0, 4)) if team is None else np.ascontiguousarray(team[:, :4], float)
-            pd[ks] = K.coverage(np.array([sc.pose for sc in sc_]), tp, np.array([sc.car for sc in sc_], np.int64),
-                                np.array([KIND_ORDER[sc.kind] for sc in sc_], np.int64),
-                                np.array([self._srow[sc.sensor] for sc in sc_]), mate, np.ascontiguousarray(mc),
+            pd[ks] = K.coverage(poses, tp, cars, np.fromiter([KIND_ORDER[sc.kind] for sc in sc_], np.int64, Q),
+                                self._srows[[self._sidx[sc.sensor] for sc in sc_]], mate, np.ascontiguousarray(mc),
                                 np.ascontiguousarray(S.t, float), likely, tm, team is not None, float(T),
                                 self._cover, self._geom)
             return pd
@@ -788,6 +836,10 @@ class TeamTracker:
         against the sensor's clutter (detections of different R and dof compare on their likelihood)."""
         cfg, S = self.cfg, self._tr
         trk, row = _unique_sorted(ci)
+        if _jit.ENABLED and self._mrow is not None:
+            g = self._gate_cycle(cj, tab, T, trk, row)
+            if g is not None:
+                return g
         pred = predict_rows(S.means[trk], S.covs[trk], S.mu[trk], T-S.t[trk], cfg, self._motions)
         dt = tab.time[cj]-T
         if _jit.ENABLED and self._mrow is not None:
@@ -805,6 +857,19 @@ class TeamTracker:
         gated = nis <= self._thr[np.minimum(tab.dof[cj], 4)]
         ll = ll+tab.ll_pad[cj]
         return _Gate(ll, nis, gated, tab.log_clutter[cj]-ll, cj, trk, row, pred, X, wm, mo, R)
+
+    def _gate_cycle(self, cj, tab, T, trk, row):
+        """_gate in one compiled call (_tracking_jit.gate_cycle: the prediction, sigma points, measurement part and
+        gate); None when a matrix needs the numpy path's safeguards (the step by step path then redoes it)."""
+        S = self._tr
+        steps, mp = self._mrow
+        (pm, pP, pu, X, zhat, nu, Pzz, D, R, ll, nis, gated, cost, ok) = K.gate_cycle(
+            S.means, S.covs, S.mu, S.t, trk, float(T), row, cj, tab.time, tab.kind, tab.z, tab.R_fit, tab.dz_dv,
+            tab.v_prior, tab.pose, tab.vs, tab.cam, tab.wrap, tab.dof, tab.ll_pad, tab.log_clutter, self._thr, steps,
+            mp, self._geom, _WM, _WC, _SC)
+        if not ok:
+            return None
+        return _Gate(ll, nis, gated, cost, cj, trk, row, IMMState(pm, pP, pu), X, _WM, A.Moments(zhat, nu, Pzz, D), R)
 
     def _gate_jit(self, cj, tab, row, trk, pred, dt):
         """_gate's measurement part compiled (_tracking_jit.sigma_rows and gate_pairs); None when a matrix needs the
@@ -832,6 +897,20 @@ class TeamTracker:
         """Indices of the chosen pairs: global nearest neighbour within each scan. A pair whose track and detection
         are in no other gated pair of its scan is its own assignment problem and is taken as it is; the others are
         solved per scan."""
+        if _jit.ENABLED:
+            chosen, C, F, I, shapes = K.assign_prep(ci, cj, gated, cost, tab.scan, A._BIG)
+            if len(shapes) == 0:
+                chosen.sort()
+                return chosen
+            out = [chosen]
+            o = 0
+            for r_, c_ in shapes.tolist():
+                n_ = r_*c_
+                r, c = linear_sum_assignment(C[o:o+n_].reshape(r_, c_))
+                keep = F[o:o+n_].reshape(r_, c_)[r, c]
+                out.append(I[o:o+n_].reshape(r_, c_)[r[keep], c[keep]])
+                o += n_
+            return np.sort(np.concatenate(out))
         sel = np.flatnonzero(gated)
         if sel.size == 0:
             return sel
@@ -842,16 +921,6 @@ class TeamTracker:
         rest, sc = sel[~free], sc[~free]
         order = np.argsort(sc, kind='stable')
         rest, sc = rest[order], sc[order]
-        if _jit.ENABLED and rest.size:          # the same matrices, built compiled
-            bounds = np.concatenate(([0], np.flatnonzero(np.diff(sc))+1, [rest.size]))
-            C, I, shapes = K.assign_parts(ci[rest], cj[rest], cost[rest], rest, bounds)
-            o = 0
-            for r_, c_ in shapes.tolist():
-                Cm, Im = C[o:o+r_*c_].reshape(r_, c_), I[o:o+r_*c_].reshape(r_, c_)
-                r, c = A.gnn(Cm)
-                out.append(Im[r, c])
-                o += r_*c_
-            return np.sort(np.concatenate(out))
         for part in np.split(rest, np.flatnonzero(np.diff(sc))+1) if rest.size else ():
             ui, uj = np.unique(ci[part]), np.unique(cj[part])
             ri, rj = np.searchsorted(ui, ci[part]), np.searchsorted(uj, cj[part])     # np.unique's inverse
@@ -869,11 +938,9 @@ class TeamTracker:
         hit = np.zeros(pd.shape, bool)
         hit[hit_scan, hit_tr] = True
         if _jit.ENABLED:
-            ep = np.array([gate, np.log1p(-MISS_CAP), float(self.cfg.exist_survive), E.EXIST_MIN, self.exist_max,
-                           E.PD_DETECTED_MIN])
             S.p = K.existence(np.ascontiguousarray(S.p, float), np.ascontiguousarray(T-S.tp, float), pd, hit,
                               np.ascontiguousarray(hit_tr, np.int64), np.ascontiguousarray(log_lr, float),
-                              np.ascontiguousarray(hit_pd, float), ep)
+                              np.ascontiguousarray(hit_pd, float), self._ep)
             S.tp = np.full(len(S), T)
             return
         L = np.maximum(np.where((pd > 0) & ~hit, E.miss_log_factor(pd, gate), 0.0).sum(0), np.log1p(-MISS_CAP))
@@ -885,6 +952,16 @@ class TeamTracker:
         """One joint IMM update (joint_update) at the cycle time T of every track with detections among the gating
         pass g's pairs pick, from that pass's predictions and moments."""
         S = self._tr
+        if _jit.ENABLED and g.wm is _WM:
+            status, k, m, P, mu = K.apply_rows(np.ascontiguousarray(pick, np.int64), g.row, g.trk, g.dj, g.pred.means,
+                                               g.pred.covs, g.pred.mu, g.X, float(g.wm[1]), g.mo.nu, g.mo.Pzz, g.mo.D,
+                                               g.R, tab.time, MU_FLOOR, S.means, S.covs, S.mu, S.t, S.last_seen,
+                                               float(T))
+            if status == 0:
+                return
+            if status == 1:
+                S.means[k], S.covs[k], S.mu[k], S.t[k] = m, floor_eigenvalues(P), mu, T
+                return
         order = np.lexsort((pick, g.row[pick]))
         pick = pick[order]
         rows = g.row[pick]
@@ -897,15 +974,17 @@ class TeamTracker:
         S.means[k], S.covs[k], S.mu[k], S.t[k] = post.means, post.covs, post.mu, T
         np.maximum.at(S.last_seen, g.trk[rows], tab.time[g.dj[pick]])
 
-    def _records(self, ids, dj, tab, nis):
-        """NIS_DTYPE records of the pairs (track ids, detections dj); None when the tracker keeps no NIS log."""
+    def _records(self, ids, dj, tab, nis, scans):
+        """NIS_DTYPE records of the pairs (track ids, detections dj of the cycle's scans); None when the tracker
+        keeps no NIS log."""
         if not self.record_nis:
             return None
         rec = np.zeros(len(ids), NIS_DTYPE)
         rec['time'], rec['track'], rec['dof'], rec['nis'] = tab.time[dj], ids, tab.dof[dj], nis
-        rec['kind'] = [_KINDS[k] for k in tab.kind[dj]]
-        rec['sensor'] = [tab.spec[s].name for s in tab.scan[dj]]
-        rec['car'] = [tab.dets[j].car for j in dj]
+        sc = tab.scan[dj]
+        rec['kind'] = _KIND_NAMES[tab.kind[dj]]
+        rec['sensor'] = np.array([sp.name for sp in tab.spec], NIS_DTYPE['sensor'])[sc]
+        rec['car'] = np.array([s.car for s in scans], np.int64)[sc]
         return rec
 
     # ---------------------------------------------------------------------------------------------- births
@@ -927,7 +1006,7 @@ class TeamTracker:
         dd = tab.xy[U, 1][:, None]-(m[:, 1]+m[:, 3]*dt)
         return tab.has_xy[U] & ((np.abs(ds) < self.params.length) & (np.abs(dd) < self.params.width)).any(1)
 
-    def _births(self, tab, U, T, team, mc, confirmed):
+    def _births(self, tab, U, T, team, mc, confirmed, scans):
         """New tracks from the unassigned detections (module docstring, step 7); returns their NIS records."""
         cfg = self.cfg
         kind = tab.kind[U]
@@ -943,15 +1022,18 @@ class TeamTracker:
         if U.size == 0:
             return None
         mT, PT = _cv(mean, cov, T-tab.time[U])
-        sub = np.ix_(range(len(U)), [0, 1, 2], [0, 1, 2])
         e = mT[:, None, :3]-mT[None, :, :3]
-        Cs = PT[sub][:, None]+PT[sub][None, :]
+        P3 = PT[:, :3, :3]
+        Cs = P3[:, None]+P3[None, :]
         m2 = np.einsum('abi,abi->ab', e, np.linalg.solve(Cs, e[..., None])[..., 0])
         sc = tab.scan[U]
         compat = (m2 <= self._thr3) & (sc[:, None] != sc[None, :])
-        seed = np.zeros(len(U), bool)
+        rows, seeds = compat.tolist(), []
         for u in range(len(U)):
-            seed[u] = not compat[u, seed].any()
+            if not any(rows[u][v] for v in seeds):
+                seeds.append(u)
+        seed = np.zeros(len(U), bool)
+        seed[seeds] = True
         s_idx = np.flatnonzero(seed)
         k = len(s_idx)
         init = np.array([cfg.init_exist_lidar_dense, cfg.init_exist_lidar, cfg.init_exist_radar,
@@ -968,7 +1050,7 @@ class TeamTracker:
         members = np.flatnonzero(~seed)
         if members.size == 0:
             return None
-        a, b = np.nonzero(compat[np.ix_(s_idx, members)])
+        a, b = np.nonzero(compat[s_idx][:, members])
         if a.size == 0:
             return None
         ci, cj = n0+a, U[members[b]]
@@ -981,13 +1063,24 @@ class TeamTracker:
         np.add.at(L, ci[chosen], E.hit_log_factor(E.PD_DETECTED_MIN, float(cfg.gate),
                                                   g.ll[chosen]-tab.log_clutter[cj[chosen]]))
         S.p = E.apply_log_odds(S.p, L, self.exist_max)
-        rec = self._records(S.id[ci[chosen]], cj[chosen], tab, g.nis[chosen])
+        rec = self._records(S.id[ci[chosen]], cj[chosen], tab, g.nis[chosen], scans)
         self._apply(g, chosen, tab, T)
         return rec
 
     def _birth_states(self, tab, U, team, mc, confirmed):
-        """(mean (u, 4), cov (u, 4, 4), ok (u,)) of single-detection track states (design section 6 table)."""
+        """(mean (u, 4), cov (u, 4, 4), ok (u,)) of single-detection track states (design section 6 table); compiled
+        in one call (_tracking_jit.birth_states) when numba is on."""
         cfg, prm = self.cfg, self.params
+        if _jit.ENABLED:
+            rc = getattr(self.road, 'cfg', self.road)
+            mean, cov, ok, done = K.birth_states(
+                np.ascontiguousarray(U, np.int64), tab.kind, tab.z, tab.R, tab.pose, tab.vs, tab.has_xy, tab.init_xy,
+                tab.init_P, self._birth, _WM3, _WC3, _SC3, _WM, _WC, _SC, float(cfg.init_vd_sigma**2),
+                np.zeros((0, 4)) if team is None else team, team is not None, np.ascontiguousarray(mc, float),
+                np.ascontiguousarray(confirmed, bool), int(rc.lanes), float(rc.lane_width),
+                float(cfg.init_speed_sigma_own), float(cfg.init_speed_sigma_lane))
+            if done:
+                return mean, cov, ok
         u = len(U)
         mean, cov = np.zeros((u, 4)), np.zeros((u, 4, 4))
         ok = np.ones(u, bool)
@@ -1024,12 +1117,11 @@ class TeamTracker:
             mean[Rd], cov[Rd] = m, P
             have_v[Rd] = speed
         Cm = np.flatnonzero(kind == A.CAMERA)
-        for q in Cm:
-            init = tab.dets[U[q]].meta.get('init') if tab.dets[U[q]].meta else None
-            if init is None:
-                ok[q] = False
-                continue
-            mean[q, :2], cov[q, :2, :2] = np.asarray(init[0], float), np.asarray(init[1], float)
+        if Cm.size:                     # meta['init'] (DetTable.init_xy, init_P where has_xy)
+            got = tab.has_xy[U[Cm]]
+            ok[Cm[~got]] = False
+            q, j = Cm[got], U[Cm[got]]
+            mean[q, :2], cov[q, :2, :2] = tab.init_xy[j], tab.init_P[j]
         lat = kind != A.RADAR
         cov[lat, 3, 3] = cfg.init_vd_sigma**2
         need = ~have_v
@@ -1055,8 +1147,15 @@ class TeamTracker:
 
     def _speed_prior(self, xy, team, mc, confirmed):
         """(v0, sigma) of the speed along the road for new tracks at xy: the median of the confirmed tracks in the
-        lane, else the nearest team car's speed (design section 6)."""
+        lane, else the nearest team car's speed (design section 6). Compiled (_tracking_jit.speed_prior) when numba
+        is on."""
         cfg = self.cfg
+        if _jit.ENABLED:
+            rc = getattr(self.road, 'cfg', self.road)
+            return K.speed_prior(np.ascontiguousarray(xy, float), np.zeros((0, 4)) if team is None else team,
+                                 team is not None, np.ascontiguousarray(mc, float), np.ascontiguousarray(confirmed),
+                                 int(rc.lanes), float(rc.lane_width), float(cfg.init_speed_sigma_own),
+                                 float(cfg.init_speed_sigma_lane))
         lane = lane_of(xy[:, 1], self.road)
         v0 = np.zeros(len(xy))
         sig = np.full(len(xy), float(cfg.init_speed_sigma_own))
@@ -1082,6 +1181,9 @@ class TeamTracker:
             return
         mc, Pc = imm_combine(IMMState(S.means, S.covs, S.mu))
         mT, PT = _cv(mc, Pc, T-S.t, cfg)         # with the process noise: the deletion test reads the belief's sigma
+        if _jit.ENABLED:
+            self._manage_jit(T, team, mT, PT)
+            return
         drop = ~(np.isfinite(mT).all(1) & np.isfinite(PT).all((1, 2)))
         merge = {}
         if n > 1:
@@ -1116,6 +1218,55 @@ class TeamTracker:
             drop |= (mT[:, 0] < team[:, 0].min()-cfg.roi_behind) | (mT[:, 0] > team[:, 0].max()+cfg.roi_ahead)
         if drop.any():
             gone = set(int(k) for k in S.id[drop])
+            merge = {k: v for k, v in merge.items() if k[0] not in gone and k[1] not in gone}
+            self.stats['deleted'] += int(drop.sum())
+            self._tr = S.take(~drop)
+        self._merge = merge
+
+    def _manage_jit(self, T, team, mT, PT):
+        """_manage's rest with the candidate pairs (_tracking_jit.box_pairs) and the deletion tests
+        (_tracking_jit.drop_rows) compiled."""
+        cfg, S = self.cfg, self._tr
+        merge = {}
+        L, W = self.params.length, self.params.width
+        i, j = K.box_pairs(mT, float(L), float(W))
+        if i.size:
+            e = mT[i, :2]-mT[j, :2]
+            m2 = np.einsum('ki,ki->k', e, np.linalg.solve(PT[i, :2, :2]+PT[j, :2, :2], e[..., None])[..., 0])
+            share = (1-np.abs(e[:, 0])/L)*(1-np.abs(e[:, 1])/W)
+            dv = mT[i, 2]-mT[j, 2]
+            pace = dv*dv <= self._thr1*(PT[i, 2, 2]+PT[j, 2, 2])+MERGE_DV**2
+            same = ((m2 <= self._thr2) | (share >= MERGE_OVERLAP)) & pace
+            ids = S.id.tolist()
+            for a, b in zip(i[same].tolist(), j[same].tolist()):
+                key = (min(ids[a], ids[b]), max(ids[a], ids[b]))
+                merge[key] = self._merge.get(key, 0)+1
+        lost = []
+        due = sorted(k for k, v in merge.items() if v >= cfg.merge_cycles)
+        if due:
+            bad = ~(np.isfinite(mT).all(1) & np.isfinite(PT).all((1, 2)))
+            index = {int(k): n_ for n_, k in enumerate(S.id)}
+            for key in due:
+                a, b = index[key[0]], index[key[1]]
+                if bad[a] or bad[b]:
+                    continue
+                keep, lose = (b, a) if (S.confirmed[b] and not S.confirmed[a]) else (a, b)
+                S.p[keep] = max(S.p[keep], S.p[lose])
+                S.last_seen[keep] = max(S.last_seen[keep], S.last_seen[lose])
+                S.confirmed[keep] |= S.confirmed[lose]
+                S.hist[keep] |= S.hist[lose]
+                bad[lose] = True
+                lost.append(lose)
+                self.stats['merges'] += 1
+        has = team is not None and len(team) > 0
+        lo = float(team[:, 0].min()-cfg.roi_behind) if has else 0.0
+        hi = float(team[:, 0].max()+cfg.roi_ahead) if has else 0.0
+        drop = K.drop_rows(mT, PT, S.p, S.confirmed, S.last_seen, float(T), float(cfg.delete_exist), MAX_SIGMA_S**2,
+                           int(cfg.confirm_n)*self.cycle+1e-9, has, lo, hi)
+        if lost:
+            drop[lost] = True
+        if drop.any():
+            gone = set(S.id[drop].tolist())
             merge = {k: v for k, v in merge.items() if k[0] not in gone and k[1] not in gone}
             self.stats['deleted'] += int(drop.sum())
             self._tr = S.take(~drop)

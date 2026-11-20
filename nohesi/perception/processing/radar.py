@@ -21,11 +21,18 @@
    point nearest the sensor).
 
 ego_at and sensor_velocity are shared with camera processing.
+
+process_radars runs steps 1-5 compiled (_radar_jit.clusters, one call per sim step) when numba is on
+(perception/_jit.py), and as this module's numpy code otherwise (NOHESI_JIT=0, _process_numpy): the reference the
+kernel follows operation by operation (sensor_velocity's rotation and the teammates' boxes, BLAS products, stay in
+numpy). The two paths give the same Detections to the bit (tests/test_perception_jit_radar_proc.py).
 """
 from dataclasses import replace
 import numpy as np
+from .._jit import ENABLED
 from ..geometry import car_boxes, mount_offset, rot, sensor_pose, to_world, wrap
 from ..types import Detection
+from . import _radar_jit
 
 __all__ = ['STATIONARY_SIGMAS', 'MATE_MARGIN', 'MATE_SIGMAS', 'SCALE', 'MAX_REL_SPEED', 'ego_at', 'sensor_velocity',
            'stationary_range_rate', 'stationary', 'box_distance', 'cluster_distance', 'dbscan', 'process_radar',
@@ -39,6 +46,8 @@ MATE_SIGMAS = 3.0                    # ... or within this many sigma of the poin
 SCALE = (1.5, 1.5, 1.0)              # DBSCAN scales: world x (along the road), y (m), range rate (m/s); eps 1
 MAX_REL_SPEED = 15.0                 # m/s: the largest speed of a car relative to the sensor (v9 lanes 55-80 mph)
 SIGMA_FLOOR = (1e-3, 1e-5, 1e-3)     # keeps R positive definite for noise-free ('ideal') sensors
+_JIT = ENABLED                       # process_radars' path: the compiled kernel, or the numpy code (tests switch it)
+_FLOOR = np.array(SIGMA_FLOOR, float)
 
 
 def ego_at(ego, t):
@@ -145,8 +154,81 @@ def process_radar(scan, spec, ego, mates, params, scale=SCALE, eps=1.0, min_samp
 def process_radars(scans, specs, egos, mates, params, scale=SCALE, eps=1.0, min_samples=1, rel_speed=MAX_REL_SPEED):
     """process_radar of several scans at once (scans[k] from specs[k] on the car in egos[k], its teammates mates[k]):
     one list of Detections per scan, the same as scan by scan. Every step runs over all points of all scans in one
-    batch (points of different scans never cluster together), so twelve scans cost about what one did."""
+    batch (points of different scans never cluster together): compiled (_radar_jit.clusters) when numba is on, else
+    in numpy, whose cost per call, not per point, dominates (twelve scans cost about what one did)."""
     egos = [ego_at(e, sc.time) for e, sc in zip(egos, scans)]
+    args = (scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed)
+    if _JIT and len(scans) and np.isfinite(float(eps)*float(eps)):   # eps inf would link the scans' points
+        out = _process_compiled(*args)
+        if out is not None:
+            return out
+    return _process_numpy(*args)
+
+
+def _flat(xs):
+    """The arrays xs (one per scan) flattened to float and end to end, and their sizes."""
+    try:
+        x = np.concatenate(xs, dtype=float)
+        if x.ndim == 1:                                  # every one 1-D
+            return x, [len(a) for a in xs]
+    except (ValueError, TypeError):
+        pass
+    xs = [np.asarray(a, float).reshape(-1) for a in xs]
+    return np.concatenate(xs), [len(a) for a in xs]
+
+
+def _process_compiled(scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed):
+    """process_radars by _radar_jit.clusters (egos already at the scan times); None when the scans' arrays do not
+    line up (the numpy path then fails as before).
+
+    What numpy does with BLAS stays in numpy, batched over the scans, as BLAS fuses multiply-adds that the kernel's
+    arithmetic would not reproduce to the bit: sensor_velocity's rotation (the same matrix-vector product per scan:
+    numpy's matmul runs one per stacked matrix) and the teammates' boxes (car_boxes of every group's states at once,
+    row by row the same). The sensor poses (sensor_pose) come back from the kernel."""
+    S = len(scans)
+    r, sizes = _flat([sc.range for sc in scans])
+    az, n_az = _flat([sc.azimuth for sc in scans])
+    rr, n_rr = _flat([sc.range_rate for sc in scans])
+    if not sizes == n_az == n_rr:
+        return None
+    out = [[] for _ in scans]
+    if len(r) == 0:
+        return out
+    rows = {}                                            # per spec: mount offset, yaw and z, and the sigmas
+    for sp in specs:
+        if id(sp) not in rows:
+            m = sp.mount
+            rows[id(sp)] = (*mount_offset(m, params), m.yaw, m.z, sp.sigma_range, sp.sigma_azimuth,
+                            sp.sigma_range_rate)
+    tab = np.array([(g.x, g.y, g.yaw, g.vx, g.vy, g.r)+rows[id(sp)] for g, sp in zip(egos, specs)], float)
+    c, s = np.cos(tab[:, 2]), np.sin(tab[:, 2])
+    lever = np.empty((S, 2, 1))                          # sensor_velocity
+    lever[:, 0, 0], lever[:, 1, 0] = tab[:, 3]-tab[:, 5]*tab[:, 7], tab[:, 4]+tab[:, 5]*tab[:, 6]
+    vel = (np.stack((c, -s, s, c), -1).reshape(S, 2, 2) @ lever).reshape(S, 2)
+    group = np.full(S, -1, np.int64)
+    states, ids = [], {}
+    for k, m in enumerate(mates):
+        if m is not None and len(m):
+            g = ids.get(id(m))
+            if g is None:
+                g = ids[id(m)] = len(states)
+                states.append(np.asarray(m, float).reshape(len(m), -1)[:, :3])
+            group[k] = g
+    boxes = np.ascontiguousarray(car_boxes(np.concatenate(states), params) if states else np.zeros((0, 4, 2)), float)
+    box_off = np.cumsum([0]+[len(m) for m in states], dtype=np.int64)
+    z, R, owner, count, P = _radar_jit.clusters(r, az, rr, np.cumsum([0]+sizes, dtype=np.int64), tab, vel, group,
+                                                boxes, box_off, np.array(scale[:3], float), float(eps),
+                                                float(min_samples), float(rel_speed), _FLOOR)
+    poses = list(zip(P[:, 0], P[:, 1], P[:, 2].tolist(), tab[:, 9].tolist()))   # as sensor_pose's tuples: x, y numpy
+    info = [(sc.sensor, sc.car, float(sc.time)) for sc in scans]                # floats, yaw and z floats
+    for q, n, zk, Rk in zip(owner.tolist(), count.tolist(), z, R):
+        sensor, car, t = info[q]
+        out[q].append(Detection('radar', sensor, car, t, zk, Rk, poses[q], egos[q], {'n_points': n, 'scan': t}))
+    return out
+
+
+def _process_numpy(scans, specs, egos, mates, params, scale, eps, min_samples, rel_speed):
+    """process_radars in numpy (egos already at the scan times)."""
     poses = [sensor_pose(sp.mount, (e.x, e.y, e.yaw), params) for sp, e in zip(specs, egos)]
     flat = lambda name: [np.asarray(getattr(sc, name), float).reshape(-1) for sc in scans]
     sizes = [len(x) for x in flat('range')]

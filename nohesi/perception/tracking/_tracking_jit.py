@@ -14,10 +14,20 @@ and per-ray loops of a fusion cycle, each in one call, instead of numpy's many s
 - assign_parts(...): the cost matrices of TeamTracker._assign's per-scan problems (scipy's linear_sum_assignment
   still solves them).
 - cv_rows(...): tracker._cv; combine(...), lane_rows(...): imm.imm_combine and imm.lane_probability.
+- scan_order(...), table_rows(...): association.DetTable.build (the scans' deterministic detection order and the
+  table's rows).
+- gate_cycle(...): TeamTracker._gate in one call (predict_rows, sigma_rows, gate_pairs and the gate itself);
+  assign_prep(...): TeamTracker._assign's bookkeeping (the problems with one track or one detection solved as scipy
+  does); apply_rows(...): TeamTracker._apply (joint_update and the writes into the tracks); confirm_rows(...): the
+  confirmation step; birth_states(...), speed_prior(...): TeamTracker._birth_states and _speed_prior; box_pairs(...),
+  drop_rows(...): TeamTracker._manage's candidate pairs and deletion tests.
 
 Each kernel is the numpy code written out for one track, pair or ray, in the same order of operations, so the two
 paths agree to rounding (the math library's last bit, matrix-product summation order, and a hand-written Cholesky
-factor in place of LAPACK's for the sigma points). The numpy functions stay the reference and the path with
+factor in place of LAPACK's for the sigma points). The bookkeeping kernels (the table, assignment, update writes,
+confirmation, births, management) do only elementwise arithmetic in numpy's order (a radar row's 2 x 2 coarse
+covariance with the fused multiply-adds of numpy's matmul through OpenBLAS, _fma), so on an FMA machine they
+reproduce the numpy path's bookkeeping bit for bit; elsewhere it agrees to rounding. The numpy functions stay the reference and the path with
 NOHESI_JIT=0 (perception/_jit.py); there these kernels would run as plain Python, correct but slow, and the callers do
 not use them. A kernel that meets a matrix the plain factorization cannot take (a pivot that is not positive, where
 the numpy code turns to ukf.robust_cholesky or ukf.floor_eigenvalues) returns ok False, and its caller redoes the
@@ -33,11 +43,33 @@ of them (about half a minute), later processes load them from the cache.
 from math import (atan2, copysign, cos, erf, erfc, exp, expm1, floor, hypot, inf, log, log1p, nan, pi, sin,
                   sqrt, tanh)
 import numpy as np
-from .._jit import njit
+from .._jit import ENABLED, njit
+
+if ENABLED:
+    from llvmlite import ir as _ir
+    from numba import types as _types
+    from numba.extending import intrinsic as _intrinsic
+
+    @_intrinsic
+    def _fma(typingctx, a, b, c):
+        """a b + c rounded once (llvm.fma)."""
+        sig = _types.float64(_types.float64, _types.float64, _types.float64)
+
+        def codegen(context, builder, signature, args):
+            d = _ir.DoubleType()
+            return builder.call(builder.module.declare_intrinsic('llvm.fma', [d], _ir.FunctionType(d, [d, d, d])),
+                                args)
+        return sig, codegen
+else:
+    def _fma(a, b, c):
+        """a b + c rounded once (the plain-Python stand-in rounds twice; only the compiled kernels use it)."""
+        return a*b+c
 
 __all__ = ['MOTION_FIELDS', 'GEOM_FIELDS', 'SPEC_FIELDS', 'COVER_FIELDS', 'BIRTH_FIELDS', 'predict_rows',
            'sigma_rows', 'gate_pairs', 'joint_update', 'coarse_ok', 'coverage', 'visibility', 'existence',
-           'birth_rows', 'occupied', 'assign_parts', 'cv_rows', 'combine', 'lane_rows']
+           'birth_rows', 'occupied', 'assign_parts', 'cv_rows', 'combine', 'lane_rows', 'scan_order', 'table_rows',
+           'gate_cycle', 'assign_prep', 'apply_rows', 'confirm_rows', 'speed_prior', 'birth_states', 'box_pairs',
+           'drop_rows']
 
 MOTION_FIELDS = ('lane_keep_rate', 'lc_speed', 'lanes', 'lane_width', 'half_width', 'imm_switch', 'q_long2',
                  'q_lat2', 'mu_floor')
@@ -408,12 +440,36 @@ def _h_camera(x, pose, cam, gp, T, cy, sy, xc, yc, zc, out):
 
 
 @njit(error_model='numpy')
+def _same_view(a, b, kd, pose, vs, cam, wrap):
+    """Detections a and b see a state through the same measurement model: the same sensor pose, and the same sensor
+    velocity (radar) or camera row (camera); the angle columns agree."""
+    for c in range(pose.shape[1]):
+        if pose[a, c] != pose[b, c]:
+            return False
+    for c in range(wrap.shape[1]):
+        if wrap[a, c] != wrap[b, c]:
+            return False
+    if kd == RADAR:
+        for c in range(vs.shape[1]):
+            if vs[a, c] != vs[b, c]:
+                return False
+    else:
+        for c in range(cam.shape[1]):
+            if cam[a, c] != cam[b, c]:
+                return False
+    return True
+
+
+@njit(error_model='numpy')
 def gate_pairs(X, row, dj, off, mu, kind, z, R_fit, dz_dv, v_prior, pose, vs, cam, wrap, steps, mp, gp, wm, wc):
     """The measurement part of TeamTracker._gate for pairs p (track row row[p] of the predicted sigma points X
     (U, J, K, n), detection dj[p] of the DetTable arrays kind ... wrap, time offset off[p] from the cycle time, the
     track's model probabilities mu (P, J)): every point moved by its model's motion over the offset, the detection's
     measurement model, association.moments and association.imm_gate. Returns (zhat (P, J, M), nu, Pzz (P, J, M, M),
-    D (P, J, n, M), R (P, M, M) (R_fit with a lidar offset's position noise), loglik (P,), nis (P,), ok)."""
+    D (P, J, n, M), R (P, M, M) (R_fit with a lidar offset's position noise), loglik (P,), nis (P,), ok).
+    A radar or camera detection's images depend on the scan, not on the detection: a pair whose track row, offset and
+    measurement model (_same_view) equal those of an earlier pair of the same track (pairs come sorted by track)
+    takes that pair's zhat, Pzz and D (the same numbers) and only computes its own innovation."""
     P = len(dj)
     U, J, K, n = X.shape
     M = z.shape[1]
@@ -435,8 +491,30 @@ def gate_pairs(X, row, dj, off, mu, kind, z, R_fit, dz_dv, v_prior, pose, vs, ca
     dk = sqrt(wm[1]/2)
     for p in range(P):
         d, o, kd = dj[p], off[p], kind[dj[p]]
+        md = M if kd == CAMERA else 3
+        src = -1
+        if kd != LIDAR:
+            q = p-1
+            while q >= 0 and row[q] == row[p]:
+                if kind[dj[q]] == kd and off[q] == o and _same_view(dj[q], d, kd, pose, vs, cam, wrap):
+                    src = q
+                    break
+                q -= 1
+        if src >= 0:
+            for j in range(J):
+                for c in range(md):
+                    zhat[p, j, c] = zhat[src, j, c]
+                    nu[p, j, c] = _res(z[d, c], zhat[p, j, c], wrap[d, c])
+                for r in range(md):
+                    for c in range(md):
+                        Pzz[p, j, r, c] = Pzz[src, j, r, c]
+                for i in range(n):
+                    for c in range(md):
+                        D[p, j, i, c] = D[src, j, i, c]
         E, g = _decay(o, mp)
-        if kd == CAMERA:
+        if src >= 0:
+            cy, sy = 1.0, 0.0
+        elif kd == CAMERA:
             ya, pt = cam[d, 4], cam[d, 3]         # geometry._tilt
             sa, ca = sin(ya), cos(ya)
             s_, k_ = sin(pt), 1-cos(pt)
@@ -446,7 +524,7 @@ def gate_pairs(X, row, dj, off, mu, kind, z, R_fit, dz_dv, v_prior, pose, vs, ca
             cy, sy = cos(pose[d, 2]), sin(pose[d, 2])
         else:
             cy, sy = 1.0, 0.0
-        for j in range(J):
+        for j in range(J if src < 0 else 0):
             for k in range(K):
                 x = X[row[p], j, k]
                 if o != 0:
@@ -458,8 +536,9 @@ def gate_pairs(X, row, dj, off, mu, kind, z, R_fit, dz_dv, v_prior, pose, vs, ca
                     _h_radar(x, pose[d], vs[d], gp, Z[k])
                 else:
                     _h_camera(x, pose[d], cam[d], gp, T, cy, sy, xc, yc, zc, Z[k])
-            # association.moments
-            for c in range(M):
+            # association.moments (a lidar or radar row's padded column is exactly zero in zhat, nu, Pzz and D:
+            # its images are 0, so it is left at the arrays' zeros)
+            for c in range(md):
                 acc = 0.0
                 for k in range(K):
                     acc += wm[k]*_res(Z[k, c], Z[0, c], wrap[d, c])
@@ -468,14 +547,14 @@ def gate_pairs(X, row, dj, off, mu, kind, z, R_fit, dz_dv, v_prior, pose, vs, ca
                 for k in range(K):
                     dZ[k, c] = _res(Z[k, c], zh, wrap[d, c])
                 nu[p, j, c] = _res(z[d, c], zh, wrap[d, c])
-            for r in range(M):
-                for c in range(M):
+            for r in range(md):
+                for c in range(md):
                     acc = 0.0
                     for k in range(K):
                         acc += dZ[k, r]*wc[k]*dZ[k, c]
                     Pzz[p, j, r, c] = acc
             for i in range(n):
-                for c in range(M):
+                for c in range(md):
                     D[p, j, i, c] = (dZ[1+i, c]-dZ[1+n+i, c])*dk
         for r in range(M):
             for c in range(M):
@@ -1242,3 +1321,604 @@ def occupied(time, xy, has_xy, means, mu, t, length, width):
                 out[d] = True
                 break
     return out
+
+
+# ------------------------------------------------------------------------------------------------ detection table
+@njit(error_model='numpy')
+def _bytes_after(a, b, zb):
+    """Row a of zb (D, W) uint8 after row b, comparing as bytes objects (lexicographic, unsigned)."""
+    for c in range(zb.shape[1]):
+        if zb[a, c] != zb[b, c]:
+            return zb[a, c] > zb[b, c]
+    return False
+
+
+@njit(error_model='numpy')
+def scan_order(time, start, kind, zb0, zb1, zb2):
+    """The detections' order within each scan (rows start[s]:start[s+1] of the delivery order) by (time, the bytes of
+    z), as association.scan_order sorts them (stable, so equal keys keep their delivery order): perm (D,), table row
+    p holding delivered row perm[p]. zb0, zb1, zb2: the lidar, radar and camera rows' z as bytes (rows of one kind
+    in delivery order, kind (D,) the rows' kind codes); times must be finite."""
+    D = len(time)
+    blk = np.empty(D, np.int64)
+    cnt = np.zeros(3, np.int64)
+    for i in range(D):
+        blk[i] = cnt[kind[i]]
+        cnt[kind[i]] += 1
+    perm = np.arange(D)
+    for s in range(len(start)-1):
+        a, b = start[s], start[s+1]
+        if b-a < 2:
+            continue
+        k = kind[a]
+        zb = zb0 if k == LIDAR else (zb1 if k == RADAR else zb2)
+        for i in range(a+1, b):
+            x = perm[i]
+            j = i
+            while j > a:
+                y = perm[j-1]
+                if time[y] != time[x]:
+                    after = time[y] > time[x]
+                else:
+                    after = _bytes_after(blk[y], blk[x], zb)
+                if not after:
+                    break
+                perm[j] = y
+                j -= 1
+            perm[j] = x
+    return perm
+
+
+@njit(error_model='numpy')
+def table_rows(kind, scan, perm, times, pose_in, npts_in, lc, Z0, Z1, Z2, R0, R1, R2, lin_of, vpl, dzl, rfl, sego,
+               scam, slv, fmode, fval, init_of, ixy, iPc, dof, ll_pad, cst):
+    """association.DetTable.build_numpy's rows (D detections and the dummy row D): row p is delivered detection
+    perm[p], whose per-kind fields (Z*, R* (rows of one kind in delivery order); lin_of, vpl, dzl, rfl a lidar
+    box's velocity model; fmode, fval a camera's truncation flags (0 none, 1 'touches the border', 2 four flags,
+    3 none truncated); init_of, ixy, iPc its single-frame position) sit at its index among its kind. Per scan:
+    svel a radar's sensor velocity, scam a camera's [width, height, focal, pitch, mount yaw] and slv its clutter log
+    volumes; lc the scans' log clutter densities. dof and ll_pad (from the rows' dims) are completed in place; cst:
+    shift, length, width, the three squared margins, BORDER_PX, TRUNCATED_VAR, log(2 pi TRUNCATED_VAR). Returns
+    (time, z, R, R_fit, pose, vs, cam, xy, C, has_xy, wrap, log_clutter, v_prior, dz_dv, n_points, init_xy, init_P).
+    A radar row's C = J R J^T + margin is computed with fused multiply-adds, the rounding of numpy's matmul through
+    OpenBLAS on an FMA machine (bit-identical there, equal to rounding where BLAS rounds otherwise)."""
+    Dp = len(kind)
+    D = Dp-1
+    shift, length, width, ml, mr, mc, border, tvar, ltv = (cst[0], cst[1], cst[2], cst[3], cst[4], cst[5], cst[6],
+                                                           cst[7], cst[8])
+    time, z, R = np.zeros(Dp), np.zeros((Dp, 4)), np.zeros((Dp, 4, 4))
+    pose, vs, cam = np.zeros((Dp, 4)), np.zeros((Dp, 2)), np.zeros((Dp, 5))
+    xy, C, has = np.zeros((Dp, 2)), np.zeros((Dp, 2, 2)), np.zeros(Dp, np.bool_)
+    wrap, clut = np.zeros((Dp, 4), np.bool_), np.zeros(Dp)
+    vp, dzdv, npts = np.zeros((Dp, 2)), np.zeros((Dp, 3, 2)), np.zeros(Dp, np.int64)
+    iX, iP = np.zeros((Dp, 2)), np.zeros((Dp, 2, 2))
+    J, JR = np.empty((2, 2)), np.empty((2, 2))
+    blk = np.empty(D, np.int64)
+    cnt = np.zeros(3, np.int64)
+    for i in range(D):
+        blk[i] = cnt[kind[i]]
+        cnt[kind[i]] += 1
+    for p in range(Dp):
+        for a in range(4):
+            R[p, a, a] = 1.0
+        C[p, 0, 0] = 1.0
+        C[p, 1, 1] = 1.0
+    svel = np.zeros((len(sego), 2))
+    for s in range(len(sego)):              # models.sensor_velocity
+        yaw, vx, vy, yr, ex, ey = sego[s, 0], sego[s, 1], sego[s, 2], sego[s, 3], sego[s, 4], sego[s, 5]
+        c, sn = cos(yaw), sin(yaw)
+        lx, ly = sego[s, 6]-ex, sego[s, 7]-ey
+        svel[s, 0] = c*vx-sn*vy-yr*ly
+        svel[s, 1] = sn*vx+c*vy+yr*lx
+    cut, keep = np.zeros(4, np.bool_), np.zeros(4, np.bool_)
+    for p in range(D):
+        i = perm[p]
+        b = blk[i]
+        kd = kind[p]
+        s = scan[p]
+        time[p] = times[i]
+        for a in range(4):
+            pose[p, a] = pose_in[i, a]
+        npts[p] = npts_in[i]
+        has[p] = True
+        clut[p] = lc[s]
+        if kd == LIDAR:
+            for a in range(3):
+                z[p, a] = Z0[b, a]
+                for c in range(3):
+                    R[p, a, c] = R0[b, a, c]
+            wrap[p, 2] = True
+            h = z[p, 2]
+            xy[p, 0] = z[p, 0]-shift*cos(h)
+            xy[p, 1] = z[p, 1]-shift*sin(h)
+            C[p, 0, 0] = R[p, 0, 0]+ml
+            C[p, 0, 1] = R[p, 0, 1]+0.0
+            C[p, 1, 0] = R[p, 1, 0]+0.0
+            C[p, 1, 1] = R[p, 1, 1]+ml
+            q = lin_of[b]
+            if q >= 0:
+                for a in range(2):
+                    vp[p, a] = vpl[q, a]
+                for a in range(3):
+                    for c in range(2):
+                        dzdv[p, a, c] = dzl[q, a, c]
+        elif kd == RADAR:
+            for a in range(3):
+                z[p, a] = Z1[b, a]
+                for c in range(3):
+                    R[p, a, c] = R1[b, a, c]
+            wrap[p, 1] = True
+            vs[p, 0], vs[p, 1] = svel[s, 0], svel[s, 1]
+            r, phi = z[p, 0], pose[p, 2]+z[p, 1]
+            u0, u1 = cos(phi), sin(phi)
+            ext = abs(u0)*length/2+abs(u1)*width/2
+            g = r+ext
+            xy[p, 0] = (pose[p, 0]+u0*g)-shift
+            xy[p, 1] = pose[p, 1]+u1*g
+            J[0, 0], J[1, 0] = u0, u1
+            J[0, 1], J[1, 1] = -r*u1, r*u0
+            for a in range(2):               # (J R) J^T as numpy's matmul rounds it (OpenBLAS: fused multiply-adds)
+                for c in range(2):
+                    JR[a, c] = _fma(J[a, 1], R[p, 1, c], J[a, 0]*R[p, 0, c])
+            for a in range(2):
+                for c in range(2):
+                    C[p, a, c] = _fma(JR[a, 1], J[c, 1], JR[a, 0]*J[c, 0])+(mr if a == c else 0.0)
+        else:
+            for a in range(4):
+                z[p, a] = Z2[b, a]
+            for a in range(5):
+                cam[p, a] = scam[s, a]
+            W, Hh = cam[p, 0], cam[p, 1]
+            fm = fmode[b]
+            if fm == 2:
+                for a in range(4):
+                    cut[a] = fval[b, a]
+            elif fm == 3:
+                for a in range(4):
+                    cut[a] = False
+            else:
+                cut[0] = z[p, 0] <= border
+                cut[1] = z[p, 1] >= W-border
+                cut[2] = z[p, 2] <= border
+                cut[3] = z[p, 3] >= Hh-border
+            nk, ncut = 0, 0
+            for a in range(4):
+                keep[a] = not cut[a]
+                if keep[a]:
+                    nk += 1
+                else:
+                    ncut += 1
+            for a in range(4):
+                for c in range(4):
+                    v = R2[b, a, c]*(1.0 if (keep[a] and keep[c]) else 0.0)
+                    R[p, a, c] = v+(1.0 if a == c else 0.0)*(tvar if cut[c] else 0.0)
+            dof[p] = nk
+            ll_pad[p] = ll_pad[p]+(0.5*ncut)*ltv
+            acc = (1.0 if cut[0] else 0.0)*slv[s, 0]
+            for a in range(1, 4):
+                acc = acc+(1.0 if cut[a] else 0.0)*slv[s, a]
+            clut[p] = clut[p]+acc
+            q = init_of[b]
+            if q < 0:
+                has[p] = False
+            else:
+                for a in range(2):
+                    xy[p, a] = ixy[q, a]
+                    iX[p, a] = ixy[q, a]
+                    for c in range(2):
+                        iP[p, a, c] = iPc[q, a, c]
+                C[p, 0, 0] = iP[p, 0, 0]+mc
+                C[p, 0, 1] = iP[p, 0, 1]+0.0
+                C[p, 1, 0] = iP[p, 1, 0]+0.0
+                C[p, 1, 1] = iP[p, 1, 1]+mc
+    Rf = R.copy()
+    for p in range(D):
+        if kind[p] == LIDAR:
+            q = lin_of[blk[perm[p]]]
+            if q >= 0:
+                for a in range(3):
+                    for c in range(3):
+                        Rf[p, a, c] = rfl[q, a, c]
+    return time, z, R, Rf, pose, vs, cam, xy, C, has, wrap, clut, vp, dzdv, npts, iX, iP
+
+
+# ------------------------------------------------------------------------------------------------ cycle steps
+@njit(error_model='numpy')
+def gate_cycle(means, covs, mu, t, trk, T, row, dj, time, kind, z, R_fit, dz_dv, v_prior, pose, vs, cam, wrap, dof,
+               ll_pad, log_clutter, thr, steps, mp, gp, wm, wc, sc):
+    """TeamTracker._gate compiled in one call: the tracks trk (of means, covs, mu at times t) predicted to the cycle
+    time T (predict_rows), their sigma points (sigma_rows) and the pairs (track row row[p], detection dj[p]) through
+    gate_pairs (offset time[dj] - T), then the gate (nis within thr[min(dof, 4)]), the log-likelihood with ll_pad and
+    the cost log_clutter - ll. Returns (means, covs, mu (the predictions), X, zhat, nu, Pzz, D, R, ll, nis, gated,
+    cost, ok); ok False when a matrix needs the numpy path's safeguards."""
+    U = len(trk)
+    J, n = means.shape[1], means.shape[2]
+    gm, gP, gu, dt = np.empty((U, J, n)), np.empty((U, J, n, n)), np.empty((U, J)), np.empty(U)
+    for u in range(U):
+        i = trk[u]
+        gm[u] = means[i]
+        gP[u] = covs[i]
+        gu[u] = mu[i]
+        dt[u] = T-t[i]
+    pm, pP, pu, ok = predict_rows(gm, gP, gu, dt, steps, mp, wm, wc, sc)
+    P = len(dj)
+    gated, cost = np.zeros(P, np.bool_), np.zeros(P)
+    if not ok:
+        X = np.empty((U, J, 2*n+1, n))
+        return (pm, pP, pu, X, np.empty((0, J, 4)), np.empty((0, J, 4)), np.empty((0, J, 4, 4)),
+                np.empty((0, J, n, 4)), np.empty((0, 4, 4)), np.empty(0), np.empty(0), gated, cost, False)
+    Xf, ok = sigma_rows(pm.reshape(U*J, n), pP.reshape(U*J, n, n), sc)
+    X = Xf.reshape(U, J, 2*n+1, n)
+    if not ok:
+        return (pm, pP, pu, X, np.empty((0, J, 4)), np.empty((0, J, 4)), np.empty((0, J, 4, 4)),
+                np.empty((0, J, n, 4)), np.empty((0, 4, 4)), np.empty(0), np.empty(0), gated, cost, False)
+    off, mur = np.empty(P), np.empty((P, J))
+    for p in range(P):
+        off[p] = time[dj[p]]-T
+        for j in range(J):
+            mur[p, j] = pu[row[p], j]
+    zhat, nu, Pzz, D, R, ll, nis, ok = gate_pairs(X, row, dj, off, mur, kind, z, R_fit, dz_dv, v_prior, pose, vs,
+                                                  cam, wrap, steps, mp, gp, wm, wc)
+    if ok:
+        for p in range(P):
+            d = dj[p]
+            gated[p] = nis[p] <= thr[min(dof[d], 4)]
+            ll[p] = ll[p]+ll_pad[d]
+            cost[p] = log_clutter[d]-ll[p]
+    return pm, pP, pu, X, zhat, nu, Pzz, D, R, ll, nis, gated, cost, ok
+
+
+@njit(error_model='numpy')
+def assign_prep(ci, cj, gated, cost, scan, big):
+    """TeamTracker._assign's bookkeeping: of the gated pairs, those that are their own problem (their (scan, track)
+    and their detection in no other gated pair) are taken as they are; the others form per-scan problems, and those
+    with one track or one detection are solved here as scipy's linear_sum_assignment solves them (the first least
+    cost, big standing in for a missing or non-finite one, and kept only when finite). Returns (chosen pair indices,
+    unsorted; C, F, I flat: the other problems' matrices of cost (big where none or non-finite), finite and pair
+    index, rows the sorted detections, columns the sorted tracks; shapes (parts, 2))."""
+    Pn = len(ci)
+    sel = np.empty(Pn, np.int64)
+    ns = 0
+    for p in range(Pn):
+        if gated[p]:
+            sel[ns] = p
+            ns += 1
+    sel = sel[:ns]
+    chosen = np.empty(ns, np.int64)
+    nch = 0
+    if ns == 0:
+        return chosen, np.empty(0), np.zeros(0, np.bool_), np.empty(0, np.int64), np.empty((0, 2), np.int64)
+    cmax = 0
+    for q in range(ns):
+        cmax = max(cmax, ci[sel[q]])
+    key = np.empty(ns, np.int64)
+    kmax, dmax = 0, 0
+    for q in range(ns):
+        key[q] = scan[cj[sel[q]]]*(cmax+1)+ci[sel[q]]
+        kmax = max(kmax, key[q])
+        dmax = max(dmax, cj[sel[q]])
+    nk, nd = np.zeros(kmax+1, np.int64), np.zeros(dmax+1, np.int64)
+    for q in range(ns):
+        nk[key[q]] += 1
+        nd[cj[sel[q]]] += 1
+    rest = np.empty(ns, np.int64)
+    nrest = 0
+    for q in range(ns):
+        if nk[key[q]] == 1 and nd[cj[sel[q]]] == 1:
+            chosen[nch] = sel[q]
+            nch += 1
+        else:
+            rest[nrest] = sel[q]
+            nrest += 1
+    rest = rest[:nrest]
+    if nrest == 0:
+        return chosen[:nch], np.empty(0), np.zeros(0, np.bool_), np.empty(0, np.int64), np.empty((0, 2), np.int64)
+    rs = np.empty(nrest, np.int64)
+    for q in range(nrest):
+        rs[q] = scan[cj[rest[q]]]
+    order = np.argsort(rs, kind='mergesort')
+    rest, rs = rest[order], rs[order]
+    nb = 1
+    for q in range(1, nrest):
+        if rs[q] != rs[q-1]:
+            nb += 1
+    bounds = np.empty(nb+1, np.int64)
+    bounds[0] = 0
+    b = 1
+    for q in range(1, nrest):
+        if rs[q] != rs[q-1]:
+            bounds[b] = q
+            b += 1
+    bounds[nb] = nrest
+    Cr, Ir, shapes = assign_parts(ci[rest], cj[rest], cost[rest], rest, bounds)
+    keep = np.zeros(nb, np.bool_)
+    total = 0
+    off = 0
+    for p in range(nb):
+        r_, c_ = shapes[p, 0], shapes[p, 1]
+        if r_ == 1 or c_ == 1:
+            best, bv = 0, inf
+            for q in range(r_*c_):
+                v = Cr[off+q]
+                if not v-v == 0:
+                    v = big
+                if q == 0 or v < bv:
+                    best, bv = q, v
+            c0 = Cr[off+best]
+            if c0-c0 == 0:
+                chosen[nch] = Ir[off+best]
+                nch += 1
+        else:
+            keep[p] = True
+            total += r_*c_
+        off += r_*c_
+    C, F, I = np.empty(total), np.zeros(total, np.bool_), np.empty(total, np.int64)
+    sh = np.empty((nb, 2), np.int64)
+    m, o, src = 0, 0, 0
+    for p in range(nb):
+        r_, c_ = shapes[p, 0], shapes[p, 1]
+        if keep[p]:
+            for q in range(r_*c_):
+                v = Cr[src+q]
+                fin = v-v == 0
+                C[o+q] = v if fin else big
+                F[o+q] = fin
+                I[o+q] = Ir[src+q]
+            sh[m, 0], sh[m, 1] = r_, c_
+            m += 1
+            o += r_*c_
+        src += r_*c_
+    return chosen[:nch], C, F, I, sh[:m]
+
+
+@njit(error_model='numpy')
+def apply_rows(pick, row, trk, dj, pm, pP, pu, X, wm1, nu, Pzz, D, R, time, mu_floor, means, covs, mu, t, last_seen,
+               T):
+    """TeamTracker._apply compiled: the pairs pick of a gating pass (track row row, track trk[row], detection dj;
+    predictions pm, pP, pu and sigma points X per row; nu, Pzz, D and R per pair) grouped by track row (then pair),
+    one joint_update per track, written into the tracks' means, covs, mu and t (= T) in place, and last_seen raised
+    to its detections' times. Returns (status, k, means, covs, mu): status 0 done; 1 some posterior covariance is
+    not positive definite (only last_seen written: the caller floors it and writes k's rows); 2 a matrix without a
+    plain Cholesky factor (only last_seen written: the caller redoes the update in numpy)."""
+    Pk = len(pick)
+    J, n = pm.shape[1], pm.shape[2]
+    M = nu.shape[2]
+    key = np.empty(Pk, np.int64)
+    pmax = 0
+    for q in range(Pk):
+        pmax = max(pmax, pick[q])
+    for q in range(Pk):
+        key[q] = row[pick[q]]*(pmax+1)+pick[q]
+    order = np.argsort(key, kind='mergesort')
+    srt = pick[order]
+    nu_, Pzz_, D_, R_ = np.empty((Pk, J, M)), np.empty((Pk, J, M, M)), np.empty((Pk, J, n, M)), np.empty((Pk, M, M))
+    ng = 0
+    for q in range(Pk):
+        if q == 0 or row[srt[q]] != row[srt[q-1]]:
+            ng += 1
+    start, u = np.empty(ng, np.int64), np.empty(ng, np.int64)
+    g = 0
+    for q in range(Pk):
+        p = srt[q]
+        if q == 0 or row[p] != row[srt[q-1]]:
+            start[g] = q
+            u[g] = row[p]
+            g += 1
+        nu_[q] = nu[p]
+        Pzz_[q] = Pzz[p]
+        D_[q] = D[p]
+        R_[q] = R[p]
+    sm, sP, su, sX = np.empty((ng, J, n)), np.empty((ng, J, n, n)), np.empty((ng, J)), np.empty((ng, J, 2*n+1, n))
+    k = np.empty(ng, np.int64)
+    for g in range(ng):
+        sm[g] = pm[u[g]]
+        sP[g] = pP[u[g]]
+        su[g] = pu[u[g]]
+        sX[g] = X[u[g]]
+        k[g] = trk[u[g]]
+    om, oc, ou, ok, healthy = joint_update(sm, sP, su, sX, wm1, start, nu_, Pzz_, D_, R_, mu_floor)
+    for q in range(Pk):
+        p = srt[q]
+        i = trk[row[p]]
+        last_seen[i] = _nmax(last_seen[i], time[dj[p]])
+    if not ok:
+        return 2, k, om, oc, ou
+    if not healthy:
+        return 1, k, om, oc, ou
+    for g in range(ng):
+        i = k[g]
+        means[i] = om[g]
+        covs[i] = oc[g]
+        mu[i] = ou[g]
+        t[i] = T
+    return 0, k, om, oc, ou
+
+
+@njit(error_model='numpy')
+def confirm_rows(hist, confirmed, pd, hit_tr, bits, need, count_pd):
+    """TeamTracker._run_cycle's confirmation (step 6), in place: hist shifted (bit 0 the detection) for the tracks
+    detected (hit_tr) or covered (1 - prod(1 - pd) >= count_pd), confirmed set at need detections in the last bits
+    counted cycles."""
+    Q, n = pd.shape
+    det = np.zeros(n, np.bool_)
+    for h in range(len(hit_tr)):
+        det[hit_tr[h]] = True
+    mask = (1 << bits)-1
+    for j in range(n):
+        pr = 1.0
+        if Q:
+            pr = 1-pd[0, j]
+            for q in range(1, Q):
+                pr = pr*(1-pd[q, j])
+        if det[j] or 1-pr >= count_pd:
+            hist[j] = ((hist[j] << 1) | (1 if det[j] else 0)) & mask
+        c = 0
+        for b in range(bits):
+            c += (hist[j] >> b) & 1
+        if c >= need:
+            confirmed[j] = True
+
+
+@njit(error_model='numpy')
+def speed_prior(xy, team, has_team, mc, confirmed, lanes, w, sig_own, sig_lane):
+    """TeamTracker._speed_prior: (v0, sigma) of new tracks at xy (u, 2): the median speed of the confirmed tracks
+    (mc (n, 4)) in the lane (models.lane_of), else the nearest team car's speed (team (k, 4+); has_team False:
+    none, speed 0)."""
+    u = len(xy)
+    v0, sig = np.zeros(u), np.full(u, sig_own)
+    half = lanes*w/2
+    if has_team and len(team):
+        for a in range(u):
+            best, bd = 0, abs(xy[a, 0]-team[0, 0])
+            for c in range(1, len(team)):
+                dd = abs(xy[a, 0]-team[c, 0])
+                if bd == bd and (dd < bd or dd != dd):      # np.argmin: the first least, or the first NaN
+                    best, bd = c, dd
+            v0[a] = team[best, 3]
+    nc = 0
+    for i in range(len(mc)):
+        if confirmed[i]:
+            nc += 1
+    if len(mc) and nc:
+        med = np.full(lanes, nan)
+        tl = np.full(len(mc), -1, np.int64)
+        for i in range(len(mc)):
+            if confirmed[i]:
+                tl[i] = int(_clip(floor((mc[i, 1]+half)/w), 0.0, lanes-1.0))
+        for l in range(lanes):
+            cnt, bad = 0, False
+            for i in range(len(mc)):
+                if tl[i] == l:
+                    cnt += 1
+                    if mc[i, 2] != mc[i, 2]:
+                        bad = True
+            if cnt == 0 or bad:
+                continue
+            v = np.empty(cnt)
+            q = 0
+            for i in range(len(mc)):
+                if tl[i] == l:
+                    v[q] = mc[i, 2]
+                    q += 1
+            v.sort()
+            h = cnt//2
+            med[l] = v[h] if cnt % 2 else (v[h-1]+v[h])/2
+        for a in range(u):
+            x = floor((xy[a, 1]+half)/w)
+            if x != x:
+                continue
+            m_ = med[int(_clip(x, 0.0, lanes-1.0))]
+            if m_-m_ == 0:
+                v0[a], sig[a] = m_, sig_lane
+    return v0, sig
+
+
+@njit(error_model='numpy')
+def box_pairs(mT, L, W):
+    """(i, j), i < j in row-major order, of the tracks (mT (n, 4+)) less than L apart along and W across the road
+    (TeamTracker._manage's candidates: np.nonzero(np.triu(...))'s order)."""
+    n = len(mT)
+    cnt = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            if abs(mT[i, 0]-mT[j, 0]) < L and abs(mT[i, 1]-mT[j, 1]) < W:
+                cnt += 1
+    a, b = np.empty(cnt, np.int64), np.empty(cnt, np.int64)
+    c = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            if abs(mT[i, 0]-mT[j, 0]) < L and abs(mT[i, 1]-mT[j, 1]) < W:
+                a[c], b[c] = i, j
+                c += 1
+    return a, b
+
+
+@njit(error_model='numpy')
+def drop_rows(mT, PT, p, confirmed, last_seen, T, delete_exist, max_var, age, has_team, lo, hi):
+    """TeamTracker._manage's deletion tests of the tracks (combined states mT (n, 4), PT (n, 4, 4) at T): a state
+    that is not finite, existence below delete_exist, along-road variance above max_var, unconfirmed and not seen for
+    more than age, outside [lo, hi] along the road (has_team)."""
+    n = len(mT)
+    out = np.zeros(n, np.bool_)
+    for i in range(n):
+        fin = True
+        for a in range(4):
+            if not mT[i, a]-mT[i, a] == 0:
+                fin = False
+            for b in range(4):
+                if not PT[i, a, b]-PT[i, a, b] == 0:
+                    fin = False
+        d = (not fin) or p[i] < delete_exist or PT[i, 0, 0] > max_var
+        d = d or ((not confirmed[i]) and T-last_seen[i] > age)
+        if has_team:
+            d = d or mT[i, 0] < lo or mT[i, 0] > hi
+        out[i] = d
+    return out
+
+
+@njit(error_model='numpy')
+def birth_states(U, kind, z, R, pose, vs, has_xy, init_xy, init_P, bp, wm3, wc3, sc3, wm4, wc4, sc4, vd_var, team,
+                 has_team, mc, confirmed, lanes, w, sig_own, sig_lane):
+    """TeamTracker._birth_states of the table rows U: birth_rows for the lidar and radar rows, a camera row's
+    single-frame position (init_xy, init_P; ok False without one), the lateral speed variance vd_var, the speed prior
+    (speed_prior) where no radar range rate gives v_s, symmetrized covariances and the finite test. Returns (mean,
+    cov, ok, done); done False when birth_rows needs the numpy path's safeguards."""
+    u = len(U)
+    kd = np.empty(u, np.int64)
+    zz, RR = np.empty((u, z.shape[1])), np.empty((u, R.shape[1], R.shape[2]))
+    pp, vv = np.empty((u, 4)), np.empty((u, 2))
+    for a in range(u):
+        j = U[a]
+        kd[a] = kind[j]
+        zz[a] = z[j]
+        RR[a] = R[j]
+        pp[a] = pose[j]
+        vv[a] = vs[j]
+    mean, cov, have_v, done = birth_rows(kd, zz, RR, pp, vv, bp, wm3, wc3, sc3, wm4, wc4, sc4)
+    ok = np.ones(u, np.bool_)
+    if not done:
+        return mean, cov, ok, False
+    for a in range(u):
+        if kd[a] == CAMERA:
+            j = U[a]
+            if has_xy[j]:
+                for b in range(2):
+                    mean[a, b] = init_xy[j, b]
+                    for c in range(2):
+                        cov[a, b, c] = init_P[j, b, c]
+            else:
+                ok[a] = False
+        if kd[a] != RADAR:
+            cov[a, 3, 3] = vd_var
+    nn = 0
+    for a in range(u):
+        if not have_v[a]:
+            nn += 1
+    if nn:
+        xy = np.empty((nn, 2))
+        q = 0
+        for a in range(u):
+            if not have_v[a]:
+                xy[q, 0], xy[q, 1] = mean[a, 0], mean[a, 1]
+                q += 1
+        v0, s0 = speed_prior(xy, team, has_team, mc, confirmed, lanes, w, sig_own, sig_lane)
+        q = 0
+        for a in range(u):
+            if not have_v[a]:
+                mean[a, 2] = v0[q]
+                cov[a, 2, 2] = s0[q]*s0[q]
+                q += 1
+    out = np.empty((u, 4, 4))
+    for a in range(u):
+        fin = True
+        for b in range(4):
+            if not mean[a, b]-mean[a, b] == 0:
+                fin = False
+            for c in range(4):
+                v = 0.5*(cov[a, b, c]+cov[a, c, b])
+                out[a, b, c] = v
+                if not v-v == 0:
+                    fin = False
+        ok[a] = ok[a] and fin
+    return mean, out, ok, True
+

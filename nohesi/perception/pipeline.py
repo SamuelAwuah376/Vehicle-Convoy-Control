@@ -52,6 +52,7 @@ Simplifications: the fusion centre gets the true team states at `now` (V2V exact
 the teammates' states used by processing are exact at the scan's own times.
 """
 from collections import deque
+from math import pi, sqrt
 from dataclasses import replace
 from time import perf_counter
 import numpy as np
@@ -59,7 +60,7 @@ from ..geometry import body_centre
 from ..world import TEAM
 from .belief import perceived_snapshot
 from .config import CameraSpec, LidarSpec, Mount, RadarSpec
-from .geometry import sensor_pose, wrap
+from .geometry import mount_offset, sensor_pose, wrap
 from .processing.camera import process_cameras
 from .processing.lidar import process_lidar
 from .processing.radar import process_radars
@@ -99,10 +100,14 @@ _KIND = ('lidar_box', 'radar', 'camera_box')
 class _TeamHistory:
     """The team's exact states over the last TEAM_HISTORY seconds, linearly interpolated (as types.TruthHistory
     interpolates the team, so processing sees exactly the motion the simulators used): per car [x, y, yaw, v, vy, r,
-    ax], yaw unwrapped along the history; times outside it clamp to the nearest end."""
+    ax], yaw unwrapped along the history; times outside it clamp to the nearest end.
+
+    Processing asks for the same times many times per step (every scan's ends and middle, every camera at the frame
+    time), so at, ego and mates remember their answers until the next push; the arrays they return are read-only."""
     def __init__(self):
         self.times, self.states = deque(), deque()
         self._cache = None
+        self._at, self._ego, self._mates = {}, {}, {}
 
     def push(self, snap, accel):
         k = len(snap.team)
@@ -120,29 +125,50 @@ class _TeamHistory:
             self.times.popleft()
             self.states.popleft()
         self._cache = None
+        self._at.clear()
+        self._ego.clear()
+        self._mates.clear()
 
     def at(self, t):
+        t = float(t)
+        out = self._at.get(t)
+        if out is not None:
+            return out
         if self._cache is None:
             self._cache = np.array(self.times), np.array(self.states)
         times, states = self._cache
         k = int(np.searchsorted(times, t))
         if k <= 0:
-            return states[0].copy()
-        if k >= len(times):
-            return states[-1].copy()
-        w = (t-times[k-1])/(times[k]-times[k-1])
-        return states[k-1]+w*(states[k]-states[k-1])
+            out = states[0].copy()
+        elif k >= len(times):
+            out = states[-1].copy()
+        else:
+            w = (t-times[k-1])/(times[k]-times[k-1])
+            out = states[k-1]+w*(states[k]-states[k-1])
+        out.flags.writeable = False
+        self._at[t] = out
+        return out
 
     def ego(self, car, t, pitch_per_accel=0.0):
         """EgoState of team car `car` at t; pitch the braking-pitch estimate pitch_per_accel x (-ax)."""
-        x, y, yaw, v, vy, r, ax = (float(a) for a in self.at(t)[car])
-        vx = float(np.sqrt(max(v*v-vy*vy, 0.0)))       # team v is the CG speed (DynamicPlant: hypot(vx, vy))
-        return EgoState(float(t), x, y, float(wrap(yaw)), vx, vy, r, ax, pitch_per_accel*(-ax))
+        key = (int(car), float(t), float(pitch_per_accel))
+        out = self._ego.get(key)
+        if out is None:
+            x, y, yaw, v, vy, r, ax = self.at(t)[car].tolist()
+            vx = sqrt(max(v*v-vy*vy, 0.0))                 # team v is the CG speed (DynamicPlant: hypot(vx, vy))
+            out = EgoState(float(t), x, y, (yaw+pi) % (2*pi)-pi, vx, vy, r, ax, pitch_per_accel*(-ax))
+            self._ego[key] = out                           # (yaw: geometry.wrap's arithmetic on a float)
+        return out
 
     def mates(self, car, t):
         """(k - 1, 3) CG states [x, y, yaw] of the other team cars at t."""
-        st = self.at(t)
-        return np.delete(st[:, :3], car, axis=0)
+        key = (int(car), float(t))
+        out = self._mates.get(key)
+        if out is None:
+            out = np.delete(self.at(t)[:, :3], car, axis=0)
+            out.flags.writeable = False
+            self._mates[key] = out
+        return out
 
 
 class PerceptionSystem:
@@ -193,6 +219,7 @@ class PerceptionSystem:
         self.rng = np.random.default_rng([int(self.seed), int(self.cfg.seed_tag)])
         self.truth = TruthHistory()
         self.team = _TeamHistory()
+        self._offsets = {}
         n = self.team_size if self.own else 1
         specs = {s.name: s for s in self.sensors}
         self.trackers = [TeamTracker(self.cfg.tracker, self.road, self.params, specs, self.cfg.car_height,
@@ -342,12 +369,21 @@ class PerceptionSystem:
 
     def _queue_scan(self, spec, car, time, dets, raw, true):
         """Queue one scan's detections and its ScanInfo for delivery at time + latency (+ the V2V link)."""
-        pose = sensor_pose(spec.mount, self.team.at(time)[car], self.params)
-        info = ScanInfo(spec.name, int(car), time, pose)
+        info = ScanInfo(spec.name, int(car), time, self._sensor_pose(spec, car, time))
         self._queue.append((time+float(spec.latency)+self.link, self._seq, int(car), dets, info))
         self._seq += 1
         if self.record:
             self._scans.append((time, car, spec.name, _KIND[_type(spec)], raw, true, len(dets)))
+
+    def _sensor_pose(self, spec, car, time):
+        """geometry.sensor_pose of `spec` on team car `car` at time (the same arithmetic, the mount offset kept)."""
+        off = self._offsets.get(spec.name)
+        if off is None or off[0] is not spec.mount:
+            off = self._offsets[spec.name] = spec.mount, *mount_offset(spec.mount, self.params)
+        mount, ox, oy = off
+        x, y, yaw = self.team.at(time)[car, :3].tolist()
+        c, s = np.cos(yaw), np.sin(yaw)
+        return (x+c*ox-s*oy, y+s*ox+c*oy, float(wrap(yaw+mount.yaw)), float(mount.z))
 
     def _ideal_scan(self, snap):
         """Experiment E0's perfect detections at snap.time (module docstring), delivered at once."""
